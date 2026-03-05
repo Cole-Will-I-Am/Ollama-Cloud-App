@@ -31,7 +31,7 @@ enum OllamaAPIError: LocalizedError {
         switch self {
         case .offline: return "You're offline. Check your connection."
         case .timeout: return "Request timed out. Try again."
-        case .unauthorized: return "Invalid API key. Update it in Settings."
+        case .unauthorized: return "Invalid API key. Remove it in Settings and re-enter."
         case .modelUnavailable: return "Selected model is no longer available. Choose another model."
         case .rateLimited: return "Rate limited. Wait a moment and retry."
         case .serverError: return "Server error. Try again shortly."

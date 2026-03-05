@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ModelPickerView: View {
     let onSelect: (OllamaModel) -> Void
+    let onCancel: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("favorite_model_names_by_account_json") private var favoriteModelNamesByAccountJSON = "{}"
@@ -13,6 +14,14 @@ struct ModelPickerView: View {
     @State private var fetchTask: Task<Void, Never>?
     @State private var favoriteModelNames: Set<String> = []
     @State private var hideNonFavoriteModels = false
+
+    init(
+        onSelect: @escaping (OllamaModel) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
+        self.onSelect = onSelect
+        self.onCancel = onCancel
+    }
 
     private var searchedModels: [OllamaModel] {
         if searchText.isEmpty { return models }
@@ -187,7 +196,10 @@ struct ModelPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: {
+                    Button {
+                        onCancel?()
+                        dismiss()
+                    } label: {
                         Text("CANCEL")
                             .font(.appLabel(11))
                             .tracking(2)
@@ -279,7 +291,7 @@ struct ModelPickerView: View {
                 Image(systemName: favoriteModelNames.contains(model.name) ? "star.fill" : "star")
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(favoriteModelNames.contains(model.name) ? Color.accent : Color.textTertiary)
-                    .frame(width: 30, height: 30)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(favoriteModelNames.contains(model.name) ? "Remove favorite" : "Add favorite")

@@ -119,8 +119,11 @@ struct ConversationListView: View {
                 }
             }
         }
-        .sheet(isPresented: $showModelPicker) {
-            ModelPickerView { model in
+        .sheet(isPresented: $showModelPicker, onDismiss: {
+            deletePendingConversationIfEmpty()
+            pendingConversation = nil
+        }) {
+            ModelPickerView(onSelect: { model in
                 if let conv = pendingConversation {
                     conv.modelName = model.name
                     do {
@@ -130,8 +133,13 @@ struct ConversationListView: View {
                         persistenceError = "Failed to save model selection."
                     }
                 }
+                pendingConversation = nil
                 showModelPicker = false
-            }
+            }, onCancel: {
+                deletePendingConversationIfEmpty()
+                pendingConversation = nil
+                showModelPicker = false
+            })
         }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
@@ -232,6 +240,23 @@ struct ConversationListView: View {
 
         if !sortedConversations.contains(where: { $0.id == selected.id }) {
             selection = nil
+        }
+    }
+
+    private func deletePendingConversationIfEmpty() {
+        guard let pendingConversation else { return }
+        let hasModel = !pendingConversation.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasMessages = !pendingConversation.messages.isEmpty
+        guard !hasModel && !hasMessages else { return }
+
+        if selection?.id == pendingConversation.id {
+            selection = nil
+        }
+        modelContext.delete(pendingConversation)
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to remove empty chat."
         }
     }
 }

@@ -69,6 +69,8 @@ struct APIKeyEntryView: View {
                         )
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .accessibilityLabel("API key")
+                        .accessibilityHint("Paste your Ollama Cloud API key")
 
                     if let errorMessage {
                         Text(errorMessage)
@@ -175,12 +177,17 @@ struct APIKeyEntryView: View {
     }
 
     private var connectButtonDisabled: Bool {
-        apiKey.isEmpty || isValidating || !network.isConnected
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isValidating || !network.isConnected
     }
 
     private func validate() {
+        let normalizedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard network.isConnected else {
             errorMessage = "No internet connection"
+            return
+        }
+        guard !normalizedKey.isEmpty else {
+            errorMessage = "API key is required"
             return
         }
 
@@ -201,10 +208,11 @@ struct APIKeyEntryView: View {
 
         Task {
             do {
-                let valid = try await OllamaAPIClient.shared.validateKey(apiKey)
+                let valid = try await OllamaAPIClient.shared.validateKey(normalizedKey)
                 if valid {
                     Haptic.notification(.success)
-                    KeychainHelper.save(key: "api_key", value: apiKey)
+                    KeychainHelper.save(key: "api_key", value: normalizedKey)
+                    apiKey = normalizedKey
                     hasAPIKey = true
                 } else {
                     errorMessage = "Invalid API key"

@@ -97,6 +97,7 @@ struct ParametersView: View {
     @State private var showAdvanced = false
     @State private var showScaffoldLibrary = false
     @State private var editingScaffold: ReasoningScaffold?
+    @State private var showModelPicker = false
 
     var body: some View {
         NavigationStack {
@@ -107,16 +108,26 @@ struct ParametersView: View {
 
                     // Model
                     section("MODEL") {
-                        HStack(spacing: 12) {
-                            Image(systemName: "cpu")
-                                .font(.system(size: 15, weight: .ultraLight))
-                                .foregroundStyle(Color.accent)
-                            Text(conversation.modelName.isEmpty ? "None" : conversation.modelName)
-                                .font(.app(14))
-                                .foregroundStyle(Color.textPrimary)
-                            Spacer()
+                        Button {
+                            showModelPicker = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 15, weight: .ultraLight))
+                                    .foregroundStyle(Color.accent)
+                                Text(conversation.modelName.isEmpty ? "None" : conversation.modelName)
+                                    .font(.app(14))
+                                    .foregroundStyle(Color.textPrimary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Color.textTertiary)
+                            }
+                            .padding(16)
+                            .contentShape(Rectangle())
                         }
-                        .padding(16)
+                        .buttonStyle(.plain)
                     }
 
                     // Sampling
@@ -256,6 +267,21 @@ struct ParametersView: View {
                     accountScopeKey: AccountScope.currentKey(),
                     scaffold: scaffold
                 )
+            }
+            .sheet(isPresented: $showModelPicker) {
+                ModelPickerView(onSelect: { model in
+                    conversation.modelName = model.name
+                    conversation.updatedAt = Date()
+                    do {
+                        try modelContext.save()
+                        showModelPicker = false
+                    } catch {
+                        errorMessage = "Failed to save selected model."
+                    }
+                })
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
             }
             .alert("Storage Error", isPresented: Binding(
                 get: { errorMessage != nil },

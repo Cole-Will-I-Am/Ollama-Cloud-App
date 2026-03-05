@@ -33,6 +33,7 @@ struct ChatView: View {
     @State private var attachmentError: String?
     @State private var scaffoldPersistenceError: String?
     @State private var showVisionModelWarning = false
+    @State private var pendingHistoryAction: PendingHistoryAction?
 
     private struct PendingImageAttachment: Identifiable, Equatable {
         let id = UUID()
@@ -45,6 +46,17 @@ struct ChatView: View {
         let name: String
         let content: String
         let originalCharacterCount: Int
+    }
+
+    private struct PendingHistoryAction {
+        enum Kind {
+            case editPrompt
+            case regenerate
+        }
+
+        let kind: Kind
+        let messageID: UUID
+        let removedMessageCount: Int
     }
 
     private var sortedMessages: [Message] {
@@ -83,7 +95,7 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $showModelPicker) {
-            ModelPickerView { model in
+            ModelPickerView(onSelect: { model in
                 conversation.modelName = model.name
                 do {
                     try modelContext.save()
@@ -91,7 +103,7 @@ struct ChatView: View {
                 } catch {
                     streaming.error = "Failed to save selected model."
                 }
-            }
+            })
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationBackground(.ultraThinMaterial)
@@ -194,6 +206,27 @@ struct ChatView: View {
         } message: {
             Text("The selected model may not support image input. Choose a vision-capable model or remove image attachments.")
         }
+        .confirmationDialog(
+            pendingHistoryActionTitle,
+            isPresented: Binding(
+                get: { pendingHistoryAction != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingHistoryAction = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(pendingHistoryActionConfirmLabel, role: .destructive) {
+                performPendingHistoryAction()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingHistoryAction = nil
+            }
+        } message: {
+            Text(pendingHistoryActionMessage)
+        }
     }
 
     @ViewBuilder
@@ -212,10 +245,10 @@ struct ChatView: View {
                                     MessageRow(
                                         message: message,
                                         onEditPrompt: { selected in
-                                            editPromptFromHistory(messageID: selected.id)
+                                            requestEditPrompt(for: selected)
                                         },
                                         onRegenerate: { selected in
-                                            regenerateFromAssistant(messageID: selected.id)
+                                            requestRegenerate(for: selected)
                                         }
                                     )
                                         .id(message.id)
@@ -293,6 +326,11 @@ struct ChatView: View {
                         if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
                             sentFirstTokenHaptic = true
                             Haptic.notification(.success)
+                        }
+                    }
+                    .onChange(of: streaming.streamingThinking) {
+                        if isAtBottom && shouldAutoFollowStreaming {
+                            scrollToBottom(proxy: proxy, messages: messages)
                         }
                     }
                     .onChange(of: streaming.isStreaming) { _, isNow in
@@ -650,7 +688,7 @@ struct ChatView: View {
                             ForEach(pendingFileAttachments) { file in
                                 attachmentChip(
                                     icon: "doc.text",
-                                    label: "\(file.name) · \(file.content.count) chars"
+                                    label: fileAttachmentLabel(file)
                                 ) {
                                     pendingFileAttachments.removeAll { $0.id == file.id }
                                 }
@@ -667,7 +705,7 @@ struct ChatView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(Color.accent)
-                            .frame(width: 34, height: 34)
+                            .frame(minWidth: 44, minHeight: 44)
                             .background(
                                 Circle()
                                     .fill(Color.accentSoft)
@@ -676,6 +714,8 @@ struct ChatView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(streaming.isStreaming)
+                    .accessibilityLabel("Add attachment")
+                    .accessibilityHint("Attach photos or text files to your next message")
 
                     if AppConfig.reasoningScaffoldsEnabled {
                         Button {
@@ -684,7 +724,7 @@ struct ChatView: View {
                             Image(systemName: "brain")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(Color.accent)
-                                .frame(width: 34, height: 34)
+                                .frame(minWidth: 44, minHeight: 44)
                                 .background(
                                     Circle()
                                         .fill(Color.accentSoft)
@@ -693,6 +733,8 @@ struct ChatView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(streaming.isStreaming)
+                        .accessibilityLabel("Reasoning scaffold")
+                        .accessibilityHint("Choose or change the reasoning scaffold for this chat")
                     }
 
                     TextField("", text: $input, prompt: Text(inputPlaceholder).foregroundStyle(Color.textTertiary), axis: .vertical)
@@ -711,6 +753,8 @@ struct ChatView: View {
                                 )
                         )
                         .onSubmit { send() }
+                        .accessibilityLabel("Message input")
+                        .accessibilityHint("Type your message")
 
                     if streaming.isStreaming {
                         Button {
@@ -720,20 +764,22 @@ struct ChatView: View {
                             Image(systemName: "stop.fill")
                                 .font(.system(size: 13, weight: .ultraLight))
                                 .foregroundStyle(.white)
-                                .frame(width: 38, height: 38)
+                                .frame(minWidth: 44, minHeight: 44)
                                 .background(Circle().fill(Color.danger))
                         }
+                        .accessibilityLabel("Stop generation")
                     } else {
                         Button(action: send) {
                             Image(systemName: canSend ? "arrow.up" : (network.isConnected ? "arrow.up" : "wifi.slash"))
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(.white)
-                                .frame(width: 38, height: 38)
+                                .frame(minWidth: 44, minHeight: 44)
                                 .background(
                                     Circle().fill(canSend ? LinearGradient.accentGradient : LinearGradient(colors: [Color.bgTertiary], startPoint: .top, endPoint: .bottom))
                                 )
                         }
                         .disabled(!canSend)
+                        .accessibilityLabel("Send message")
                     }
                 }
             }
@@ -767,6 +813,86 @@ struct ChatView: View {
 
     private var hasPendingAttachments: Bool {
         !pendingImageAttachments.isEmpty || !pendingFileAttachments.isEmpty
+    }
+
+    private var pendingHistoryActionTitle: String {
+        guard let pendingHistoryAction else { return "Confirm Action" }
+        switch pendingHistoryAction.kind {
+        case .editPrompt:
+            return "Edit Prompt?"
+        case .regenerate:
+            return "Regenerate Response?"
+        }
+    }
+
+    private var pendingHistoryActionConfirmLabel: String {
+        guard let pendingHistoryAction else { return "Continue" }
+        switch pendingHistoryAction.kind {
+        case .editPrompt:
+            return "Edit Prompt"
+        case .regenerate:
+            return "Regenerate"
+        }
+    }
+
+    private var pendingHistoryActionMessage: String {
+        guard let pendingHistoryAction else { return "" }
+        let suffix = pendingHistoryAction.removedMessageCount == 1 ? "" : "s"
+        switch pendingHistoryAction.kind {
+        case .editPrompt:
+            return "This will remove \(pendingHistoryAction.removedMessageCount) message\(suffix) so you can edit and resend."
+        case .regenerate:
+            return "This will remove \(pendingHistoryAction.removedMessageCount) message\(suffix) from this point and generate a new response."
+        }
+    }
+
+    private func requestEditPrompt(for message: Message) {
+        guard !streaming.isStreaming else { return }
+
+        let sorted = sortedMessages
+        guard let userIndex = sorted.firstIndex(where: { $0.id == message.id }),
+              sorted[userIndex].role == "user" else {
+            return
+        }
+
+        pendingHistoryAction = PendingHistoryAction(
+            kind: .editPrompt,
+            messageID: message.id,
+            removedMessageCount: sorted.count - userIndex
+        )
+    }
+
+    private func requestRegenerate(for message: Message) {
+        guard !streaming.isStreaming else { return }
+
+        let sorted = sortedMessages
+        guard let assistantIndex = sorted.firstIndex(where: { $0.id == message.id }),
+              sorted[assistantIndex].role == "assistant" else {
+            return
+        }
+
+        guard let userIndex = (0..<assistantIndex).reversed().first(where: { sorted[$0].role == "user" }) else {
+            streaming.notice = "Could not find the related user prompt for regeneration."
+            return
+        }
+
+        pendingHistoryAction = PendingHistoryAction(
+            kind: .regenerate,
+            messageID: message.id,
+            removedMessageCount: sorted.count - userIndex
+        )
+    }
+
+    private func performPendingHistoryAction() {
+        guard let action = pendingHistoryAction else { return }
+        pendingHistoryAction = nil
+
+        switch action.kind {
+        case .editPrompt:
+            editPromptFromHistory(messageID: action.messageID)
+        case .regenerate:
+            regenerateFromAssistant(messageID: action.messageID)
+        }
     }
 
     private func editPromptFromHistory(messageID: UUID) {
@@ -1029,6 +1155,13 @@ struct ChatView: View {
         )
     }
 
+    private func fileAttachmentLabel(_ file: PendingFileAttachment) -> String {
+        if file.originalCharacterCount > file.content.count {
+            return "\(file.name) · truncated \(file.content.count)/\(file.originalCharacterCount) chars"
+        }
+        return "\(file.name) · \(file.content.count) chars"
+    }
+
     private func makeAttachmentSummary() -> String? {
         guard hasPendingAttachments else { return nil }
 
@@ -1075,11 +1208,23 @@ struct ChatView: View {
 
     private func isLikelyVisionModel(_ modelName: String) -> Bool {
         let lower = modelName.lowercased()
-        return lower.contains("vision")
-            || lower.contains("llava")
-            || lower.contains("moondream")
-            || lower.contains("vl")
-            || lower.contains("multimodal")
+        let tokens = Set(
+            lower.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+        )
+        if tokens.contains("vision")
+            || tokens.contains("llava")
+            || tokens.contains("moondream")
+            || tokens.contains("multimodal") {
+            return true
+        }
+
+        return lower.contains("qwen-vl")
+            || lower.contains("qwen2-vl")
+            || lower.contains("qwen2.5-vl")
+            || lower.contains("internvl")
+            || lower.contains("minicpm-v")
+            || lower.contains("minicpmv")
     }
 
     private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {

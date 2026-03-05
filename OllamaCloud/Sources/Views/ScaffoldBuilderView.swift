@@ -6,6 +6,7 @@ struct ScaffoldBuilderView: View {
     let scaffold: ReasoningScaffold?
     let template: ReasoningScaffoldTemplate?
     let onSave: ((ReasoningScaffold) -> Void)?
+    let preservedOutputFormat: String
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -41,6 +42,7 @@ struct ScaffoldBuilderView: View {
         } else {
             sourceDraft = .empty
         }
+        self.preservedOutputFormat = sourceDraft.outputFormat
 
         _name = State(initialValue: sourceDraft.name)
         _summary = State(initialValue: sourceDraft.summary)
@@ -62,7 +64,7 @@ struct ScaffoldBuilderView: View {
             perspective: perspective,
             tone: tone,
             reasoningSteps: parseLines(reasoningStepsText),
-            outputFormat: "",
+            outputFormat: preservedOutputFormat,
             mustInclude: parseLines(mustIncludeText),
             neverInclude: parseLines(neverIncludeText),
             disclaimers: parseLines(disclaimersText),

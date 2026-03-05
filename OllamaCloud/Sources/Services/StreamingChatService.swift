@@ -37,6 +37,7 @@ class StreamingChatService: ObservableObject {
         requestContent: String? = nil,
         imageBase64s: [String] = [],
         attachmentSummary: String? = nil,
+        persistUserMessage: Bool = true,
         conversation: Conversation,
         modelContext: ModelContext
     ) async {
@@ -78,38 +79,44 @@ class StreamingChatService: ObservableObject {
             return
         }
 
-        let imageJSON: String? = {
-            guard !imageBase64s.isEmpty,
-                  let data = try? JSONEncoder().encode(imageBase64s),
-                  let json = String(data: data, encoding: .utf8) else {
-                return nil
+        if shouldPersistUserMessage(
+            requested: persistUserMessage,
+            conversation: conversation,
+            resolvedRequestContent: resolvedRequestContent,
+            imageBase64s: imageBase64s
+        ) {
+            let imageJSON: String? = {
+                guard !imageBase64s.isEmpty,
+                      let data = try? JSONEncoder().encode(imageBase64s),
+                      let json = String(data: data, encoding: .utf8) else {
+                    return nil
+                }
+                return json
+            }()
+
+            let userMessage = Message(
+                role: "user",
+                content: resolvedDisplayContent,
+                attachmentRequestContent: resolvedRequestContent == resolvedDisplayContent ? nil : resolvedRequestContent,
+                imageBase64sJSON: imageJSON,
+                conversation: conversation
+            )
+            modelContext.insert(userMessage)
+            conversation.updatedAt = Date()
+
+            // Auto-title from first user message
+            if conversation.messages.count <= 1 && conversation.title == "New Chat" {
+                let titleSource = content.isEmpty ? (attachmentSummary ?? "Attachment") : content
+                let preview = String(titleSource.prefix(40))
+                conversation.title = titleSource.count > 40 ? "\(preview)..." : preview
             }
-            return json
-        }()
 
-        // Create and persist user message
-        let userMessage = Message(
-            role: "user",
-            content: resolvedDisplayContent,
-            attachmentRequestContent: resolvedRequestContent == resolvedDisplayContent ? nil : resolvedRequestContent,
-            imageBase64sJSON: imageJSON,
-            conversation: conversation
-        )
-        modelContext.insert(userMessage)
-        conversation.updatedAt = Date()
-
-        // Auto-title from first user message
-        if conversation.messages.count <= 1 && conversation.title == "New Chat" {
-            let titleSource = content.isEmpty ? (attachmentSummary ?? "Attachment") : content
-            let preview = String(titleSource.prefix(40))
-            conversation.title = titleSource.count > 40 ? "\(preview)..." : preview
-        }
-
-        do {
-            try modelContext.save()
-        } catch {
-            self.error = "Failed to save message"
-            return
+            do {
+                try modelContext.save()
+            } catch {
+                self.error = "Failed to save message"
+                return
+            }
         }
 
         // Build messages array for API
@@ -211,8 +218,36 @@ class StreamingChatService: ObservableObject {
             streamingThinking = ""
             isStreaming = false
             isThinking = false
-            recoveryAction = nil
+            if self.error == nil {
+                recoveryAction = nil
+            }
         }
+    }
+
+    private func shouldPersistUserMessage(
+        requested: Bool,
+        conversation: Conversation,
+        resolvedRequestContent: String,
+        imageBase64s: [String]
+    ) -> Bool {
+        guard !requested else { return true }
+
+        guard let latestUser = conversation.messages
+            .sorted(by: { $0.createdAt < $1.createdAt })
+            .last(where: { $0.role == "user" }) else {
+            return true
+        }
+
+        let latestOutbound: String = {
+            if let attachmentRequestContent = latestUser.attachmentRequestContent,
+               !attachmentRequestContent.isEmpty {
+                return attachmentRequestContent
+            }
+            return latestUser.content
+        }()
+
+        let latestImages = Self.decodedImages(for: latestUser) ?? []
+        return latestOutbound != resolvedRequestContent || latestImages != imageBase64s
     }
 
     nonisolated static func buildOutboundMessages(
@@ -436,6 +471,7 @@ class StreamingChatService: ObservableObject {
             requestContent: lastSentRequestContent,
             imageBase64s: lastSentImageBase64s,
             attachmentSummary: lastSentAttachmentSummary,
+            persistUserMessage: false,
             conversation: conversation,
             modelContext: modelContext
         )
