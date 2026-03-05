@@ -16,6 +16,7 @@ struct ChatView: View {
     }
 
     var body: some View {
+        let messages = sortedMessages
         VStack(spacing: 0) {
             // Offline banner
             if !network.isConnected {
@@ -24,11 +25,11 @@ struct ChatView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    if sortedMessages.isEmpty && !streaming.isStreaming {
+                    if messages.isEmpty && !streaming.isStreaming {
                         emptyState
                     } else {
                         LazyVStack(spacing: 16) {
-                            ForEach(sortedMessages) { message in
+                            ForEach(messages) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
                             }
@@ -53,8 +54,8 @@ struct ChatView: View {
                         .padding(.bottom, 8)
                     }
                 }
-                .onChange(of: sortedMessages.count) { scrollToBottom(proxy: proxy) }
-                .onChange(of: streaming.streamingContent) { scrollToBottom(proxy: proxy) }
+                .onChange(of: messages.count) { scrollToBottom(proxy: proxy, messages: messages) }
+                .onChange(of: streaming.streamingContent) { scrollToBottom(proxy: proxy, messages: messages) }
             }
 
             inputBar
@@ -95,8 +96,12 @@ struct ChatView: View {
         .sheet(isPresented: $showModelPicker) {
             ModelPickerView { model in
                 conversation.modelName = model.name
-                try? modelContext.save()
-                showModelPicker = false
+                do {
+                    try modelContext.save()
+                    showModelPicker = false
+                } catch {
+                    streaming.error = "Failed to save selected model."
+                }
             }
         }
         .sheet(isPresented: $showParameters) {
@@ -189,6 +194,7 @@ struct ChatView: View {
                             .foregroundStyle(Color.textTertiary)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
@@ -250,7 +256,7 @@ struct ChatView: View {
                             )
                             .stroke(Color.border, lineWidth: 0.5)
                         )
-                }
+                    }
             }
             Spacer(minLength: 48)
         }
@@ -386,14 +392,14 @@ struct ChatView: View {
         streaming.sendMessage(content: content, conversation: conversation, modelContext: modelContext)
     }
 
-    private func scrollToBottom(proxy: ScrollViewProxy) {
+    private func scrollToBottom(proxy: ScrollViewProxy, messages: [Message]) {
         if streaming.isStreaming {
             if !streaming.streamingContent.isEmpty || !streaming.streamingThinking.isEmpty {
                 proxy.scrollTo("streaming", anchor: .bottom)
             } else {
                 proxy.scrollTo("typing", anchor: .bottom)
             }
-        } else if let last = sortedMessages.last {
+        } else if let last = messages.last {
             withAnimation(.easeOut(duration: 0.2)) {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }

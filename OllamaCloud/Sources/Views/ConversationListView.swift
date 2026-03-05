@@ -7,6 +7,7 @@ struct ConversationListView: View {
     @Binding var selection: Conversation?
     @State private var showModelPicker = false
     @State private var pendingConversation: Conversation?
+    @State private var persistenceError: String?
 
     var body: some View {
         List(selection: $selection) {
@@ -44,6 +45,8 @@ struct ConversationListView: View {
                         }
                     }
                     .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -73,11 +76,23 @@ struct ConversationListView: View {
             ModelPickerView { model in
                 if let conv = pendingConversation {
                     conv.modelName = model.name
-                    try? modelContext.save()
-                    selection = conv
+                    do {
+                        try modelContext.save()
+                        selection = conv
+                    } catch {
+                        persistenceError = "Failed to save model selection."
+                    }
                 }
                 showModelPicker = false
             }
+        }
+        .alert("Storage Error", isPresented: Binding(
+            get: { persistenceError != nil },
+            set: { _ in persistenceError = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(persistenceError ?? "An unknown storage error occurred.")
         }
         .overlay {
             if conversations.isEmpty {
@@ -96,7 +111,13 @@ struct ConversationListView: View {
     private func newConversation() {
         let conversation = Conversation()
         modelContext.insert(conversation)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to save new conversation."
+            modelContext.delete(conversation)
+            return
+        }
         pendingConversation = conversation
         showModelPicker = true
     }
@@ -107,6 +128,10 @@ struct ConversationListView: View {
             if selection?.id == conversation.id { selection = nil }
             modelContext.delete(conversation)
         }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to delete conversation."
+        }
     }
 }

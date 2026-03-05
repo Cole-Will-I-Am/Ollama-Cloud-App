@@ -208,7 +208,11 @@ class StreamingChatService: ObservableObject {
                 conversation: conversation
             )
             modelContext.insert(partialMessage)
-            try? modelContext.save()
+            do {
+                try modelContext.save()
+            } catch {
+                self.error = "Failed to save partial response"
+            }
         }
 
         streamingContent = ""

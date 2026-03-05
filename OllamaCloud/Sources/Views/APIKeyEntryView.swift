@@ -26,6 +26,7 @@ struct APIKeyEntryView: View {
                 .frame(width: 500, height: 500)
                 .offset(y: -80)
                 .blur(radius: 40)
+                .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 Spacer()

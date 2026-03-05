@@ -82,6 +82,8 @@ struct ModelPickerView: View {
                                     }
                                     .padding(.horizontal, 18)
                                     .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }

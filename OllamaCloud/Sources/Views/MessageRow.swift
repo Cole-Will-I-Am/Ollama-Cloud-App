@@ -90,6 +90,7 @@ struct MessageRow: View {
                 .foregroundStyle(Color.textTertiary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

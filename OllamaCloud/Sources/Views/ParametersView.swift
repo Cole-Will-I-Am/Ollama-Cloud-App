@@ -4,6 +4,7 @@ struct ParametersView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var conversation: Conversation
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -88,8 +89,12 @@ struct ParametersView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        try? modelContext.save()
-                        dismiss()
+                        do {
+                            try modelContext.save()
+                            dismiss()
+                        } catch {
+                            errorMessage = "Failed to save parameters."
+                        }
                     } label: {
                         Text("DONE")
                             .font(.appLabel(12))
@@ -97,6 +102,14 @@ struct ParametersView: View {
                             .foregroundStyle(Color.accent)
                     }
                 }
+            }
+            .alert("Storage Error", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { _ in errorMessage = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "An unknown storage error occurred.")
             }
         }
     }
