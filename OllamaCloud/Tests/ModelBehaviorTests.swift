@@ -15,6 +15,7 @@ final class ModelBehaviorTests: XCTestCase {
 
         XCTAssertEqual(conversation.title, "New Chat")
         XCTAssertFalse(conversation.isPinned ?? false)
+        XCTAssertTrue(conversation.accountScopeKey.isEmpty)
         XCTAssertTrue(conversation.modelName.isEmpty)
         XCTAssertNil(conversation.activeScaffoldID)
         XCTAssertNil(conversation.activeScaffoldName)

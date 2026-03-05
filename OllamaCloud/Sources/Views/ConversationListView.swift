@@ -3,11 +3,25 @@ import SwiftData
 
 struct ConversationListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Conversation.updatedAt, order: .reverse) private var conversations: [Conversation]
+    private let accountScopeKey: String
+    @Query private var conversations: [Conversation]
     @Binding var selection: Conversation?
     @State private var showModelPicker = false
     @State private var pendingConversation: Conversation?
     @State private var persistenceError: String?
+
+    init(selection: Binding<Conversation?>, accountScopeKey: String = AccountScope.currentKey()) {
+        self._selection = selection
+        self.accountScopeKey = accountScopeKey
+        _conversations = Query(
+            filter: #Predicate<Conversation> { conversation in
+                conversation.accountScopeKey == accountScopeKey
+                || conversation.accountScopeKey == ""
+            },
+            sort: \Conversation.updatedAt,
+            order: .reverse
+        )
+    }
 
     private var sortedConversations: [Conversation] {
         conversations.sorted {
@@ -86,6 +100,10 @@ struct ConversationListView: View {
         .scrollContentBackground(.hidden)
         .background(Color.bgPrimary)
         .navigationTitle("Chats")
+        .onAppear {
+            backfillLegacyConversationScopes()
+            clearSelectionIfOutOfScope()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -140,7 +158,7 @@ struct ConversationListView: View {
 
     private func newConversation() {
         Haptic.impact()
-        let conversation = Conversation()
+        let conversation = Conversation(accountScopeKey: accountScopeKey)
         modelContext.insert(conversation)
         do {
             try modelContext.save()
@@ -183,6 +201,37 @@ struct ConversationListView: View {
             try modelContext.save()
         } catch {
             persistenceError = "Failed to update chat pin."
+        }
+    }
+
+    private func backfillLegacyConversationScopes() {
+        let legacy = conversations.filter {
+            $0.accountScopeKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !legacy.isEmpty else { return }
+
+        for conversation in legacy {
+            conversation.accountScopeKey = accountScopeKey
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to migrate existing chats to this account scope."
+        }
+    }
+
+    private func clearSelectionIfOutOfScope() {
+        guard let selected = selection else { return }
+        let selectedScope = selected.accountScopeKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !selectedScope.isEmpty && selectedScope != accountScopeKey {
+            selection = nil
+            return
+        }
+
+        if !sortedConversations.contains(where: { $0.id == selected.id }) {
+            selection = nil
         }
     }
 }

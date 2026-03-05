@@ -6,6 +6,7 @@ final class Conversation {
     var id: UUID
     var title: String
     var isPinned: Bool?
+    var accountScopeKey: String
     var modelName: String
     var systemPrompt: String
     var activeScaffoldID: String?
@@ -38,6 +39,7 @@ final class Conversation {
     init(
         title: String = "New Chat",
         isPinned: Bool = false,
+        accountScopeKey: String = "",
         modelName: String = "",
         systemPrompt: String = "",
         activeScaffoldID: String? = nil,
@@ -59,6 +61,7 @@ final class Conversation {
         self.id = UUID()
         self.title = title
         self.isPinned = isPinned
+        self.accountScopeKey = accountScopeKey
         self.modelName = modelName
         self.systemPrompt = systemPrompt
         self.activeScaffoldID = activeScaffoldID

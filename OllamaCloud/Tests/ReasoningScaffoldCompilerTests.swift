@@ -24,7 +24,8 @@ final class ReasoningScaffoldCompilerTests: XCTestCase {
         XCTAssertTrue(compiled.contains("## Role"))
         XCTAssertTrue(compiled.contains("## Perspective"))
         XCTAssertTrue(compiled.contains("## Reasoning Steps"))
-        XCTAssertTrue(compiled.contains("## Output Contract"))
+        XCTAssertTrue(compiled.contains("## Flexibility"))
+        XCTAssertTrue(compiled.contains("## Output Guidance"))
         XCTAssertTrue(compiled.contains("## Safety Hints"))
 
         let roleIndex = try XCTUnwrap(compiled.range(of: "## Role")?.lowerBound)
@@ -44,9 +45,10 @@ final class ReasoningScaffoldCompilerTests: XCTestCase {
         )
 
         let compiled = ReasoningScaffoldCompiler.compile(scaffold)
-        XCTAssertFalse(compiled.contains("## Output Contract"))
+        XCTAssertFalse(compiled.contains("## Output Guidance"))
         XCTAssertFalse(compiled.contains("## Safety Hints"))
         XCTAssertFalse(compiled.contains("## Tone"))
+        XCTAssertTrue(compiled.contains("## Flexibility"))
     }
 
     func testValidateEnforcesRequiredFields() {

@@ -16,7 +16,6 @@ struct ScaffoldBuilderView: View {
     @State private var perspective: String
     @State private var tone: String
     @State private var reasoningStepsText: String
-    @State private var outputFormat: String
     @State private var mustIncludeText: String
     @State private var neverIncludeText: String
     @State private var disclaimersText: String
@@ -49,7 +48,6 @@ struct ScaffoldBuilderView: View {
         _perspective = State(initialValue: sourceDraft.perspective)
         _tone = State(initialValue: sourceDraft.tone)
         _reasoningStepsText = State(initialValue: sourceDraft.reasoningSteps.joined(separator: "\n"))
-        _outputFormat = State(initialValue: sourceDraft.outputFormat)
         _mustIncludeText = State(initialValue: sourceDraft.mustInclude.joined(separator: "\n"))
         _neverIncludeText = State(initialValue: sourceDraft.neverInclude.joined(separator: "\n"))
         _disclaimersText = State(initialValue: sourceDraft.disclaimers.joined(separator: "\n"))
@@ -64,7 +62,7 @@ struct ScaffoldBuilderView: View {
             perspective: perspective,
             tone: tone,
             reasoningSteps: parseLines(reasoningStepsText),
-            outputFormat: outputFormat,
+            outputFormat: "",
             mustInclude: parseLines(mustIncludeText),
             neverInclude: parseLines(neverIncludeText),
             disclaimers: parseLines(disclaimersText),
@@ -112,11 +110,18 @@ struct ScaffoldBuilderView: View {
                         .padding(16)
                     }
 
-                    section("OUTPUT CONTRACT", helper: "Optional but useful for consistent responses.") {
+                    section("OUTPUT GUIDANCE", helper: "Optional guidance, not strict formatting rules.") {
                         VStack(spacing: 14) {
-                            textField("Output format", text: $outputFormat, placeholder: "bullet_points")
-                            textEditor("Must include (one line each)", text: $mustIncludeText, minHeight: 84)
-                            textEditor("Never include (one line each)", text: $neverIncludeText, minHeight: 84)
+                            textEditor(
+                                "Helpful elements to cover (one line each)",
+                                text: $mustIncludeText,
+                                minHeight: 84
+                            )
+                            textEditor(
+                                "Avoid by default (one line each)",
+                                text: $neverIncludeText,
+                                minHeight: 84
+                            )
                         }
                         .padding(16)
                     }

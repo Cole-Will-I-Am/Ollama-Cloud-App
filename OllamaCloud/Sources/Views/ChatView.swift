@@ -209,7 +209,15 @@ struct ChatView: View {
                         } else {
                             LazyVStack(spacing: 16) {
                                 ForEach(messages) { message in
-                                    MessageRow(message: message)
+                                    MessageRow(
+                                        message: message,
+                                        onEditPrompt: { selected in
+                                            editPromptFromHistory(messageID: selected.id)
+                                        },
+                                        onRegenerate: { selected in
+                                            regenerateFromAssistant(messageID: selected.id)
+                                        }
+                                    )
                                         .id(message.id)
                                 }
 
@@ -759,6 +767,123 @@ struct ChatView: View {
 
     private var hasPendingAttachments: Bool {
         !pendingImageAttachments.isEmpty || !pendingFileAttachments.isEmpty
+    }
+
+    private func editPromptFromHistory(messageID: UUID) {
+        guard !streaming.isStreaming else { return }
+
+        let sorted = sortedMessages
+        guard let userIndex = sorted.firstIndex(where: { $0.id == messageID }),
+              sorted[userIndex].role == "user" else {
+            return
+        }
+
+        let targetUserMessage = sorted[userIndex]
+        let (restoredPrompt, _) = splitDisplayContent(targetUserMessage.content)
+        let restoredImages = decodeImages(from: targetUserMessage).map { base64 in
+            PendingImageAttachment(
+                base64: base64,
+                byteCount: Data(base64Encoded: base64)?.count ?? 0
+            )
+        }
+
+        for message in sorted[userIndex...] {
+            modelContext.delete(message)
+        }
+        conversation.updatedAt = Date()
+
+        do {
+            try modelContext.save()
+        } catch {
+            streaming.error = "Failed to prepare prompt editing."
+            return
+        }
+
+        input = restoredPrompt
+        pendingImageAttachments = restoredImages
+        pendingFileAttachments = []
+        isInputFocused = true
+
+        if hasAttachedFiles(in: targetUserMessage.attachmentRequestContent) {
+            streaming.notice = "Prompt restored. Reattach files before sending."
+        } else {
+            streaming.notice = "Prompt restored for editing."
+        }
+        Haptic.selection()
+    }
+
+    private func regenerateFromAssistant(messageID: UUID) {
+        guard !streaming.isStreaming else { return }
+
+        let sorted = sortedMessages
+        guard let assistantIndex = sorted.firstIndex(where: { $0.id == messageID }),
+              sorted[assistantIndex].role == "assistant" else {
+            return
+        }
+
+        guard let userIndex = (0..<assistantIndex).reversed().first(where: { sorted[$0].role == "user" }) else {
+            streaming.notice = "Could not find the related user prompt for regeneration."
+            return
+        }
+
+        let sourceUserMessage = sorted[userIndex]
+        let (userText, attachmentSummary) = splitDisplayContent(sourceUserMessage.content)
+        let requestContent = sourceUserMessage.attachmentRequestContent ?? sourceUserMessage.content
+        let images = decodeImages(from: sourceUserMessage)
+
+        for message in sorted[userIndex...] {
+            modelContext.delete(message)
+        }
+        conversation.updatedAt = Date()
+
+        do {
+            try modelContext.save()
+        } catch {
+            streaming.error = "Failed to regenerate from that point in history."
+            return
+        }
+
+        input = ""
+        pendingImageAttachments.removeAll()
+        pendingFileAttachments.removeAll()
+        Haptic.impact()
+
+        Task {
+            await streaming.sendMessage(
+                content: userText,
+                requestContent: requestContent,
+                imageBase64s: images,
+                attachmentSummary: attachmentSummary,
+                conversation: conversation,
+                modelContext: modelContext
+            )
+        }
+    }
+
+    private func splitDisplayContent(_ content: String) -> (userText: String, attachmentSummary: String?) {
+        guard let markerRange = content.range(of: "\n\nAttachments:") else {
+            return (content, nil)
+        }
+
+        let userText = String(content[..<markerRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let summaryStart = content.index(markerRange.lowerBound, offsetBy: 2)
+        let summary = String(content[summaryStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return (userText, summary.isEmpty ? nil : summary)
+    }
+
+    private func hasAttachedFiles(in requestContent: String?) -> Bool {
+        guard let requestContent else { return false }
+        return requestContent.contains("--- Begin Attached Files ---")
+    }
+
+    private func decodeImages(from message: Message) -> [String] {
+        guard message.role == "user",
+              let json = message.imageBase64sJSON,
+              let data = json.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return decoded
     }
 
     private func attachScaffold(_ scaffold: ReasoningScaffold) {

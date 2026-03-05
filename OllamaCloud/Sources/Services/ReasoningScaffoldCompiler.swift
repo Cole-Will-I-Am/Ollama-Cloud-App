@@ -88,13 +88,12 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Identify the strongest cross-layer tension and strongest alignment, then pick the highest-leverage intervention.",
                     "Deliver the recommendation in plain language with assumptions, risk, opportunity, and next move."
                 ],
-                outputFormat: "bullet_points",
+                outputFormat: "",
                 mustInclude: [
-                    "Bottom line",
-                    "Why this is happening",
-                    "Biggest risk",
-                    "Best opportunity",
-                    "Next move",
+                    "Working conclusion",
+                    "Primary cross-layer tension",
+                    "Biggest risk and best opportunity",
+                    "Practical next move",
                     "Confidence and what would change it"
                 ],
                 neverInclude: ["Framework jargon unless the user asks for it"],
@@ -114,8 +113,8 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Assess maintainability, readability, and long-term risk in changed surfaces.",
                     "Recommend concrete fixes with validation steps and missing tests."
                 ],
-                outputFormat: "bullet_points",
-                mustInclude: ["Findings ordered by severity", "Risk impact", "Recommended fix", "Test coverage gaps"],
+                outputFormat: "",
+                mustInclude: ["Highest-severity findings", "Why they matter", "Concrete fix path", "Test coverage gaps"],
                 neverInclude: ["Vague criticism without actionable guidance"],
                 disclaimers: [],
                 prohibitedActions: []
@@ -133,7 +132,7 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Give one concrete example",
                     "Provide a quick check question or recap"
                 ],
-                outputFormat: "structured_narrative",
+                outputFormat: "",
                 mustInclude: ["Simple explanation", "Example"],
                 neverInclude: ["Shaming language"],
                 disclaimers: [],
@@ -152,7 +151,7 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Propose fastest verification steps",
                     "Recommend fix with validation checklist"
                 ],
-                outputFormat: "bullet_points",
+                outputFormat: "",
                 mustInclude: ["Likely root cause", "Verification steps", "Proposed fix"],
                 neverInclude: ["Speculative claims without checks"],
                 disclaimers: [],
@@ -171,7 +170,7 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Highlight key risks and mitigations",
                     "Recommend a choice and next action"
                 ],
-                outputFormat: "structured_narrative",
+                outputFormat: "",
                 mustInclude: ["Decision criteria", "Recommendation"],
                 neverInclude: ["False certainty"],
                 disclaimers: [],
@@ -190,7 +189,7 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Evaluate each concept on clarity, conversion potential, accessibility, and engineering complexity.",
                     "Recommend one direction with component-level guidance and execution priorities."
                 ],
-                outputFormat: "bullet_points",
+                outputFormat: "",
                 mustInclude: ["Concept options", "Chosen UI direction", "UX rationale", "Implementation next steps"],
                 neverInclude: ["Generic design cliches", "Style advice without UX reasoning"],
                 disclaimers: [],
@@ -209,7 +208,7 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
                     "Design channel and outreach plan with measurable funnel stages.",
                     "Recommend immediate experiments and a sales follow-up sequence."
                 ],
-                outputFormat: "bullet_points",
+                outputFormat: "",
                 mustInclude: ["ICP segment", "Value proposition", "Offer and CTA", "Channel plan", "KPIs"],
                 neverInclude: ["Vanity metrics without revenue linkage"],
                 disclaimers: [],
@@ -220,6 +219,9 @@ enum ReasoningScaffoldTemplate: String, CaseIterable, Identifiable {
 }
 
 enum ReasoningScaffoldCompiler {
+    private static let flexibilityInstruction =
+        "Reasoning scaffolds are meant for reasoning, not strict rules; adapt structure and depth to the user's request."
+
     static func draft(from scaffold: ReasoningScaffold) -> ReasoningScaffoldDraft {
         ReasoningScaffoldDraft(
             name: scaffold.name,
@@ -256,6 +258,7 @@ enum ReasoningScaffoldCompiler {
             sections.append("## Purpose\n\(normalized.summary)")
         }
 
+        sections.append("## Flexibility\n\(Self.flexibilityInstruction)")
         sections.append("## Role\n\(normalized.role)")
         sections.append("## Perspective\n\(normalized.perspective)")
 
@@ -272,18 +275,18 @@ enum ReasoningScaffoldCompiler {
 
         var outputLines: [String] = []
         if !normalized.outputFormat.isEmpty {
-            outputLines.append("Format: \(normalized.outputFormat)")
+            outputLines.append("Preferred response shape (optional): \(normalized.outputFormat)")
         }
         if !normalized.mustInclude.isEmpty {
             let lines = normalized.mustInclude.map { "- \($0)" }.joined(separator: "\n")
-            outputLines.append("Must include:\n\(lines)")
+            outputLines.append("Helpful elements to cover when relevant:\n\(lines)")
         }
         if !normalized.neverInclude.isEmpty {
             let lines = normalized.neverInclude.map { "- \($0)" }.joined(separator: "\n")
-            outputLines.append("Never include:\n\(lines)")
+            outputLines.append("Avoid by default unless the user asks:\n\(lines)")
         }
         if !outputLines.isEmpty {
-            sections.append("## Output Contract\n" + outputLines.joined(separator: "\n\n"))
+            sections.append("## Output Guidance\n" + outputLines.joined(separator: "\n\n"))
         }
 
         var safetyLines: [String] = []

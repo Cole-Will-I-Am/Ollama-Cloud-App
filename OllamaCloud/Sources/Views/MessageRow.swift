@@ -6,6 +6,8 @@ import UIKit
 
 struct MessageRow: View {
     let message: Message
+    let onEditPrompt: ((Message) -> Void)?
+    let onRegenerate: ((Message) -> Void)?
     @State private var showThinking = false
 
     var body: some View {
@@ -45,6 +47,11 @@ struct MessageRow: View {
                 } label: {
                     Label("Copy", systemImage: "doc.on.doc")
                 }
+                Button {
+                    onEditPrompt?(message)
+                } label: {
+                    Label("Edit Prompt", systemImage: "pencil")
+                }
             }
     }
 
@@ -68,6 +75,11 @@ struct MessageRow: View {
                     copyToClipboard(message.content)
                 } label: {
                     Label("Copy", systemImage: "doc.on.doc")
+                }
+                Button {
+                    onRegenerate?(message)
+                } label: {
+                    Label("Regenerate", systemImage: "arrow.clockwise")
                 }
             }
     }
