@@ -328,12 +328,22 @@ private struct SeerCodeToken {
 
 struct SeerCodeSyntaxHighlighter: CodeSyntaxHighlighter {
     static let shared = SeerCodeSyntaxHighlighter()
+    private static let maxHighlightedCharacters = 24_000
 
     func highlightCode(_ code: String, language: String?) -> Text {
-        let tokens = Self.tokenize(code: code, language: language)
-        return tokens.reduce(Text("")) { partial, token in
-            partial + Text(token.text).foregroundColor(Self.color(for: token.kind))
+        // Avoid expensive tokenization and deep text trees for extremely large snippets.
+        if code.count > Self.maxHighlightedCharacters {
+            return Text(code).foregroundColor(Self.color(for: .plain))
         }
+
+        let tokens = Self.tokenize(code: code, language: language)
+        var attributed = AttributedString()
+        for token in tokens {
+            var segment = AttributedString(token.text)
+            segment.foregroundColor = Self.color(for: token.kind)
+            attributed.append(segment)
+        }
+        return Text(attributed)
     }
 
     private static func color(for kind: SeerCodeTokenKind) -> Color {

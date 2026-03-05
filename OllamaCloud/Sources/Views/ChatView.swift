@@ -18,6 +18,7 @@ struct ChatView: View {
     @State private var showStreamingThinking = true
     @State private var isAtBottom = true
     @State private var hasNewMessage = false
+    @State private var shouldAutoFollowStreaming = true
     @State private var sentFirstTokenHaptic = false
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var bottomAnchorMaxY: CGFloat = 0
@@ -256,6 +257,14 @@ struct ChatView: View {
                     }
                     .coordinateSpace(name: "chatScroll")
                     .scrollDismissesKeyboard(.interactively)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 6)
+                            .onChanged { _ in
+                                if streaming.isStreaming {
+                                    shouldAutoFollowStreaming = false
+                                }
+                            }
+                    )
                     .onAppear {
                         updateScrollPosition(viewportHeight: scrollGeo.size.height)
                     }
@@ -270,7 +279,7 @@ struct ChatView: View {
                         }
                     }
                     .onChange(of: streaming.streamingContent) {
-                        if isAtBottom {
+                        if isAtBottom && shouldAutoFollowStreaming {
                             scrollToBottom(proxy: proxy, messages: messages)
                         }
                         if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
@@ -279,7 +288,12 @@ struct ChatView: View {
                         }
                     }
                     .onChange(of: streaming.isStreaming) { _, isNow in
-                        if isNow { sentFirstTokenHaptic = false }
+                        if isNow {
+                            sentFirstTokenHaptic = false
+                            shouldAutoFollowStreaming = isAtBottom
+                        } else {
+                            shouldAutoFollowStreaming = true
+                        }
                     }
                     .overlay(alignment: .bottom) {
                         if hasNewMessage && !isAtBottom {
@@ -288,6 +302,7 @@ struct ChatView: View {
                                     scrollToBottom(proxy: proxy, messages: messages)
                                     hasNewMessage = false
                                     isAtBottom = true
+                                    shouldAutoFollowStreaming = true
                                 }
                             } label: {
                                 HStack(spacing: 6) {
@@ -839,6 +854,9 @@ struct ChatView: View {
         let nowAtBottom = bottomAnchorMaxY <= scrollViewportHeight + bottomThreshold
         if nowAtBottom != isAtBottom {
             isAtBottom = nowAtBottom
+        }
+        if nowAtBottom {
+            shouldAutoFollowStreaming = true
         }
         if nowAtBottom && hasNewMessage {
             hasNewMessage = false
