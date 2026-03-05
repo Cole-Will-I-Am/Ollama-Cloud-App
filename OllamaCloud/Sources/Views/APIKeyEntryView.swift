@@ -90,7 +90,7 @@ struct APIKeyEntryView: View {
                             } else if !network.isConnected {
                                 HStack(spacing: 6) {
                                     Image(systemName: "wifi.slash")
-                                        .font(.system(size: 13, weight: .light))
+                                        .font(.system(size: 13, weight: .ultraLight))
                                     Text("NO CONNECTION")
                                         .font(.appLabel(13))
                                         .labelTracking()
@@ -152,6 +152,7 @@ struct APIKeyEntryView: View {
             do {
                 let valid = try await OllamaAPIClient.shared.validateKey(apiKey)
                 if valid {
+                    Haptic.notification(.success)
                     KeychainHelper.save(key: "api_key", value: apiKey)
                     hasAPIKey = true
                 } else {

@@ -41,32 +41,21 @@ struct MessageRow: View {
 
     private var assistantBubble: some View {
         let hasThinking = !(message.thinkingContent ?? "").isEmpty
+        let bubbleShape = UnevenRoundedRectangle(
+            topLeadingRadius: hasThinking ? 0 : 20,
+            bottomLeadingRadius: 20,
+            bottomTrailingRadius: 20,
+            topTrailingRadius: hasThinking ? 0 : 20,
+            style: .continuous
+        )
         return Text(rendered)
             .textSelection(.enabled)
             .font(.app(15))
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .foregroundStyle(Color.textPrimary)
-            .background(Color.assistantBubble)
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: hasThinking ? 0 : 20,
-                    bottomLeadingRadius: 20,
-                    bottomTrailingRadius: 20,
-                    topTrailingRadius: hasThinking ? 0 : 20,
-                    style: .continuous
-                )
-            )
-            .overlay(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: hasThinking ? 0 : 20,
-                    bottomLeadingRadius: 20,
-                    bottomTrailingRadius: 20,
-                    topTrailingRadius: hasThinking ? 0 : 20,
-                    style: .continuous
-                )
-                .stroke(Color.border, lineWidth: 0.5)
-            )
+            .contentTransition(.interpolate)
+            .assistantMaterialBubble(shape: bubbleShape)
     }
 
     private func thinkingSection(_ thinking: String) -> some View {
@@ -75,10 +64,11 @@ struct MessageRow: View {
                 withAnimation(.snappy(duration: 0.25)) {
                     showThinking.toggle()
                 }
+                Haptic.selection()
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "brain")
-                        .font(.system(size: 11, weight: .light))
+                        .font(.system(size: 11, weight: .ultraLight))
                     Text("THINKING")
                         .font(.appLabel(10))
                         .tracking(2)
@@ -101,6 +91,15 @@ struct MessageRow: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
+                    .transition(.opacity)
+            } else {
+                Text(String(thinking.prefix(80)))
+                    .font(.app(11))
+                    .foregroundStyle(Color.textTertiary.opacity(0.4))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                     .transition(.opacity)
             }
         }

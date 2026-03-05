@@ -10,6 +10,9 @@ struct ChatView: View {
     @State private var showModelPicker = false
     @State private var showParameters = false
     @State private var showStreamingThinking = true
+    @State private var isAtBottom = true
+    @State private var hasNewMessage = false
+    @State private var sentFirstTokenHaptic = false
 
     private var sortedMessages: [Message] {
         conversation.messages.sorted { $0.createdAt < $1.createdAt }
@@ -23,39 +26,99 @@ struct ChatView: View {
                 offlineBanner
             }
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if messages.isEmpty && !streaming.isStreaming {
-                        emptyState
-                    } else {
-                        LazyVStack(spacing: 16) {
-                            ForEach(messages) { message in
-                                MessageRow(message: message)
-                                    .id(message.id)
-                            }
-
-                            if streaming.isStreaming {
-                                if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
-                                    streamingBubble
-                                        .id("streaming")
-                                } else {
-                                    TypingIndicator()
-                                        .id("typing")
+            ZStack(alignment: .bottom) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        if messages.isEmpty && !streaming.isStreaming {
+                            emptyState
+                        } else {
+                            LazyVStack(spacing: 16) {
+                                ForEach(messages) { message in
+                                    MessageRow(message: message)
+                                        .id(message.id)
                                 }
-                            }
 
-                            if let error = streaming.error {
-                                errorBubble(error)
-                                    .id("error")
+                                if streaming.isStreaming {
+                                    if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            streamingBubble
+                                            streamingStats
+                                        }
+                                        .id("streaming")
+                                    } else {
+                                        TypingIndicator()
+                                            .id("typing")
+                                    }
+                                }
+
+                                if let error = streaming.error {
+                                    errorBubble(error)
+                                        .id("error")
+                                }
+
+                                // Bottom anchor for scroll detection
+                                Color.clear
+                                    .frame(height: 1)
+                                    .id("bottomAnchor")
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .padding(.bottom, 8)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 8)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: messages.count) {
+                        if isAtBottom {
+                            scrollToBottom(proxy: proxy, messages: messages)
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) { hasNewMessage = true }
+                        }
+                    }
+                    .onChange(of: streaming.streamingContent) {
+                        if isAtBottom {
+                            scrollToBottom(proxy: proxy, messages: messages)
+                        }
+                        // Success haptic on first token arrival
+                        if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
+                            sentFirstTokenHaptic = true
+                            Haptic.notification(.success)
+                        }
+                    }
+                    .onChange(of: streaming.isStreaming) { _, isNow in
+                        if isNow { sentFirstTokenHaptic = false }
+                    }
+                    .overlay(alignment: .bottom) {
+                        // "New Messages" floating button
+                        if hasNewMessage && !isAtBottom {
+                            Button {
+                                withAnimation(.snappy(duration: 0.3)) {
+                                    scrollToBottom(proxy: proxy, messages: messages)
+                                    hasNewMessage = false
+                                    isAtBottom = true
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 10, weight: .medium))
+                                    Text("NEW")
+                                        .font(.appLabel(9))
+                                        .tracking(2)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule()
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(Capsule().fill(Color.accent.opacity(0.5)))
+                                )
+                                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                            }
+                            .padding(.bottom, 8)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
                 }
-                .onChange(of: messages.count) { scrollToBottom(proxy: proxy, messages: messages) }
-                .onChange(of: streaming.streamingContent) { scrollToBottom(proxy: proxy, messages: messages) }
             }
 
             inputBar
@@ -69,7 +132,7 @@ struct ChatView: View {
                     if !conversation.modelName.isEmpty {
                         Text(conversation.modelName.uppercased())
                             .font(.appLabel(9))
-                            .tracking(1.5)
+                            .luxuryTracking()
                             .foregroundStyle(Color.accent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
@@ -103,9 +166,17 @@ struct ChatView: View {
                     streaming.error = "Failed to save selected model."
                 }
             }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(.ultraThinMaterial)
         }
         .sheet(isPresented: $showParameters) {
             ParametersView(conversation: conversation)
+        }
+        .onChange(of: streaming.error) { _, newError in
+            if newError != nil {
+                Haptic.notification(.error)
+            }
         }
     }
 
@@ -114,7 +185,7 @@ struct ChatView: View {
     private var offlineBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 10, weight: .light))
+                .font(.system(size: 10, weight: .ultraLight))
             Text("OFFLINE")
                 .font(.appLabel(10))
                 .labelTracking()
@@ -182,10 +253,19 @@ struct ChatView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "brain")
-                                    .font(.system(size: 11, weight: .light))
-                                Text(streaming.isThinking ? "THINKING..." : "THINKING")
-                                    .font(.appLabel(10))
-                                    .tracking(2)
+                                    .font(.system(size: 11, weight: .ultraLight))
+                                Group {
+                                    if streaming.isThinking {
+                                        Text("THINKING...")
+                                            .font(.appLabel(10))
+                                            .tracking(2)
+                                            .shimmer()
+                                    } else {
+                                        Text("THINKING")
+                                            .font(.appLabel(10))
+                                            .tracking(2)
+                                    }
+                                }
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 9, weight: .medium))
@@ -230,37 +310,60 @@ struct ChatView: View {
                 }
 
                 if !streaming.streamingContent.isEmpty {
+                    let contentShape = UnevenRoundedRectangle(
+                        topLeadingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                        bottomLeadingRadius: 20,
+                        bottomTrailingRadius: 20,
+                        topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                        style: .continuous
+                    )
                     Text(streamingRendered)
                         .textSelection(.enabled)
                         .font(.app(15))
                         .foregroundStyle(Color.textPrimary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .background(Color.assistantBubble)
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
-                                bottomLeadingRadius: 20,
-                                bottomTrailingRadius: 20,
-                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
-                                style: .continuous
-                            )
-                        )
-                        .overlay(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
-                                bottomLeadingRadius: 20,
-                                bottomTrailingRadius: 20,
-                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
-                                style: .continuous
-                            )
-                            .stroke(Color.border, lineWidth: 0.5)
-                        )
+                        .contentTransition(.interpolate)
+                        .assistantMaterialBubble(shape: contentShape)
                     }
             }
             Spacer(minLength: 48)
         }
     }
+
+    // MARK: - Streaming Stats
+
+    private var streamingStats: some View {
+        HStack(spacing: 8) {
+            if streaming.thinkingDuration > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 8, weight: .ultraLight))
+                    Text(String(format: "%.1fs", streaming.thinkingDuration))
+                        .font(.app(10, weight: .medium).monospaced())
+                }
+            }
+
+            if streaming.tokenCount > 0 {
+                HStack(spacing: 4) {
+                    Text("\(streaming.tokenCount) tokens")
+                        .font(.app(10, weight: .medium).monospaced())
+                    if streaming.tokensPerSecond > 0.5 {
+                        Text("·")
+                            .font(.app(10))
+                        Text(String(format: "%.1f tok/s", streaming.tokensPerSecond))
+                            .font(.app(10, weight: .medium).monospaced())
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .foregroundStyle(Color.textTertiary)
+        .padding(.leading, 4)
+    }
+
+    // MARK: - Error
 
     private func errorBubble(_ message: String) -> some View {
         HStack {
@@ -280,7 +383,7 @@ struct ChatView: View {
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 10, weight: .light))
+                                .font(.system(size: 10, weight: .ultraLight))
                             Text("RETRY")
                                 .font(.appLabel(10))
                                 .tracking(2)
@@ -334,10 +437,11 @@ struct ChatView: View {
 
                 if streaming.isStreaming {
                     Button {
+                        Haptic.impact(.medium)
                         streaming.cancel(conversation: conversation, modelContext: modelContext)
                     } label: {
                         Image(systemName: "stop.fill")
-                            .font(.system(size: 13, weight: .light))
+                            .font(.system(size: 13, weight: .ultraLight))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(Circle().fill(Color.danger))
@@ -375,20 +479,14 @@ struct ChatView: View {
         guard !text.isEmpty, !conversation.modelName.isEmpty else { return }
         input = ""
 
-        #if os(iOS)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #endif
-
+        Haptic.impact()
         streaming.sendMessage(content: text, conversation: conversation, modelContext: modelContext)
     }
 
     private func retry(content: String) {
         streaming.error = nil
 
-        #if os(iOS)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #endif
-
+        Haptic.impact()
         streaming.sendMessage(content: content, conversation: conversation, modelContext: modelContext)
     }
 

@@ -1,15 +1,107 @@
 import SwiftUI
 
+// MARK: - Parameter Presets
+
+enum ParameterPreset: CaseIterable {
+    case creative, balanced, precise
+
+    var label: String {
+        switch self {
+        case .creative: return "Creative"
+        case .balanced: return "Balanced"
+        case .precise: return "Precise"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .creative: return "paintbrush"
+        case .balanced: return "equal.circle"
+        case .precise: return "scope"
+        }
+    }
+
+    var temperature: Double {
+        switch self {
+        case .creative: return 1.2
+        case .balanced: return 0.7
+        case .precise: return 0.2
+        }
+    }
+
+    var topP: Double {
+        switch self {
+        case .creative: return 0.95
+        case .balanced: return 0.9
+        case .precise: return 0.7
+        }
+    }
+
+    var topK: Int {
+        switch self {
+        case .creative: return 60
+        case .balanced: return 40
+        case .precise: return 20
+        }
+    }
+
+    var minP: Double {
+        switch self {
+        case .creative: return 0.0
+        case .balanced: return 0.0
+        case .precise: return 0.05
+        }
+    }
+
+    var typicalP: Double {
+        switch self {
+        case .creative: return 1.0
+        case .balanced: return 1.0
+        case .precise: return 0.9
+        }
+    }
+
+    var repeatPenalty: Double {
+        switch self {
+        case .creative: return 1.0
+        case .balanced: return 1.1
+        case .precise: return 1.2
+        }
+    }
+
+    var repeatLastN: Int { 64 }
+    var presencePenalty: Double { 0.0 }
+    var frequencyPenalty: Double { 0.0 }
+
+    var numPredict: Int {
+        switch self {
+        case .creative: return 4096
+        case .balanced: return 2048
+        case .precise: return 2048
+        }
+    }
+
+    var seed: Int { 0 }
+    var numBatch: Int { 512 }
+    var numThread: Int { 0 }
+}
+
+// MARK: - Parameters View
+
 struct ParametersView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var conversation: Conversation
     @State private var errorMessage: String?
+    @State private var showAdvanced = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    // Presets + Advanced toggle
+                    presetBar
+
                     // Model
                     section("MODEL") {
                         HStack(spacing: 12) {
@@ -33,10 +125,13 @@ struct ParametersView: View {
                                         desc: "Nucleus sampling threshold")
                             intSlider("Top K", intBinding(\.topK), 1...100,
                                       desc: "Top-K token filtering")
-                            floatSlider("Min P", $conversation.minP, 0...1, step: 0.01,
-                                        desc: "Minimum probability filter")
-                            floatSlider("Typical P", $conversation.typicalP, 0...1, step: 0.05,
-                                        desc: "Locally typical sampling")
+
+                            if showAdvanced {
+                                floatSlider("Min P", $conversation.minP, 0...1, step: 0.01,
+                                            desc: "Minimum probability filter")
+                                floatSlider("Typical P", $conversation.typicalP, 0...1, step: 0.05,
+                                            desc: "Locally typical sampling")
+                            }
                         }
                         .padding(16)
                     }
@@ -46,12 +141,15 @@ struct ParametersView: View {
                         VStack(spacing: 20) {
                             floatSlider("Repeat Penalty", $conversation.repeatPenalty, 0.5...2, step: 0.05,
                                         desc: "Penalize repeated tokens")
-                            intSlider("Repeat Window", intBinding(\.repeatLastN), 0...256,
-                                      desc: "Lookback window for repeat penalty")
-                            floatSlider("Presence Penalty", $conversation.presencePenalty, -2...2, step: 0.1,
-                                        desc: "Penalize tokens already present")
-                            floatSlider("Frequency Penalty", $conversation.frequencyPenalty, -2...2, step: 0.1,
-                                        desc: "Penalize by frequency of use")
+
+                            if showAdvanced {
+                                intSlider("Repeat Window", intBinding(\.repeatLastN), 0...256,
+                                          desc: "Lookback window for repeat penalty")
+                                floatSlider("Presence Penalty", $conversation.presencePenalty, -2...2, step: 0.1,
+                                            desc: "Penalize tokens already present")
+                                floatSlider("Frequency Penalty", $conversation.frequencyPenalty, -2...2, step: 0.1,
+                                            desc: "Penalize by frequency of use")
+                            }
                         }
                         .padding(16)
                     }
@@ -61,12 +159,15 @@ struct ParametersView: View {
                         VStack(spacing: 20) {
                             intSlider("Max Tokens", intBinding(\.numPredict), 128...8192, step: 128,
                                       desc: "Maximum tokens to generate")
-                            intSlider("Seed", intBinding(\.seed), 0...999999, step: 1,
-                                      desc: "0 = random, any other = deterministic")
-                            intSlider("Batch Size", intBinding(\.numBatch), 1...2048, step: 64,
-                                      desc: "Prompt processing chunk size")
-                            intSlider("Threads", intBinding(\.numThread), 0...32, step: 1,
-                                      desc: "0 = auto-detect CPU threads")
+
+                            if showAdvanced {
+                                intSlider("Seed", intBinding(\.seed), 0...999999, step: 1,
+                                          desc: "0 = random, any other = deterministic")
+                                intSlider("Batch Size", intBinding(\.numBatch), 1...2048, step: 64,
+                                          desc: "Prompt processing chunk size")
+                                intSlider("Threads", intBinding(\.numThread), 0...32, step: 1,
+                                          desc: "0 = auto-detect CPU threads")
+                            }
                         }
                         .padding(16)
                     }
@@ -80,6 +181,9 @@ struct ParametersView: View {
                             .frame(minHeight: 120)
                             .padding(16)
                     }
+
+                    // Reset
+                    resetButton
                 }
                 .padding(20)
             }
@@ -111,10 +215,121 @@ struct ParametersView: View {
             } message: {
                 Text(errorMessage ?? "An unknown storage error occurred.")
             }
+            .onChange(of: conversation.temperature) { old, new in
+                if (old < 1.0 && new >= 1.0) || (old >= 1.0 && new < 1.0) {
+                    Haptic.impact(.medium)
+                }
+            }
+        }
+    }
+
+    // MARK: - Preset Bar
+
+    private var presetBar: some View {
+        HStack(spacing: 8) {
+            ForEach(ParameterPreset.allCases, id: \.label) { preset in
+                Button {
+                    applyPreset(preset)
+                    Haptic.impact(.medium)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: preset.icon)
+                            .font(.system(size: 9, weight: .ultraLight))
+                        Text(preset.label.uppercased())
+                            .font(.appLabel(9))
+                            .tracking(1.5)
+                    }
+                    .foregroundStyle(isActivePreset(preset) ? .white : Color.textSecondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule().fill(isActivePreset(preset)
+                                       ? AnyShapeStyle(LinearGradient.accentGradient)
+                                       : AnyShapeStyle(Color.surface))
+                    )
+                    .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+                }
+            }
+
+            Spacer()
+
+            Button {
+                withAnimation(.snappy(duration: 0.25)) {
+                    showAdvanced.toggle()
+                }
+                Haptic.selection()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "tuningfork")
+                        .font(.system(size: 10, weight: .ultraLight))
+                    Text(showAdvanced ? "LESS" : "MORE")
+                        .font(.appLabel(9))
+                        .tracking(1.5)
+                }
+                .foregroundStyle(showAdvanced ? Color.accent : Color.textTertiary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule().fill(showAdvanced ? Color.accentSoft : Color.surface)
+                )
+                .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+            }
+        }
+    }
+
+    // MARK: - Reset
+
+    private var resetButton: some View {
+        Button {
+            applyPreset(.balanced)
+            Haptic.notification(.success)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 11, weight: .ultraLight))
+                Text("RESET TO DEFAULTS")
+                    .font(.appLabel(10))
+                    .tracking(2)
+            }
+            .foregroundStyle(Color.textTertiary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.border, lineWidth: 0.5)
+                    )
+            )
         }
     }
 
     // MARK: - Helpers
+
+    private func isActivePreset(_ preset: ParameterPreset) -> Bool {
+        conversation.temperature == preset.temperature &&
+        conversation.topP == preset.topP &&
+        conversation.topK == preset.topK
+    }
+
+    private func applyPreset(_ preset: ParameterPreset) {
+        withAnimation(.snappy(duration: 0.2)) {
+            conversation.temperature = preset.temperature
+            conversation.topP = preset.topP
+            conversation.topK = preset.topK
+            conversation.minP = preset.minP
+            conversation.typicalP = preset.typicalP
+            conversation.repeatPenalty = preset.repeatPenalty
+            conversation.repeatLastN = preset.repeatLastN
+            conversation.presencePenalty = preset.presencePenalty
+            conversation.frequencyPenalty = preset.frequencyPenalty
+            conversation.numPredict = preset.numPredict
+            conversation.seed = preset.seed
+            conversation.numBatch = preset.numBatch
+            conversation.numThread = preset.numThread
+        }
+    }
 
     private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -125,6 +340,30 @@ struct ParametersView: View {
                 .padding(.leading, 4)
             content()
                 .chromeCard()
+        }
+    }
+
+    /// Contextual hint based on parameter name and current value.
+    private func liveHint(for label: String, value: Double) -> String? {
+        switch label {
+        case "Temperature":
+            if value < 0.3 { return "Very deterministic — nearly identical outputs each time" }
+            if value < 0.7 { return "Focused — predictable with slight variation" }
+            if value < 1.0 { return "Balanced — natural language variability" }
+            if value < 1.5 { return "Creative — more diverse and unexpected phrasing" }
+            return "Wild — highly random, may lose coherence"
+        case "Top P":
+            if value < 0.5 { return "Very narrow — only the most likely tokens" }
+            if value < 0.8 { return "Focused — moderate token diversity" }
+            if value < 0.95 { return "Balanced — good range of natural expression" }
+            return "Wide — nearly all tokens considered"
+        case "Repeat Penalty":
+            if value <= 1.0 { return "No penalty — may repeat phrases freely" }
+            if value < 1.15 { return "Light — gentle discouragement of repetition" }
+            if value < 1.3 { return "Moderate — noticeably avoids repeats" }
+            return "Strong — aggressively avoids any repetition"
+        default:
+            return nil
         }
     }
 
@@ -149,6 +388,15 @@ struct ParametersView: View {
             }
             Slider(value: binding, in: range, step: step)
                 .tint(Color.accent)
+
+            if let hint = liveHint(for: label, value: binding.wrappedValue) {
+                Text(hint)
+                    .font(.app(10, weight: .light))
+                    .foregroundStyle(Color.accent.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentTransition(.interpolate)
+                    .animation(.easeOut(duration: 0.15), value: binding.wrappedValue)
+            }
         }
     }
 

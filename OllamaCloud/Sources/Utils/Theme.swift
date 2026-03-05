@@ -1,4 +1,29 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+
+// MARK: - Haptics
+
+enum Haptic {
+    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+        #endif
+    }
+
+    static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        #if os(iOS)
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+        #endif
+    }
+
+    static func selection() {
+        #if os(iOS)
+        UISelectionFeedbackGenerator().selectionChanged()
+        #endif
+    }
+}
 
 // MARK: - Colors
 
@@ -32,6 +57,10 @@ extension Color {
     // Bubbles
     static let userBubble = Color(red: 0.32, green: 0.44, blue: 1.0)
     static let assistantBubble = Color.white.opacity(0.04)
+
+    // Shimmer
+    static let shimmerLead = Color(red: 0.38, green: 0.50, blue: 1.0)
+    static let shimmerTrail = Color(red: 0.55, green: 0.38, blue: 0.95)
 }
 
 // MARK: - Gradients
@@ -81,6 +110,11 @@ extension View {
         self.tracking(3)
     }
 
+    /// Luxury-wide tracking for very small technical labels (model names, badges).
+    func luxuryTracking() -> some View {
+        self.tracking(4.5)
+    }
+
     /// Subtle tracking for titles and headings.
     func titleTracking() -> some View {
         self.tracking(1.2)
@@ -88,6 +122,73 @@ extension View {
 }
 
 // MARK: - View Modifiers
+
+// MARK: - Glass Material Bubble
+
+/// Assistant bubble using thin material + subtle white stroke for OLED depth.
+struct AssistantMaterialBubble<S: InsettableShape>: ViewModifier {
+    let shape: S
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                shape
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.45)
+            )
+            .background(
+                shape
+                    .fill(Color.white.opacity(0.03))
+            )
+            .clipShape(shape)
+            .overlay(
+                shape
+                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+            )
+    }
+}
+
+extension View {
+    func assistantMaterialBubble<S: InsettableShape>(shape: S) -> some View {
+        modifier(AssistantMaterialBubble(shape: shape))
+    }
+}
+
+// MARK: - Shimmer Effect
+
+struct ShimmerEffect: ViewModifier {
+    @State private var phase: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color.white.opacity(0.15),
+                        .clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .offset(x: phase)
+                .mask(content)
+            )
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: false)) {
+                    phase = 200
+                }
+            }
+    }
+}
+
+extension View {
+    func shimmer() -> some View {
+        modifier(ShimmerEffect())
+    }
+}
+
+// MARK: - Chrome Card
 
 struct ChromeCard: ViewModifier {
     var radius: CGFloat = 20

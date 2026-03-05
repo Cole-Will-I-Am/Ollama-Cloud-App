@@ -18,7 +18,7 @@ struct SettingsView: View {
                                         .fill(Color.success.opacity(0.12))
                                         .frame(width: 38, height: 38)
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .light))
+                                        .font(.system(size: 14, weight: .ultraLight))
                                         .foregroundStyle(Color.success)
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
@@ -37,7 +37,7 @@ struct SettingsView: View {
                             } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: "key.slash")
-                                        .font(.system(size: 13, weight: .light))
+                                        .font(.system(size: 13, weight: .ultraLight))
                                     Text("REMOVE API KEY")
                                         .font(.appLabel(11))
                                         .tracking(2)

@@ -34,7 +34,7 @@ struct ConversationListView: View {
                                 if !conversation.modelName.isEmpty {
                                     Text(conversation.modelName.uppercased())
                                         .font(.appLabel(9))
-                                        .tracking(1)
+                                        .luxuryTracking()
                                         .foregroundStyle(Color.accent)
                                 }
                                 Spacer()
@@ -63,7 +63,7 @@ struct ConversationListView: View {
                     newConversation()
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .light))
+                        .font(.system(size: 16, weight: .ultraLight))
                         .foregroundStyle(Color.accent)
                         .padding(8)
                         .background(
@@ -109,6 +109,7 @@ struct ConversationListView: View {
     }
 
     private func newConversation() {
+        Haptic.impact()
         let conversation = Conversation()
         modelContext.insert(conversation)
         do {
