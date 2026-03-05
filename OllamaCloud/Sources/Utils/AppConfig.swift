@@ -7,6 +7,7 @@ enum AppConfig {
 
     private static let defaultAPIBaseURL = "https://ollama.com"
     private static let defaultSeerModelName = "SEER"
+    private static let defaultSeerBackingModelName = "qwen3.5:397b-cloud"
 
     static var apiBaseURL: String {
         let defaultsValue = UserDefaults.standard.string(forKey: apiBaseURLKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -61,11 +62,30 @@ enum AppConfig {
     }
 
     static var seerModelName: String {
-        let envValue = ProcessInfo.processInfo.environment["OLLAMA_SEER_MODEL_NAME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let env = ProcessInfo.processInfo.environment
+        let envValue = env["OLLAMA_SEER_MODEL_NAME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? env["SEER_ALIAS_NAME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let value = envValue, !value.isEmpty {
             return value
         }
         return defaultSeerModelName
+    }
+
+    static var seerBackingModelName: String {
+        let env = ProcessInfo.processInfo.environment
+        let envValue = env["OLLAMA_SEER_BACKING_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? env["SEER_UPSTREAM_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let value = envValue, !value.isEmpty {
+            return value
+        }
+        return defaultSeerBackingModelName
+    }
+
+    static var seerModelEnabled: Bool {
+        if let envValue = ProcessInfo.processInfo.environment["SEER_MODEL_ENABLED"] {
+            return parseBoolString(envValue, defaultValue: true)
+        }
+        return true
     }
 
     private static func parseBoolString(_ raw: String, defaultValue: Bool) -> Bool {

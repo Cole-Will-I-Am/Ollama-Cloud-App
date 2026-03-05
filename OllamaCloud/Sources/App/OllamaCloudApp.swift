@@ -13,7 +13,15 @@ private enum AppModelContainer {
             let configuration = ModelConfiguration("OllamaCloud", schema: schema)
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
-            fatalError("Failed to create persistent model container: \(error)")
+            // If the on-disk store cannot be opened (schema drift/corruption),
+            // fail open with an in-memory container so the app still launches.
+            print("Failed to create persistent model container, falling back to in-memory store: \(error)")
+            do {
+                let fallback = ModelConfiguration("OllamaCloud-Recovery", schema: schema, isStoredInMemoryOnly: true)
+                return try ModelContainer(for: schema, configurations: [fallback])
+            } catch {
+                fatalError("Failed to create fallback in-memory model container: \(error)")
+            }
         }
     }()
 }

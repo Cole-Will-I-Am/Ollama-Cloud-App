@@ -244,6 +244,7 @@ struct ChatView: View {
                                 ForEach(messages) { message in
                                     MessageRow(
                                         message: message,
+                                        showsThinkingSection: shouldShowThinkingUI,
                                         onEditPrompt: { selected in
                                             requestEditPrompt(for: selected)
                                         },
@@ -255,7 +256,7 @@ struct ChatView: View {
                                 }
 
                                 if streaming.isStreaming {
-                                    if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
+                                    if hasVisibleStreamingPayload {
                                         VStack(alignment: .leading, spacing: 6) {
                                             streamingBubble
                                             streamingStats
@@ -441,7 +442,7 @@ struct ChatView: View {
     private var streamingBubble: some View {
         HStack {
             VStack(alignment: .leading, spacing: 0) {
-                if !streaming.streamingThinking.isEmpty {
+                if shouldShowThinkingUI, !streaming.streamingThinking.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         Button {
                             withAnimation(.snappy(duration: 0.25)) {
@@ -506,11 +507,12 @@ struct ChatView: View {
                 }
 
                 if !streaming.streamingContent.isEmpty {
+                    let hasVisibleThinking = shouldShowThinkingUI && !streaming.streamingThinking.isEmpty
                     let contentShape = UnevenRoundedRectangle(
-                        topLeadingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                        topLeadingRadius: hasVisibleThinking ? 0 : 20,
                         bottomLeadingRadius: 20,
                         bottomTrailingRadius: 20,
-                        topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                        topTrailingRadius: hasVisibleThinking ? 0 : 20,
                         style: .continuous
                     )
                     Markdown(streaming.streamingContent)
@@ -529,7 +531,7 @@ struct ChatView: View {
 
     private var streamingStats: some View {
         HStack(spacing: 8) {
-            if !streaming.streamingThinking.isEmpty {
+            if shouldShowThinkingUI, !streaming.streamingThinking.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "brain")
                         .font(.system(size: 8, weight: .ultraLight))
@@ -815,6 +817,15 @@ struct ChatView: View {
         !pendingImageAttachments.isEmpty || !pendingFileAttachments.isEmpty
     }
 
+    private var shouldShowThinkingUI: Bool {
+        SeerAssistantProfile.shouldEnableThinking(for: conversation.modelName)
+    }
+
+    private var hasVisibleStreamingPayload: Bool {
+        !streaming.streamingContent.isEmpty
+        || (shouldShowThinkingUI && !streaming.streamingThinking.isEmpty)
+    }
+
     private var pendingHistoryActionTitle: String {
         guard let pendingHistoryAction else { return "Confirm Action" }
         switch pendingHistoryAction.kind {
@@ -1055,7 +1066,19 @@ struct ChatView: View {
 
     private func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (!text.isEmpty || hasPendingAttachments), !conversation.modelName.isEmpty else { return }
+        guard !text.isEmpty || hasPendingAttachments else { return }
+
+        if conversation.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            streaming.notice = "Choose a model before sending."
+            showModelPicker = true
+            return
+        }
+
+        guard network.isConnected else {
+            streaming.error = OllamaAPIError.offline.userMessage
+            return
+        }
+
         if !pendingImageAttachments.isEmpty && !isLikelyVisionModel(conversation.modelName) {
             showVisionModelWarning = true
             return

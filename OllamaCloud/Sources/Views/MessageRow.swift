@@ -6,16 +6,17 @@ import UIKit
 
 struct MessageRow: View {
     let message: Message
+    let showsThinkingSection: Bool
     let onEditPrompt: ((Message) -> Void)?
     let onRegenerate: ((Message) -> Void)?
-    @State private var showThinking = false
+    @State private var isThinkingExpanded = false
 
     var body: some View {
         HStack(alignment: .bottom) {
             if message.role == "user" { Spacer(minLength: 48) }
 
             VStack(alignment: .leading, spacing: 0) {
-                if let thinking = message.thinkingContent, !thinking.isEmpty {
+                if showsThinkingSection, let thinking = message.thinkingContent, !thinking.isEmpty {
                     thinkingSection(thinking)
                 }
 
@@ -56,7 +57,7 @@ struct MessageRow: View {
     }
 
     private var assistantBubble: some View {
-        let hasThinking = !(message.thinkingContent ?? "").isEmpty
+        let hasThinking = showsThinkingSection && !(message.thinkingContent ?? "").isEmpty
         let bubbleShape = UnevenRoundedRectangle(
             topLeadingRadius: hasThinking ? 0 : 20,
             bottomLeadingRadius: 20,
@@ -88,7 +89,7 @@ struct MessageRow: View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 withAnimation(.snappy(duration: 0.25)) {
-                    showThinking.toggle()
+                    isThinkingExpanded.toggle()
                 }
                 Haptic.selection()
             } label: {
@@ -101,7 +102,7 @@ struct MessageRow: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .medium))
-                        .rotationEffect(.degrees(showThinking ? 90 : 0))
+                        .rotationEffect(.degrees(isThinkingExpanded ? 90 : 0))
                 }
                 .foregroundStyle(Color.textTertiary)
                 .padding(.horizontal, 16)
@@ -110,7 +111,7 @@ struct MessageRow: View {
             }
             .buttonStyle(.plain)
 
-            if showThinking {
+            if isThinkingExpanded {
                 Markdown(thinking)
                     .markdownTheme(.seerThinking)
                     .textSelection(.enabled)

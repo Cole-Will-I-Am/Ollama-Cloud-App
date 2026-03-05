@@ -60,23 +60,28 @@ class StreamingChatService: ObservableObject {
         error = nil
         notice = nil
 
-        let model = conversation.modelName
+        let selectedModel = conversation.modelName
+        let model = SeerAssistantProfile.runtimeModelName(for: selectedModel)
+        let shouldPreflightAvailability = !SeerAssistantProfile.isSeerModel(selectedModel)
+        let thinkingEnabled = SeerAssistantProfile.shouldEnableThinking(for: selectedModel)
 
-        do {
-            let modelAvailable = try await OllamaAPIClient.shared.isModelAvailable(model)
-            guard modelAvailable else {
-                error = OllamaAPIError.modelUnavailable.userMessage
-                recoveryAction = .chooseModel
+        if shouldPreflightAvailability {
+            do {
+                let modelAvailable = try await OllamaAPIClient.shared.isModelAvailable(model)
+                guard modelAvailable else {
+                    error = OllamaAPIError.modelUnavailable.userMessage
+                    recoveryAction = .chooseModel
+                    return
+                }
+            } catch let apiError as OllamaAPIError {
+                self.error = apiError.userMessage
+                recoveryAction = apiError.suggestsModelReselect ? .chooseModel : .retry
+                return
+            } catch let caughtError {
+                self.error = caughtError.localizedDescription
+                recoveryAction = .retry
                 return
             }
-        } catch let apiError as OllamaAPIError {
-            self.error = apiError.userMessage
-            recoveryAction = apiError.suggestsModelReselect ? .chooseModel : .retry
-            return
-        } catch let caughtError {
-            self.error = caughtError.localizedDescription
-            recoveryAction = .retry
-            return
         }
 
         if shouldPersistUserMessage(
@@ -133,11 +138,14 @@ class StreamingChatService: ObservableObject {
         }
         let requestMessages = Self.buildOutboundMessages(
             conversationMessages: conversation.messages,
-            systemPrompt: conversation.systemPrompt,
+            systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
+                baseSystemPrompt: conversation.systemPrompt,
+                selectedModelName: selectedModel
+            ),
             scaffoldSystemPrompt: scaffoldResolution.systemPrompt
         )
 
-        let options = ChatOptions(
+        let baseOptions = ChatOptions(
             temperature: conversation.temperature,
             top_p: conversation.topP,
             top_k: conversation.topK,
@@ -151,6 +159,10 @@ class StreamingChatService: ObservableObject {
             seed: conversation.seed != 0 ? conversation.seed : nil,
             num_batch: conversation.numBatch != 512 ? conversation.numBatch : nil,
             num_thread: conversation.numThread != 0 ? conversation.numThread : nil
+        )
+        let options = SeerAssistantProfile.tunedOptions(
+            base: baseOptions,
+            selectedModelName: selectedModel
         )
 
         // Start streaming
@@ -169,7 +181,8 @@ class StreamingChatService: ObservableObject {
                 try await performStream(
                     model: model,
                     messages: requestMessages,
-                    options: options
+                    options: options,
+                    think: thinkingEnabled
                 )
             } catch {
                 let apiError = error as? OllamaAPIError
@@ -184,7 +197,8 @@ class StreamingChatService: ObservableObject {
                             try await performStream(
                                 model: model,
                                 messages: requestMessages,
-                                options: options
+                                options: options,
+                                think: thinkingEnabled
                             )
                         } catch {
                             handleStreamError(error)
@@ -212,6 +226,9 @@ class StreamingChatService: ObservableObject {
                 } catch {
                     self.error = "Failed to save response"
                 }
+            } else if self.error == nil, !Task.isCancelled {
+                self.error = "No response received. Try again."
+                self.recoveryAction = .retry
             }
 
             streamingContent = ""
@@ -390,11 +407,13 @@ class StreamingChatService: ObservableObject {
     private func performStream(
         model: String,
         messages: [ChatRequestMessage],
-        options: ChatOptions
+        options: ChatOptions,
+        think: Bool
     ) async throws {
         let (bytes, _) = try await OllamaAPIClient.shared.streamChat(
             model: model,
             messages: messages,
+            think: think,
             options: options
         )
 
@@ -420,7 +439,7 @@ class StreamingChatService: ObservableObject {
                 finalEvalCount = evalCount
             }
 
-            if let thinking = chunk.message?.thinking, !thinking.isEmpty {
+            if think, let thinking = chunk.message?.thinking, !thinking.isEmpty {
                 if !isThinking {
                     isThinking = true
                 }

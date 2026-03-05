@@ -7,6 +7,7 @@ struct ModelPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("favorite_model_names_by_account_json") private var favoriteModelNamesByAccountJSON = "{}"
     @AppStorage("hide_non_favorite_models_by_account_json") private var hideNonFavoriteModelsByAccountJSON = "{}"
+    @AppStorage("seer_favorite_seeded_scopes_json") private var seerFavoriteSeededScopesJSON = "{}"
     @State private var models: [OllamaModel] = []
     @State private var isLoading = true
     @State private var error: String?
@@ -329,7 +330,16 @@ struct ModelPickerView: View {
     private func loadPreferences() {
         let scope = accountScopeKey()
         let favoriteMap = decodeFavoritesByAccount()
-        favoriteModelNames = Set(favoriteMap[scope] ?? [])
+        if let existingFavorites = favoriteMap[scope] {
+            favoriteModelNames = Set(existingFavorites)
+        } else if AppConfig.seerModelEnabled {
+            favoriteModelNames = [AppConfig.seerModelName]
+            persistFavorites()
+        } else {
+            favoriteModelNames = []
+        }
+
+        seedSeerFavoriteIfNeeded(scope: scope)
 
         let hideMap = decodeHidePreferenceByAccount()
         hideNonFavoriteModels = hideMap[scope] ?? false
@@ -349,6 +359,22 @@ struct ModelPickerView: View {
             return [:]
         }
         return decoded
+    }
+
+    private func decodeSeerFavoriteSeededScopes() -> [String: Bool] {
+        guard let data = seerFavoriteSeededScopesJSON.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String: Bool].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    private func persistSeerFavoriteSeededScopes(_ map: [String: Bool]) {
+        guard let data = try? JSONEncoder().encode(map),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        seerFavoriteSeededScopesJSON = json
     }
 
     private func persistFavorites() {
@@ -372,6 +398,18 @@ struct ModelPickerView: View {
             return
         }
         hideNonFavoriteModelsByAccountJSON = json
+    }
+
+    private func seedSeerFavoriteIfNeeded(scope: String) {
+        guard AppConfig.seerModelEnabled else { return }
+
+        var seededMap = decodeSeerFavoriteSeededScopes()
+        if seededMap[scope] == true { return }
+
+        favoriteModelNames.insert(AppConfig.seerModelName)
+        persistFavorites()
+        seededMap[scope] = true
+        persistSeerFavoriteSeededScopes(seededMap)
     }
 
     private func toggleFavorite(_ model: OllamaModel) {

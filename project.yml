@@ -30,6 +30,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.colecantcode.ollamacloud
+        INFOPLIST_KEY_CFBundleDisplayName: SEER
+        INFOPLIST_KEY_CFBundleName: SEER
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true

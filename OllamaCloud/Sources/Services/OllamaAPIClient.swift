@@ -293,10 +293,11 @@ actor OllamaAPIClient {
             if let error = self.classifyHTTPResponse(http) { throw error }
 
             let decoded = try JSONDecoder().decode(OllamaModelsResponse.self, from: data)
-            self.cachedModels = decoded.models
+            let models = self.injectSeerModel(into: decoded.models)
+            self.cachedModels = models
             self.cachedModelsAt = Date()
             self.cachedModelsScopeKey = scopeKey
-            return decoded.models
+            return models
         }
     }
 
@@ -325,11 +326,27 @@ actor OllamaAPIClient {
         name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    private func injectSeerModel(into models: [OllamaModel]) -> [OllamaModel] {
+        guard AppConfig.seerModelEnabled else { return models }
+        let seerName = AppConfig.seerModelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !seerName.isEmpty else { return models }
+
+        let normalizedSeer = normalizeModelName(seerName)
+        if models.contains(where: { normalizeModelName($0.name) == normalizedSeer }) {
+            return models
+        }
+
+        var updated = models
+        updated.append(OllamaModel(name: seerName, model: seerName, modified_at: nil, size: nil))
+        return updated
+    }
+
     // MARK: - Stream Chat (no retry — caller handles retry for streams)
 
     func streamChat(
         model: String,
         messages: [ChatRequestMessage],
+        think: Bool = true,
         options: ChatOptions? = nil
     ) async throws -> (URLSession.AsyncBytes, URLResponse) {
         guard let key = apiKey else { throw OllamaAPIError.unauthorized }
@@ -337,7 +354,13 @@ actor OllamaAPIClient {
             throw OllamaAPIError.invalidResponse
         }
 
-        let body = ChatRequest(model: model, messages: messages, stream: true, options: options)
+        let body = ChatRequest(
+            model: model,
+            messages: messages,
+            stream: true,
+            think: think,
+            options: options
+        )
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

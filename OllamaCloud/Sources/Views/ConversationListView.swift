@@ -112,10 +112,7 @@ struct ConversationListView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .ultraLight))
                         .foregroundStyle(Color.accent)
-                        .padding(8)
-                        .background(
-                            Circle().fill(Color.accentSoft)
-                        )
+                        .frame(minWidth: 44, minHeight: 44)
                 }
             }
         }
