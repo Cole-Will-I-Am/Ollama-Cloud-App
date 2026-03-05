@@ -74,11 +74,10 @@ private final class PinningDelegate: NSObject, URLSessionDelegate, Sendable {
         }
 
         // Check each certificate in the chain for a matching SPKI hash
-        let certCount = SecTrustGetCertificateCount(serverTrust)
-        for i in 0..<certCount {
-            guard let cert = SecTrustCopyCertificateChain(serverTrust)?[i] as! SecCertificate? else {
-                continue
-            }
+        guard let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate] else {
+            return (.cancelAuthenticationChallenge, nil)
+        }
+        for cert in certChain {
             let publicKeyData = SecCertificateCopyKey(cert).flatMap { key in
                 SecKeyCopyExternalRepresentation(key, nil) as Data?
             }
