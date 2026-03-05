@@ -16,6 +16,8 @@ final class ModelBehaviorTests: XCTestCase {
         XCTAssertEqual(conversation.title, "New Chat")
         XCTAssertFalse(conversation.isPinned ?? false)
         XCTAssertTrue(conversation.modelName.isEmpty)
+        XCTAssertNil(conversation.activeScaffoldID)
+        XCTAssertNil(conversation.activeScaffoldName)
         XCTAssertEqual(conversation.temperature, 0.7, accuracy: 0.0001)
         XCTAssertEqual(conversation.topP, 0.9, accuracy: 0.0001)
         XCTAssertEqual(conversation.topK, 40)

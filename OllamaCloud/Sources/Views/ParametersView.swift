@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - Parameter Presets
 
@@ -94,6 +95,8 @@ struct ParametersView: View {
     @Bindable var conversation: Conversation
     @State private var errorMessage: String?
     @State private var showAdvanced = false
+    @State private var showScaffoldLibrary = false
+    @State private var editingScaffold: ReasoningScaffold?
 
     var body: some View {
         NavigationStack {
@@ -172,6 +175,38 @@ struct ParametersView: View {
                         .padding(16)
                     }
 
+                    if AppConfig.reasoningScaffoldsEnabled {
+                        section("REASONING SCAFFOLD") {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "brain")
+                                        .font(.system(size: 13, weight: .ultraLight))
+                                        .foregroundStyle(Color.accent)
+                                    Text(activeScaffoldName ?? "None selected")
+                                        .font(.app(14))
+                                        .foregroundStyle(activeScaffoldName == nil ? Color.textTertiary : Color.textPrimary)
+                                        .lineLimit(1)
+                                    Spacer()
+                                }
+
+                                HStack(spacing: 8) {
+                                    tinyAction("Change") {
+                                        showScaffoldLibrary = true
+                                    }
+                                    tinyAction("Edit") {
+                                        editingScaffold = loadActiveScaffold()
+                                    }
+                                    .disabled(activeScaffoldName == nil)
+                                    tinyAction("Clear") {
+                                        clearActiveScaffold()
+                                    }
+                                    .disabled(activeScaffoldName == nil)
+                                }
+                            }
+                            .padding(16)
+                        }
+                    }
+
                     // System prompt
                     section("SYSTEM PROMPT") {
                         TextEditor(text: $conversation.systemPrompt)
@@ -207,6 +242,21 @@ struct ParametersView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showScaffoldLibrary) {
+                ScaffoldLibraryView(
+                    accountScopeKey: AccountScope.currentKey(),
+                    onAttach: { scaffold in
+                        attachScaffold(scaffold)
+                    },
+                    dismissOnAttach: true
+                )
+            }
+            .sheet(item: $editingScaffold) { scaffold in
+                ScaffoldBuilderView(
+                    accountScopeKey: AccountScope.currentKey(),
+                    scaffold: scaffold
+                )
+            }
             .alert("Storage Error", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { _ in errorMessage = nil }
@@ -219,6 +269,12 @@ struct ParametersView: View {
                 if (old < 1.0 && new >= 1.0) || (old >= 1.0 && new < 1.0) {
                     Haptic.impact(.medium)
                 }
+            }
+            .onAppear {
+                refreshActiveScaffoldNameFromStore()
+            }
+            .onChange(of: conversation.activeScaffoldID) { _, _ in
+                refreshActiveScaffoldNameFromStore()
             }
         }
     }
@@ -313,6 +369,74 @@ struct ParametersView: View {
     }
 
     // MARK: - Helpers
+
+    private var activeScaffoldName: String? {
+        let trimmed = conversation.activeScaffoldName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func tinyAction(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title.uppercased())
+                .font(.appLabel(9))
+                .tracking(1.8)
+                .foregroundStyle(Color.accent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule()
+                        .fill(Color.accentSoft)
+                        .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func attachScaffold(_ scaffold: ReasoningScaffold) {
+        conversation.activeScaffoldID = scaffold.id.uuidString
+        conversation.activeScaffoldName = scaffold.name
+        conversation.updatedAt = Date()
+        do {
+            try modelContext.save()
+            AppTelemetry.track("scaffold_attached", metadata: ["id": scaffold.id.uuidString])
+            Haptic.selection()
+        } catch {
+            errorMessage = "Failed to attach reasoning scaffold."
+        }
+    }
+
+    private func clearActiveScaffold() {
+        let hadScaffold = activeScaffoldName != nil
+        conversation.activeScaffoldID = nil
+        conversation.activeScaffoldName = nil
+        conversation.updatedAt = Date()
+        do {
+            try modelContext.save()
+            if hadScaffold {
+                AppTelemetry.track("scaffold_cleared", metadata: ["reason": "manual"])
+            }
+            Haptic.selection()
+        } catch {
+            errorMessage = "Failed to clear reasoning scaffold."
+        }
+    }
+
+    private func loadActiveScaffold() -> ReasoningScaffold? {
+        ReasoningScaffoldResolver.resolveActiveScaffold(
+            for: conversation,
+            in: modelContext
+        ).scaffold
+    }
+
+    private func refreshActiveScaffoldNameFromStore() {
+        let resolution = ReasoningScaffoldResolver.resolveActiveScaffold(
+            for: conversation,
+            in: modelContext
+        )
+        if resolution.cleared {
+            errorMessage = "Active reasoning scaffold was cleared for this account."
+        }
+    }
 
     private func isActivePreset(_ preset: ParameterPreset) -> Bool {
         conversation.temperature == preset.temperature &&

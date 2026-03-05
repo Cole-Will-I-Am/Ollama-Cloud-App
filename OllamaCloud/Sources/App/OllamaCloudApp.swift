@@ -5,7 +5,8 @@ private enum AppModelContainer {
     static let shared: ModelContainer = {
         let schema = Schema([
             Conversation.self,
-            Message.self
+            Message.self,
+            ReasoningScaffold.self
         ])
 
         do {

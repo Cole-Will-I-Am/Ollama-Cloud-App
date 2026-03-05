@@ -29,4 +29,25 @@ final class ChatRequestEncodingTests: XCTestCase {
         XCTAssertEqual(topP, 0.85, accuracy: 0.0001)
         XCTAssertEqual(options["num_thread"] as? Int, 8)
     }
+
+    func testOutboundMessagesPlaceScaffoldSystemMessageBeforeSystemPrompt() {
+        let user = Message(role: "user", content: "Hello")
+        user.createdAt = Date(timeIntervalSince1970: 1_000)
+        let assistant = Message(role: "assistant", content: "Hi there")
+        assistant.createdAt = Date(timeIntervalSince1970: 1_010)
+
+        let outbound = StreamingChatService.buildOutboundMessages(
+            conversationMessages: [assistant, user],
+            systemPrompt: "System prompt",
+            scaffoldSystemPrompt: "Scaffold prompt"
+        )
+
+        XCTAssertEqual(outbound.count, 4)
+        XCTAssertEqual(outbound[0].role, "system")
+        XCTAssertEqual(outbound[0].content, "Scaffold prompt")
+        XCTAssertEqual(outbound[1].role, "system")
+        XCTAssertEqual(outbound[1].content, "System prompt")
+        XCTAssertEqual(outbound[2].role, "user")
+        XCTAssertEqual(outbound[3].role, "assistant")
+    }
 }

@@ -13,6 +13,7 @@ class StreamingChatService: ObservableObject {
     @Published var isStreaming = false
     @Published var isThinking = false
     @Published var error: String?
+    @Published var notice: String?
     @Published var recoveryAction: RecoveryAction?
 
     // Streaming metrics
@@ -56,6 +57,7 @@ class StreamingChatService: ObservableObject {
         lastSentAttachmentSummary = attachmentSummary
         recoveryAction = nil
         error = nil
+        notice = nil
 
         let model = conversation.modelName
 
@@ -111,38 +113,22 @@ class StreamingChatService: ObservableObject {
         }
 
         // Build messages array for API
-        var requestMessages: [ChatRequestMessage] = []
-
-        if !conversation.systemPrompt.isEmpty {
-            requestMessages.append(ChatRequestMessage(role: "system", content: conversation.systemPrompt))
-        }
-
-        let sorted = (conversation.messages).sorted { $0.createdAt < $1.createdAt }
-        for msg in sorted {
-            let outboundContent: String
-            if msg.role == "user",
-               let attachmentRequestContent = msg.attachmentRequestContent,
-               !attachmentRequestContent.isEmpty {
-                outboundContent = attachmentRequestContent
-            } else {
-                outboundContent = msg.content
+        let scaffoldResolution = prepareScaffoldSystemPrompt(
+            conversation: conversation,
+            modelContext: modelContext
+        )
+        if scaffoldResolution.stateChanged {
+            do {
+                try modelContext.save()
+            } catch {
+                notice = "Scaffold state changed but could not be persisted."
             }
-
-            let outboundImages: [String]? = {
-                guard msg.role == "user",
-                      let json = msg.imageBase64sJSON,
-                      let data = json.data(using: .utf8),
-                      let decoded = try? JSONDecoder().decode([String].self, from: data),
-                      !decoded.isEmpty else {
-                    return nil
-                }
-                return decoded
-            }()
-
-            requestMessages.append(
-                ChatRequestMessage(role: msg.role, content: outboundContent, images: outboundImages)
-            )
         }
+        let requestMessages = Self.buildOutboundMessages(
+            conversationMessages: conversation.messages,
+            systemPrompt: conversation.systemPrompt,
+            scaffoldSystemPrompt: scaffoldResolution.systemPrompt
+        )
 
         let options = ChatOptions(
             temperature: conversation.temperature,
@@ -227,6 +213,142 @@ class StreamingChatService: ObservableObject {
             isThinking = false
             recoveryAction = nil
         }
+    }
+
+    nonisolated static func buildOutboundMessages(
+        conversationMessages: [Message],
+        systemPrompt: String,
+        scaffoldSystemPrompt: String?
+    ) -> [ChatRequestMessage] {
+        var requestMessages: [ChatRequestMessage] = []
+
+        if let scaffoldSystemPrompt,
+           !scaffoldSystemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            requestMessages.append(ChatRequestMessage(role: "system", content: scaffoldSystemPrompt))
+        }
+
+        if !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            requestMessages.append(ChatRequestMessage(role: "system", content: systemPrompt))
+        }
+
+        let sorted = conversationMessages.sorted { $0.createdAt < $1.createdAt }
+        for msg in sorted {
+            let outboundContent: String
+            if msg.role == "user",
+               let attachmentRequestContent = msg.attachmentRequestContent,
+               !attachmentRequestContent.isEmpty {
+                outboundContent = attachmentRequestContent
+            } else {
+                outboundContent = msg.content
+            }
+
+            requestMessages.append(
+                ChatRequestMessage(
+                    role: msg.role,
+                    content: outboundContent,
+                    images: decodedImages(for: msg)
+                )
+            )
+        }
+
+        return requestMessages
+    }
+
+    struct ScaffoldResolution {
+        let systemPrompt: String?
+        let stateChanged: Bool
+    }
+
+    func prepareScaffoldSystemPrompt(
+        conversation: Conversation,
+        modelContext: ModelContext
+    ) -> ScaffoldResolution {
+        guard AppConfig.reasoningScaffoldsEnabled else {
+            return ScaffoldResolution(systemPrompt: nil, stateChanged: false)
+        }
+
+        guard let rawID = conversation.activeScaffoldID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawID.isEmpty else {
+            return ScaffoldResolution(systemPrompt: nil, stateChanged: false)
+        }
+
+        guard let scaffoldID = UUID(uuidString: rawID) else {
+            let changed = clearActiveScaffold(
+                conversation: conversation,
+                reason: "invalid_id",
+                message: "Active reasoning scaffold could not be loaded and was cleared."
+            )
+            return ScaffoldResolution(systemPrompt: nil, stateChanged: changed)
+        }
+
+        let descriptor = FetchDescriptor<ReasoningScaffold>(
+            predicate: #Predicate<ReasoningScaffold> { scaffold in
+                scaffold.id == scaffoldID
+            }
+        )
+
+        guard let scaffold = try? modelContext.fetch(descriptor).first else {
+            let changed = clearActiveScaffold(
+                conversation: conversation,
+                reason: "missing",
+                message: "Active reasoning scaffold is missing and was cleared."
+            )
+            return ScaffoldResolution(systemPrompt: nil, stateChanged: changed)
+        }
+
+        let activeScope = AccountScope.currentKey()
+        guard scaffold.accountScopeKey == activeScope else {
+            let changed = clearActiveScaffold(
+                conversation: conversation,
+                reason: "scope_mismatch",
+                message: "Active reasoning scaffold was from another account scope and was cleared."
+            )
+            return ScaffoldResolution(systemPrompt: nil, stateChanged: changed)
+        }
+
+        let compiled = ReasoningScaffoldCompiler.compile(scaffold)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !compiled.isEmpty else {
+            notice = "Reasoning scaffold was empty and skipped."
+            return ScaffoldResolution(systemPrompt: nil, stateChanged: false)
+        }
+
+        var stateChanged = false
+        if conversation.activeScaffoldName != scaffold.name {
+            conversation.activeScaffoldName = scaffold.name
+            stateChanged = true
+        }
+
+        scaffold.lastUsedAt = Date()
+        stateChanged = true
+        AppTelemetry.track("scaffold_used_on_send", metadata: ["id": scaffold.id.uuidString])
+        return ScaffoldResolution(systemPrompt: compiled, stateChanged: stateChanged)
+    }
+
+    private func clearActiveScaffold(
+        conversation: Conversation,
+        reason: String,
+        message: String
+    ) -> Bool {
+        let hasScaffold = (conversation.activeScaffoldID?.isEmpty == false)
+            || (conversation.activeScaffoldName?.isEmpty == false)
+        conversation.activeScaffoldID = nil
+        conversation.activeScaffoldName = nil
+        conversation.updatedAt = Date()
+        notice = message
+        AppTelemetry.track("scaffold_cleared", metadata: ["reason": reason])
+        return hasScaffold
+    }
+
+    nonisolated private static func decodedImages(for message: Message) -> [String]? {
+        guard message.role == "user",
+              let json = message.imageBase64sJSON,
+              let data = json.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String].self, from: data),
+              !decoded.isEmpty else {
+            return nil
+        }
+        return decoded
     }
 
     /// Perform the actual stream reading with idle timeout
@@ -343,6 +465,7 @@ class StreamingChatService: ObservableObject {
         streamingThinking = ""
         isStreaming = false
         isThinking = false
+        notice = nil
         recoveryAction = nil
         streamTask = nil
     }

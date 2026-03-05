@@ -23,12 +23,14 @@ struct ChatView: View {
     @State private var bottomAnchorMaxY: CGFloat = 0
     @FocusState private var isInputFocused: Bool
     @State private var showAttachmentOptions = false
+    @State private var showScaffoldLibrary = false
     @State private var showPhotoPicker = false
     @State private var showFileImporter = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var pendingImageAttachments: [PendingImageAttachment] = []
     @State private var pendingFileAttachments: [PendingFileAttachment] = []
     @State private var attachmentError: String?
+    @State private var scaffoldPersistenceError: String?
     @State private var showVisionModelWarning = false
 
     private struct PendingImageAttachment: Identifiable, Equatable {
@@ -96,15 +98,28 @@ struct ChatView: View {
         .sheet(isPresented: $showParameters) {
             ParametersView(conversation: conversation)
         }
+        .sheet(isPresented: $showScaffoldLibrary) {
+            ScaffoldLibraryView(
+                accountScopeKey: AccountScope.currentKey(),
+                onAttach: { scaffold in
+                    attachScaffold(scaffold)
+                },
+                dismissOnAttach: true
+            )
+        }
         .onChange(of: streaming.error) { _, newError in
             if newError != nil {
                 Haptic.notification(.error)
             }
         }
         .onAppear {
+            refreshActiveScaffoldNameFromStore()
             if conversation.messages.isEmpty && !conversation.modelName.isEmpty {
                 isInputFocused = true
             }
+        }
+        .onChange(of: conversation.activeScaffoldID) { _, _ in
+            refreshActiveScaffoldNameFromStore()
         }
         .onChange(of: conversation.modelName) { _, newValue in
             if !newValue.isEmpty && conversation.messages.isEmpty {
@@ -162,6 +177,14 @@ struct ChatView: View {
         } message: {
             Text(attachmentError ?? "Unable to load attachment.")
         }
+        .alert("Scaffold Error", isPresented: Binding(
+            get: { scaffoldPersistenceError != nil },
+            set: { _ in scaffoldPersistenceError = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(scaffoldPersistenceError ?? "Unable to update reasoning scaffold.")
+        }
         .alert("Vision Model Recommended", isPresented: $showVisionModelWarning) {
             Button("Choose Model") {
                 showModelPicker = true
@@ -205,6 +228,11 @@ struct ChatView: View {
                                 if let error = streaming.error {
                                     errorBubble(error)
                                         .id("error")
+                                }
+
+                                if let notice = streaming.notice, !notice.isEmpty {
+                                    noticeBubble(notice)
+                                        .id("notice")
                                 }
 
                                 GeometryReader { anchorGeo in
@@ -539,6 +567,37 @@ struct ChatView: View {
         }
     }
 
+    private func noticeBubble(_ message: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12, weight: .ultraLight))
+                        .foregroundStyle(Color.accent)
+                    Text(message)
+                        .font(.app(12))
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.accentSoft.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.border, lineWidth: 0.5)
+                    )
+            )
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    streaming.notice = nil
+                }
+            }
+            Spacer()
+        }
+    }
+
     // MARK: - Input
 
     private var inputBar: some View {
@@ -546,6 +605,14 @@ struct ChatView: View {
             Rectangle().fill(Color.border).frame(height: 0.5)
 
             VStack(spacing: 8) {
+                if AppConfig.reasoningScaffoldsEnabled, let scaffoldName = activeScaffoldDisplayName {
+                    ScaffoldChip(
+                        name: scaffoldName,
+                        onSwap: { showScaffoldLibrary = true },
+                        onClear: { clearActiveScaffold() }
+                    )
+                }
+
                 if hasPendingAttachments {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -586,6 +653,24 @@ struct ChatView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(streaming.isStreaming)
+
+                    if AppConfig.reasoningScaffoldsEnabled {
+                        Button {
+                            showScaffoldLibrary = true
+                        } label: {
+                            Image(systemName: "brain")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(Color.accent)
+                                .frame(width: 34, height: 34)
+                                .background(
+                                    Circle()
+                                        .fill(Color.accentSoft)
+                                        .overlay(Circle().stroke(Color.border, lineWidth: 0.5))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(streaming.isStreaming)
+                    }
 
                     TextField("", text: $input, prompt: Text(inputPlaceholder).foregroundStyle(Color.textTertiary), axis: .vertical)
                         .font(.app(15))
@@ -645,6 +730,11 @@ struct ChatView: View {
         return "Message \(name)"
     }
 
+    private var activeScaffoldDisplayName: String? {
+        let trimmed = conversation.activeScaffoldName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var canSend: Bool {
         (!input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasPendingAttachments)
         && !streaming.isStreaming
@@ -654,6 +744,47 @@ struct ChatView: View {
 
     private var hasPendingAttachments: Bool {
         !pendingImageAttachments.isEmpty || !pendingFileAttachments.isEmpty
+    }
+
+    private func attachScaffold(_ scaffold: ReasoningScaffold) {
+        conversation.activeScaffoldID = scaffold.id.uuidString
+        conversation.activeScaffoldName = scaffold.name
+        conversation.updatedAt = Date()
+        do {
+            try modelContext.save()
+            AppTelemetry.track("scaffold_attached", metadata: ["id": scaffold.id.uuidString])
+            Haptic.selection()
+        } catch {
+            scaffoldPersistenceError = "Failed to attach reasoning scaffold."
+        }
+    }
+
+    private func clearActiveScaffold() {
+        let hadScaffold = (conversation.activeScaffoldID?.isEmpty == false)
+            || (conversation.activeScaffoldName?.isEmpty == false)
+        conversation.activeScaffoldID = nil
+        conversation.activeScaffoldName = nil
+        conversation.updatedAt = Date()
+        do {
+            try modelContext.save()
+            if hadScaffold {
+                AppTelemetry.track("scaffold_cleared", metadata: ["reason": "manual"])
+            }
+            Haptic.selection()
+        } catch {
+            scaffoldPersistenceError = "Failed to clear reasoning scaffold."
+        }
+    }
+
+    private func refreshActiveScaffoldNameFromStore() {
+        guard AppConfig.reasoningScaffoldsEnabled else { return }
+        let resolution = ReasoningScaffoldResolver.resolveActiveScaffold(
+            for: conversation,
+            in: modelContext
+        )
+        if resolution.cleared {
+            streaming.notice = "Active reasoning scaffold was cleared for this account."
+        }
     }
 
     private func send() {

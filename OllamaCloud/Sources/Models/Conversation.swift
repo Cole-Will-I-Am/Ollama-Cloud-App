@@ -8,6 +8,8 @@ final class Conversation {
     var isPinned: Bool?
     var modelName: String
     var systemPrompt: String
+    var activeScaffoldID: String?
+    var activeScaffoldName: String?
     var createdAt: Date
     var updatedAt: Date
 
@@ -38,6 +40,8 @@ final class Conversation {
         isPinned: Bool = false,
         modelName: String = "",
         systemPrompt: String = "",
+        activeScaffoldID: String? = nil,
+        activeScaffoldName: String? = nil,
         temperature: Double = 0.7,
         topP: Double = 0.9,
         topK: Int = 40,
@@ -57,6 +61,8 @@ final class Conversation {
         self.isPinned = isPinned
         self.modelName = modelName
         self.systemPrompt = systemPrompt
+        self.activeScaffoldID = activeScaffoldID
+        self.activeScaffoldName = activeScaffoldName
         self.temperature = temperature
         self.topP = topP
         self.topK = topK

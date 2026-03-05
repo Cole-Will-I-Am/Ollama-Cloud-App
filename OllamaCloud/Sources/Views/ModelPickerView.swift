@@ -1,5 +1,4 @@
 import SwiftUI
-import CryptoKit
 
 struct ModelPickerView: View {
     let onSelect: (OllamaModel) -> Void
@@ -300,13 +299,7 @@ struct ModelPickerView: View {
     }
 
     private func accountScopeKey() -> String {
-        let rawHost = URL(string: AppConfig.apiBaseURL)?.host ?? AppConfig.apiBaseURL
-        let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let apiKey = KeychainHelper.load(key: "api_key")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let fingerprint = SHA256.hash(data: Data(apiKey.utf8))
-            .compactMap { String(format: "%02x", $0) }
-            .joined()
-        return "\(host)#\(fingerprint)"
+        AccountScope.currentKey()
     }
 
     private func loadPreferences() {

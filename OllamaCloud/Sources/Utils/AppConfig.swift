@@ -3,6 +3,7 @@ import Foundation
 enum AppConfig {
     static let apiBaseURLKey = "api_base_url"
     static let backendBearerTokenKey = "backend_bearer_token"
+    static let reasoningScaffoldsEnabledKey = "reasoning_scaffolds_enabled"
 
     private static let defaultAPIBaseURL = "https://ollama.com"
 
@@ -39,5 +40,36 @@ enum AppConfig {
             return host
         }
         return apiBaseURL
+    }
+
+    static var reasoningScaffoldsEnabled: Bool {
+        if let value = UserDefaults.standard.object(forKey: reasoningScaffoldsEnabledKey) {
+            if let boolValue = value as? Bool {
+                return boolValue
+            }
+            if let stringValue = value as? String {
+                return parseBoolString(stringValue, defaultValue: true)
+            }
+        }
+
+        if let envValue = ProcessInfo.processInfo.environment["REASONING_SCAFFOLDS_ENABLED"] {
+            return parseBoolString(envValue, defaultValue: true)
+        }
+
+        return true
+    }
+
+    private static func parseBoolString(_ raw: String, defaultValue: Bool) -> Bool {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.isEmpty {
+            return defaultValue
+        }
+        if ["1", "true", "yes", "on"].contains(normalized) {
+            return true
+        }
+        if ["0", "false", "no", "off"].contains(normalized) {
+            return false
+        }
+        return defaultValue
     }
 }
