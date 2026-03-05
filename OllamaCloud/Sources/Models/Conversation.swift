@@ -1,6 +1,25 @@
 import Foundation
 import SwiftData
 
+enum ThinkingMode: String, CaseIterable, Identifiable {
+    case auto
+    case on
+    case off
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto:
+            return "Auto"
+        case .on:
+            return "On"
+        case .off:
+            return "Off"
+        }
+    }
+}
+
 @Model
 final class Conversation {
     var id: UUID
@@ -8,6 +27,7 @@ final class Conversation {
     var isPinned: Bool?
     var accountScopeKey: String
     var modelName: String
+    var thinkingModeRaw: String?
     var systemPrompt: String
     var activeScaffoldID: String?
     var activeScaffoldName: String?
@@ -36,11 +56,17 @@ final class Conversation {
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message]
 
+    var thinkingMode: ThinkingMode {
+        get { ThinkingMode(rawValue: thinkingModeRaw ?? ThinkingMode.auto.rawValue) ?? .auto }
+        set { thinkingModeRaw = newValue.rawValue }
+    }
+
     init(
         title: String = "New Chat",
         isPinned: Bool = false,
         accountScopeKey: String = "",
         modelName: String = "",
+        thinkingModeRaw: String? = ThinkingMode.auto.rawValue,
         systemPrompt: String = "",
         activeScaffoldID: String? = nil,
         activeScaffoldName: String? = nil,
@@ -63,6 +89,7 @@ final class Conversation {
         self.isPinned = isPinned
         self.accountScopeKey = accountScopeKey
         self.modelName = modelName
+        self.thinkingModeRaw = thinkingModeRaw
         self.systemPrompt = systemPrompt
         self.activeScaffoldID = activeScaffoldID
         self.activeScaffoldName = activeScaffoldName

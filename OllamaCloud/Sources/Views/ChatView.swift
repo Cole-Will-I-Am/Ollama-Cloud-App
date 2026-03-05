@@ -824,7 +824,10 @@ struct ChatView: View {
     }
 
     private var shouldShowThinkingUI: Bool {
-        SeerAssistantProfile.shouldEnableThinking(for: conversation.modelName)
+        SeerAssistantProfile.shouldEnableThinking(
+            for: conversation.modelName,
+            mode: conversation.thinkingMode
+        )
     }
 
     private var hasVisibleStreamingPayload: Bool {
@@ -1138,7 +1141,7 @@ struct ChatView: View {
     nonisolated static func shouldTriggerStreamingAutoScroll(
         now: Date,
         lastAutoScrollAt: Date,
-        interval: TimeInterval = streamingAutoScrollThrottleInterval
+        interval: TimeInterval
     ) -> Bool {
         now.timeIntervalSince(lastAutoScrollAt) >= interval
     }

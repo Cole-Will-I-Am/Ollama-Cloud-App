@@ -94,7 +94,10 @@ class StreamingChatService: ObservableObject {
         let selectedModel = conversation.modelName
         let model = SeerAssistantProfile.runtimeModelName(for: selectedModel)
         let shouldPreflightAvailability = !SeerAssistantProfile.isSeerModel(selectedModel)
-        let thinkingEnabled = SeerAssistantProfile.shouldEnableThinking(for: selectedModel)
+        let thinkingEnabled = SeerAssistantProfile.shouldEnableThinking(
+            for: selectedModel,
+            mode: conversation.thinkingMode
+        )
 
         if shouldPreflightAvailability {
             do {

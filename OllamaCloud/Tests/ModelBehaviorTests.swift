@@ -17,6 +17,7 @@ final class ModelBehaviorTests: XCTestCase {
         XCTAssertFalse(conversation.isPinned ?? false)
         XCTAssertTrue(conversation.accountScopeKey.isEmpty)
         XCTAssertTrue(conversation.modelName.isEmpty)
+        XCTAssertEqual(conversation.thinkingMode, .auto)
         XCTAssertNil(conversation.activeScaffoldID)
         XCTAssertNil(conversation.activeScaffoldName)
         XCTAssertEqual(conversation.temperature, 0.7, accuracy: 0.0001)
@@ -24,5 +25,41 @@ final class ModelBehaviorTests: XCTestCase {
         XCTAssertEqual(conversation.topK, 40)
         XCTAssertEqual(conversation.numPredict, 2048)
         XCTAssertTrue(conversation.messages.isEmpty)
+    }
+
+    func testThinkingModeAutoUsesModelProfileDefault() {
+        XCTAssertFalse(
+            SeerAssistantProfile.shouldEnableThinking(
+                for: AppConfig.seerModelName,
+                mode: .auto
+            )
+        )
+        XCTAssertTrue(
+            SeerAssistantProfile.shouldEnableThinking(
+                for: "qwen3.5:32b",
+                mode: .auto
+            )
+        )
+    }
+
+    func testThinkingModeOverrideForcesOnOrOff() {
+        XCTAssertFalse(
+            SeerAssistantProfile.shouldEnableThinking(
+                for: AppConfig.seerModelName,
+                mode: .on
+            )
+        )
+        XCTAssertTrue(
+            SeerAssistantProfile.shouldEnableThinking(
+                for: "qwen3.5:32b",
+                mode: .on
+            )
+        )
+        XCTAssertFalse(
+            SeerAssistantProfile.shouldEnableThinking(
+                for: "qwen3.5:32b",
+                mode: .off
+            )
+        )
     }
 }

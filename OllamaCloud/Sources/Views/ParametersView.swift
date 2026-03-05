@@ -130,6 +130,24 @@ struct ParametersView: View {
                         .buttonStyle(.plain)
                     }
 
+                    section("THINKING") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("Thinking", selection: thinkingModeBinding) {
+                                ForEach(ThinkingMode.allCases) { mode in
+                                    Text(mode.title.uppercased()).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .disabled(isThinkingLockedForModel)
+
+                            Text(thinkingModeSummary)
+                                .font(.app(11))
+                                .foregroundStyle(Color.textTertiary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(16)
+                    }
+
                     // Sampling
                     section("SAMPLING") {
                         VStack(spacing: 20) {
@@ -395,6 +413,48 @@ struct ParametersView: View {
     }
 
     // MARK: - Helpers
+
+    private var thinkingModeBinding: Binding<ThinkingMode> {
+        Binding(
+            get: {
+                if isThinkingLockedForModel {
+                    return .off
+                }
+                return conversation.thinkingMode
+            },
+            set: {
+                guard !isThinkingLockedForModel else { return }
+                conversation.thinkingMode = $0
+            }
+        )
+    }
+
+    private var isThinkingLockedForModel: Bool {
+        SeerAssistantProfile.isSeerModel(conversation.modelName)
+    }
+
+    private var thinkingModeSummary: String {
+        if conversation.modelName.isEmpty {
+            return "Auto follows the selected model once you choose one."
+        }
+        if isThinkingLockedForModel {
+            return "SEER keeps thinking OFF for concise in-app guidance."
+        }
+        let effective = SeerAssistantProfile.shouldEnableThinking(
+            for: conversation.modelName,
+            mode: conversation.thinkingMode
+        )
+        switch conversation.thinkingMode {
+        case .auto:
+            return effective
+            ? "Auto is currently ON for this model."
+            : "Auto is currently OFF for this model."
+        case .on:
+            return "Thinking is forced ON for this chat."
+        case .off:
+            return "Thinking is forced OFF for this chat."
+        }
+    }
 
     private var activeScaffoldName: String? {
         let trimmed = conversation.activeScaffoldName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

@@ -13,8 +13,19 @@ enum SeerAssistantProfile {
         return selectedModelName
     }
 
-    static func shouldEnableThinking(for selectedModelName: String) -> Bool {
-        !isSeerModel(selectedModelName)
+    static func shouldEnableThinking(for selectedModelName: String, mode: ThinkingMode = .auto) -> Bool {
+        if isSeerModel(selectedModelName) {
+            return false
+        }
+
+        switch mode {
+        case .on:
+            return true
+        case .off:
+            return false
+        case .auto:
+            return true
+        }
     }
 
     static func tunedOptions(base: ChatOptions, selectedModelName: String) -> ChatOptions {
