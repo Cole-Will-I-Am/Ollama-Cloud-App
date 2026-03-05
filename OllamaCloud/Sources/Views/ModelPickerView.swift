@@ -25,25 +25,28 @@ struct ModelPickerView: View {
                 } else if let error {
                     VStack(spacing: 14) {
                         Image(systemName: "wifi.slash")
-                            .font(.system(size: 32, weight: .ultraLight, design: .rounded))
+                            .font(.system(size: 32, weight: .ultraLight))
                             .foregroundStyle(Color.textTertiary)
                         Text(error)
                             .font(.app(13))
                             .foregroundStyle(Color.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
-                        Button("Retry") { fetchModels() }
-                            .font(.app(14, weight: .medium))
-                            .foregroundStyle(Color.accent)
-                            .padding(.top, 4)
+                        Button { fetchModels() } label: {
+                            Text("RETRY")
+                                .font(.appLabel(11))
+                                .tracking(2)
+                                .foregroundStyle(Color.accent)
+                        }
+                        .padding(.top, 4)
                     }
                 } else if models.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "cpu")
-                            .font(.system(size: 32, weight: .ultraLight, design: .rounded))
+                            .font(.system(size: 32, weight: .ultraLight))
                             .foregroundStyle(Color.textTertiary)
                         Text("No models found")
-                            .font(.app(14))
+                            .font(.app(14, weight: .light))
                             .foregroundStyle(Color.textTertiary)
                     }
                 } else {
@@ -57,23 +60,23 @@ struct ModelPickerView: View {
                                                 .fill(Color.accentSoft)
                                                 .frame(width: 38, height: 38)
                                             Image(systemName: "cube")
-                                                .font(.system(size: 14, weight: .light, design: .rounded))
+                                                .font(.system(size: 14, weight: .ultraLight))
                                                 .foregroundStyle(Color.accent)
                                         }
 
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(model.displayName)
-                                                .font(.app(15, weight: .medium))
+                                                .font(.app(15, weight: .regular))
                                                 .foregroundStyle(Color.textPrimary)
                                             Text(model.name)
-                                                .font(.app(12))
+                                                .font(.app(12, weight: .light))
                                                 .foregroundStyle(Color.textTertiary)
                                         }
 
                                         Spacer()
 
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                                            .font(.system(size: 10, weight: .light))
                                             .foregroundStyle(Color.textTertiary)
                                     }
                                     .padding(.horizontal, 18)
@@ -91,9 +94,12 @@ struct ModelPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .font(.app(15))
-                        .foregroundStyle(Color.textSecondary)
+                    Button { dismiss() } label: {
+                        Text("CANCEL")
+                            .font(.appLabel(11))
+                            .tracking(2)
+                            .foregroundStyle(Color.textSecondary)
+                    }
                 }
             }
         }

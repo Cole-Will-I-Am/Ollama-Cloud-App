@@ -56,8 +56,34 @@ extension LinearGradient {
 // MARK: - Font
 
 extension Font {
+    /// Primary app font — clean sans-serif (SF Pro)
     static func app(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+        .system(size: size, weight: weight, design: .default)
+    }
+
+    /// Wide-tracked label font — for buttons, badges, small UI labels.
+    /// Expanded width with light weight for that "CONTACT" / "BETA" aesthetic.
+    static func appLabel(_ size: CGFloat, weight: Font.Weight = .light) -> Font {
+        .system(size: size, weight: weight, design: .default).width(.expanded)
+    }
+
+    /// Display font — for large titles / hero text. Thin, slightly tracked.
+    static func appDisplay(_ size: CGFloat, weight: Font.Weight = .thin) -> Font {
+        .system(size: size, weight: weight, design: .default).width(.expanded)
+    }
+}
+
+// MARK: - Tracking Modifier
+
+extension View {
+    /// Apply wide letter-spacing for the tracked uppercase label look.
+    func labelTracking() -> some View {
+        self.tracking(3)
+    }
+
+    /// Subtle tracking for titles and headings.
+    func titleTracking() -> some View {
+        self.tracking(1.2)
     }
 }
 

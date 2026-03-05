@@ -37,12 +37,14 @@ struct APIKeyEntryView: View {
                     .padding(.bottom, 20)
 
                 Text("Ollama Cloud")
-                    .font(.app(30, weight: .semibold))
+                    .font(.appDisplay(30, weight: .light))
+                    .titleTracking()
                     .foregroundStyle(Color.textPrimary)
                     .padding(.bottom, 6)
 
-                Text("Enter your API key to connect")
-                    .font(.app(15, weight: .regular))
+                Text("ENTER YOUR API KEY TO CONNECT")
+                    .font(.appLabel(11))
+                    .labelTracking()
                     .foregroundStyle(Color.textSecondary)
                     .padding(.bottom, 40)
 
@@ -92,13 +94,15 @@ struct APIKeyEntryView: View {
                             } else if !network.isConnected {
                                 HStack(spacing: 6) {
                                     Image(systemName: "wifi.slash")
-                                        .font(.system(size: 13, weight: .medium))
-                                    Text("No Connection")
-                                        .font(.app(16, weight: .semibold))
+                                        .font(.system(size: 13, weight: .light))
+                                    Text("NO CONNECTION")
+                                        .font(.appLabel(13))
+                                        .labelTracking()
                                 }
                             } else {
-                                Text("Connect")
-                                    .font(.app(16, weight: .semibold))
+                                Text("CONNECT")
+                                    .font(.appLabel(14))
+                                    .labelTracking()
                             }
                         }
                         .frame(maxWidth: .infinity)

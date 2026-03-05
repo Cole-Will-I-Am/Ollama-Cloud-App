@@ -19,20 +19,21 @@ struct ConversationListView: View {
                                 .fill(Color.accentSoft)
                                 .frame(width: 40, height: 40)
                             Image(systemName: "cpu")
-                                .font(.system(size: 15, weight: .light, design: .rounded))
+                                .font(.system(size: 15, weight: .ultraLight))
                                 .foregroundStyle(Color.accent)
                         }
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(conversation.title)
-                                .font(.app(15, weight: .medium))
+                                .font(.app(15, weight: .regular))
                                 .foregroundStyle(Color.textPrimary)
                                 .lineLimit(1)
 
                             HStack(spacing: 6) {
                                 if !conversation.modelName.isEmpty {
-                                    Text(conversation.modelName)
-                                        .font(.app(11))
+                                    Text(conversation.modelName.uppercased())
+                                        .font(.appLabel(9))
+                                        .tracking(1)
                                         .foregroundStyle(Color.accent)
                                 }
                                 Spacer()
@@ -59,7 +60,7 @@ struct ConversationListView: View {
                     newConversation()
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .font(.system(size: 16, weight: .light))
                         .foregroundStyle(Color.accent)
                         .padding(8)
                         .background(
@@ -82,10 +83,10 @@ struct ConversationListView: View {
             if conversations.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "bubble.left")
-                        .font(.system(size: 32, weight: .ultraLight, design: .rounded))
+                        .font(.system(size: 32, weight: .ultraLight))
                         .foregroundStyle(Color.textTertiary)
                     Text("No conversations")
-                        .font(.app(15))
+                        .font(.app(15, weight: .light))
                         .foregroundStyle(Color.textTertiary)
                 }
             }

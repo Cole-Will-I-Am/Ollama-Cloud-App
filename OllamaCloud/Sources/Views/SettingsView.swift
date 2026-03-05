@@ -18,7 +18,7 @@ struct SettingsView: View {
                                         .fill(Color.success.opacity(0.12))
                                         .frame(width: 38, height: 38)
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .font(.system(size: 14, weight: .light))
                                         .foregroundStyle(Color.success)
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
@@ -37,9 +37,10 @@ struct SettingsView: View {
                             } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: "key.slash")
-                                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                                    Text("Remove API Key")
-                                        .font(.app(14, weight: .medium))
+                                        .font(.system(size: 13, weight: .light))
+                                    Text("REMOVE API KEY")
+                                        .font(.appLabel(11))
+                                        .tracking(2)
                                 }
                                 .foregroundStyle(Color.danger)
                                 .frame(maxWidth: .infinity)
@@ -73,9 +74,12 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .font(.app(15, weight: .medium))
-                        .foregroundStyle(Color.accent)
+                    Button { dismiss() } label: {
+                        Text("DONE")
+                            .font(.appLabel(12))
+                            .tracking(2)
+                            .foregroundStyle(Color.accent)
+                    }
                 }
             }
             .confirmationDialog(
@@ -98,9 +102,9 @@ struct SettingsView: View {
     private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.app(11, weight: .semibold))
+                .font(.appLabel(10))
                 .foregroundStyle(Color.textTertiary)
-                .tracking(1.5)
+                .labelTracking()
                 .padding(.leading, 4)
             content()
                 .chromeCard()
@@ -110,11 +114,11 @@ struct SettingsView: View {
     private func row(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
-                .font(.app(14))
+                .font(.app(14, weight: .light))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
             Text(value)
-                .font(.app(14))
+                .font(.app(14, weight: .light))
                 .foregroundStyle(Color.textTertiary)
         }
         .padding(16)

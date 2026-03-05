@@ -13,7 +13,7 @@ struct ParametersView: View {
                     section("MODEL") {
                         HStack(spacing: 12) {
                             Image(systemName: "cpu")
-                                .font(.system(size: 15, weight: .light, design: .rounded))
+                                .font(.system(size: 15, weight: .ultraLight))
                                 .foregroundStyle(Color.accent)
                             Text(conversation.modelName.isEmpty ? "None" : conversation.modelName)
                                 .font(.app(14))
@@ -87,12 +87,15 @@ struct ParametersView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button {
                         try? modelContext.save()
                         dismiss()
+                    } label: {
+                        Text("DONE")
+                            .font(.appLabel(12))
+                            .tracking(2)
+                            .foregroundStyle(Color.accent)
                     }
-                    .font(.app(15, weight: .medium))
-                    .foregroundStyle(Color.accent)
                 }
             }
         }
@@ -103,9 +106,9 @@ struct ParametersView: View {
     private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.app(11, weight: .semibold))
+                .font(.appLabel(10))
                 .foregroundStyle(Color.textTertiary)
-                .tracking(1.5)
+                .labelTracking()
                 .padding(.leading, 4)
             content()
                 .chromeCard()

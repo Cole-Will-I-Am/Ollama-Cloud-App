@@ -78,12 +78,13 @@ struct MessageRow: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "brain")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                    Text("Thinking")
-                        .font(.app(12, weight: .medium))
+                        .font(.system(size: 11, weight: .light))
+                    Text("THINKING")
+                        .font(.appLabel(10))
+                        .tracking(2)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 9, weight: .medium))
                         .rotationEffect(.degrees(showThinking ? 90 : 0))
                 }
                 .foregroundStyle(Color.textTertiary)

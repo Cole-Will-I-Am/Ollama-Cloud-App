@@ -66,8 +66,9 @@ struct ChatView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 10) {
                     if !conversation.modelName.isEmpty {
-                        Text(conversation.modelName)
-                            .font(.app(11, weight: .medium))
+                        Text(conversation.modelName.uppercased())
+                            .font(.appLabel(9))
+                            .tracking(1.5)
                             .foregroundStyle(Color.accent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
@@ -79,13 +80,13 @@ struct ChatView: View {
 
                     Button { showModelPicker = true } label: {
                         Image(systemName: "cpu")
-                            .font(.system(size: 15, weight: .light, design: .rounded))
+                            .font(.system(size: 15, weight: .ultraLight))
                             .foregroundStyle(Color.textSecondary)
                     }
 
                     Button { showParameters = true } label: {
                         Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 15, weight: .light, design: .rounded))
+                            .font(.system(size: 15, weight: .ultraLight))
                             .foregroundStyle(Color.textSecondary)
                     }
                 }
@@ -106,11 +107,12 @@ struct ChatView: View {
     // MARK: - Offline Banner
 
     private var offlineBanner: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-            Text("Offline")
-                .font(.app(12, weight: .semibold))
+                .font(.system(size: 10, weight: .light))
+            Text("OFFLINE")
+                .font(.appLabel(10))
+                .labelTracking()
         }
         .foregroundStyle(.white.opacity(0.9))
         .frame(maxWidth: .infinity)
@@ -127,16 +129,17 @@ struct ChatView: View {
             Spacer()
             if conversation.modelName.isEmpty {
                 Image(systemName: "cpu")
-                    .font(.system(size: 40, weight: .ultraLight, design: .rounded))
+                    .font(.system(size: 40, weight: .ultraLight))
                     .foregroundStyle(Color.textTertiary)
                 Text("Pick a model to begin")
-                    .font(.app(15))
+                    .font(.app(15, weight: .light))
                     .foregroundStyle(Color.textSecondary)
                 Button {
                     showModelPicker = true
                 } label: {
-                    Text("Choose Model")
-                        .font(.app(14, weight: .semibold))
+                    Text("CHOOSE MODEL")
+                        .font(.appLabel(12))
+                        .labelTracking()
                         .foregroundStyle(.white)
                         .padding(.horizontal, 28)
                         .padding(.vertical, 11)
@@ -145,10 +148,10 @@ struct ChatView: View {
                 .padding(.top, 4)
             } else {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 36, weight: .ultraLight, design: .rounded))
+                    .font(.system(size: 36, weight: .ultraLight))
                     .foregroundStyle(Color.accent.opacity(0.4))
                 Text("Send a message to begin")
-                    .font(.app(15))
+                    .font(.app(15, weight: .light))
                     .foregroundStyle(Color.textSecondary)
             }
             Spacer()
@@ -174,12 +177,13 @@ struct ChatView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "brain")
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                Text(streaming.isThinking ? "Thinking..." : "Thinking")
-                                    .font(.app(12, weight: .medium))
+                                    .font(.system(size: 11, weight: .light))
+                                Text(streaming.isThinking ? "THINKING..." : "THINKING")
+                                    .font(.appLabel(10))
+                                    .tracking(2)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .font(.system(size: 9, weight: .medium))
                                     .rotationEffect(.degrees(showStreamingThinking ? 90 : 0))
                             }
                             .foregroundStyle(Color.textTertiary)
@@ -257,7 +261,7 @@ struct ChatView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 13, design: .rounded))
+                        .font(.system(size: 13))
                     Text(message)
                         .font(.app(13))
                 }
@@ -268,11 +272,12 @@ struct ChatView: View {
                     Button {
                         retry(content: lastContent)
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            Text("Retry")
-                                .font(.app(12, weight: .semibold))
+                                .font(.system(size: 10, weight: .light))
+                            Text("RETRY")
+                                .font(.appLabel(10))
+                                .tracking(2)
                         }
                         .foregroundStyle(Color.accent)
                     }
@@ -326,7 +331,7 @@ struct ChatView: View {
                         streaming.cancel(conversation: conversation, modelContext: modelContext)
                     } label: {
                         Image(systemName: "stop.fill")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(.system(size: 13, weight: .light))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(Circle().fill(Color.danger))
@@ -334,7 +339,7 @@ struct ChatView: View {
                 } else {
                     Button(action: send) {
                         Image(systemName: canSend ? "arrow.up" : (network.isConnected ? "arrow.up" : "wifi.slash"))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(
