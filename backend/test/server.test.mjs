@@ -112,6 +112,22 @@ test('static auth enforces bearer token', async () => {
   await srv.close();
 });
 
+test('static auth accepts case-insensitive bearer scheme', async () => {
+  const config = baseConfig({ authMode: 'static', backendBearerToken: 'secret', allowCompatibilityBearerAsUpstreamKey: false });
+  const fetchImpl = async () => toJsonResponse({ models: [] }, 200);
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const ok = await fetch(`${srv.baseUrl}/api/tags`, {
+    headers: {
+      authorization: 'bearer secret',
+      'x-ollama-key': 'k',
+    },
+  });
+
+  assert.equal(ok.status, 200);
+  await srv.close();
+});
+
 test('jwt auth accepts valid token', async () => {
   const now = Math.floor(Date.now() / 1000);
   const config = baseConfig({
@@ -320,5 +336,23 @@ test('circuit breaker opens on repeated upstream failures', async () => {
 
   assert.equal(first.status, 502);
   assert.equal(second.status, 503);
+  await srv.close();
+});
+
+test('admin metrics require explicit admin token', async () => {
+  const config = baseConfig({
+    authMode: 'static',
+    backendBearerToken: 'client-token',
+    adminBearerToken: '',
+    allowCompatibilityBearerAsUpstreamKey: false,
+  });
+  const fetchImpl = async () => toJsonResponse({ models: [] }, 200);
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const res = await fetch(`${srv.baseUrl}/admin/metrics`, {
+    headers: { authorization: 'Bearer client-token' },
+  });
+
+  assert.equal(res.status, 401);
   await srv.close();
 });

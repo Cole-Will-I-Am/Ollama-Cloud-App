@@ -160,14 +160,16 @@ class StreamingChatService: ObservableObject {
             options: options
         )
 
-        // Idle timeout watchdog: cancel if no chunk for 60s
-        let idleDeadline = IdleDeadline(timeout: Self.idleTimeout)
+        let lineIterator = AsyncLineIterator(bytes.lines.makeAsyncIterator())
 
-        for try await line in bytes.lines {
+        while !Task.isCancelled {
+            guard let line = try await nextLineWithTimeout(
+                from: lineIterator,
+                timeoutNanoseconds: Self.idleTimeout
+            ) else {
+                break
+            }
             guard !Task.isCancelled else { break }
-
-            // Reset idle timer on every chunk
-            idleDeadline.reset()
 
             guard !line.isEmpty else { continue }
 
@@ -206,14 +208,7 @@ class StreamingChatService: ObservableObject {
             if chunk.done {
                 break
             }
-
-            // Check if idle deadline has been exceeded
-            if idleDeadline.isExpired {
-                throw OllamaAPIError.timeout
-            }
         }
-
-        idleDeadline.cancel()
     }
 
     private func startThinkingTimer() {
@@ -268,31 +263,38 @@ class StreamingChatService: ObservableObject {
         isThinking = false
         streamTask = nil
     }
+
+    private func nextLineWithTimeout(
+        from iterator: AsyncLineIterator,
+        timeoutNanoseconds: UInt64
+    ) async throws -> String? {
+        try await withThrowingTaskGroup(of: String?.self) { group in
+            group.addTask {
+                try await iterator.next()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw OllamaAPIError.timeout
+            }
+
+            let first = try await group.next()
+            group.cancelAll()
+            return first ?? nil
+        }
+    }
 }
 
-// MARK: - Idle Deadline
+private actor AsyncLineIterator {
+    private var iterator: AsyncLineSequence<URLSession.AsyncBytes>.AsyncIterator
 
-/// Tracks time since last activity to detect stalled streams.
-private final class IdleDeadline: @unchecked Sendable {
-    private let timeout: UInt64
-    private var lastActivity: UInt64
-    private var cancelled = false
-
-    init(timeout: UInt64) {
-        self.timeout = timeout
-        self.lastActivity = DispatchTime.now().uptimeNanoseconds
+    init(_ iterator: AsyncLineSequence<URLSession.AsyncBytes>.AsyncIterator) {
+        self.iterator = iterator
     }
 
-    func reset() {
-        lastActivity = DispatchTime.now().uptimeNanoseconds
-    }
-
-    var isExpired: Bool {
-        guard !cancelled else { return false }
-        return (DispatchTime.now().uptimeNanoseconds - lastActivity) > timeout
-    }
-
-    func cancel() {
-        cancelled = true
+    func next() async throws -> String? {
+        var copy = iterator
+        let value = try await copy.next()
+        iterator = copy
+        return value
     }
 }

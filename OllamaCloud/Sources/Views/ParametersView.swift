@@ -226,32 +226,37 @@ struct ParametersView: View {
     // MARK: - Preset Bar
 
     private var presetBar: some View {
-        HStack(spacing: 8) {
-            ForEach(ParameterPreset.allCases, id: \.label) { preset in
-                Button {
-                    applyPreset(preset)
-                    Haptic.impact(.medium)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: preset.icon)
-                            .font(.system(size: 9, weight: .ultraLight))
-                        Text(preset.label.uppercased())
-                            .font(.appLabel(9))
-                            .tracking(1.5)
+        HStack(spacing: 10) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(ParameterPreset.allCases, id: \.label) { preset in
+                        Button {
+                            applyPreset(preset)
+                            Haptic.impact(.medium)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: preset.icon)
+                                    .font(.system(size: 9, weight: .ultraLight))
+                                Text(preset.label.uppercased())
+                                    .font(.appLabel(9))
+                                    .tracking(1.5)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                            .foregroundStyle(isActivePreset(preset) ? .white : Color.textSecondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule().fill(isActivePreset(preset)
+                                               ? AnyShapeStyle(LinearGradient.accentGradient)
+                                               : AnyShapeStyle(Color.surface))
+                            )
+                            .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .foregroundStyle(isActivePreset(preset) ? .white : Color.textSecondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(isActivePreset(preset)
-                                       ? AnyShapeStyle(LinearGradient.accentGradient)
-                                       : AnyShapeStyle(Color.surface))
-                    )
-                    .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
                 }
             }
-
-            Spacer()
 
             Button {
                 withAnimation(.snappy(duration: 0.25)) {
@@ -265,6 +270,7 @@ struct ParametersView: View {
                     Text(showAdvanced ? "LESS" : "MORE")
                         .font(.appLabel(9))
                         .tracking(1.5)
+                        .lineLimit(1)
                 }
                 .foregroundStyle(showAdvanced ? Color.accent : Color.textTertiary)
                 .padding(.horizontal, 12)
@@ -274,6 +280,7 @@ struct ParametersView: View {
                 )
                 .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 

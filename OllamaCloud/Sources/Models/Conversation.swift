@@ -5,6 +5,7 @@ import SwiftData
 final class Conversation {
     var id: UUID
     var title: String
+    var isPinned: Bool?
     var modelName: String
     var systemPrompt: String
     var createdAt: Date
@@ -34,6 +35,7 @@ final class Conversation {
 
     init(
         title: String = "New Chat",
+        isPinned: Bool = false,
         modelName: String = "",
         systemPrompt: String = "",
         temperature: Double = 0.7,
@@ -52,6 +54,7 @@ final class Conversation {
     ) {
         self.id = UUID()
         self.title = title
+        self.isPinned = isPinned
         self.modelName = modelName
         self.systemPrompt = systemPrompt
         self.temperature = temperature

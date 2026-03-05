@@ -48,7 +48,8 @@ enum OllamaAPIError: LocalizedError {
 // MARK: - Pinning Delegate
 
 private final class PinningDelegate: NSObject, URLSessionDelegate, Sendable {
-    // SHA-256 hashes of the SubjectPublicKeyInfo for ollama.com's certificate chain.
+    // SHA-256 hashes of raw public key bytes for ollama.com's certificate chain.
+    // Note: these are not SPKI DER hashes.
     // Leave empty to use standard TLS validation until real pins are configured.
     private let pinnedHashes: Set<String> = [
     ]
@@ -74,7 +75,7 @@ private final class PinningDelegate: NSObject, URLSessionDelegate, Sendable {
             return (.cancelAuthenticationChallenge, nil)
         }
 
-        // Check each certificate in the chain for a matching SPKI hash
+        // Check each certificate in the chain for a matching public-key hash
         guard let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate] else {
             return (.cancelAuthenticationChallenge, nil)
         }

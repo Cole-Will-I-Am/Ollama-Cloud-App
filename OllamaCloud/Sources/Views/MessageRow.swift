@@ -79,17 +79,19 @@ struct MessageRow: View {
             .buttonStyle(.plain)
 
             if showThinking {
-                Text(thinking)
-                    .font(.app(13))
-                    .foregroundStyle(Color.textTertiary)
+                Markdown(thinking)
+                    .markdownTheme(.seerThinking)
                     .textSelection(.enabled)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
                     .transition(.opacity)
             } else {
-                Text(String(thinking.prefix(80)))
-                    .font(.app(11))
-                    .foregroundStyle(Color.textTertiary.opacity(0.4))
+                Markdown(thinking)
+                    .markdownTheme(.seerThinking)
+                    .markdownTextStyle {
+                        FontSize(11)
+                        ForegroundColor(Color.textTertiary.opacity(0.4))
+                    }
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.horizontal, 16)

@@ -319,4 +319,22 @@ extension MarkdownUI.Theme {
         .link {
             ForegroundColor(.white.opacity(0.85))
         }
+
+    /// Thinking panel theme — subdued markdown styling.
+    static let seerThinking = Theme()
+        .text {
+            ForegroundColor(Color.textTertiary)
+            FontSize(13)
+        }
+        .strong {
+            FontWeight(.semibold)
+        }
+        .code {
+            FontFamilyVariant(.monospaced)
+            ForegroundColor(Color.textSecondary)
+            FontSize(12)
+        }
+        .link {
+            ForegroundColor(Color.textSecondary)
+        }
 }

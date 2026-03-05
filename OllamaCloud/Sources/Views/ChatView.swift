@@ -264,9 +264,8 @@ struct ChatView: View {
                         .buttonStyle(.plain)
 
                         if showStreamingThinking {
-                            Text(streaming.streamingThinking)
-                                .font(.app(13))
-                                .foregroundStyle(Color.textTertiary)
+                            Markdown(streaming.streamingThinking)
+                                .markdownTheme(.seerThinking)
                                 .textSelection(.enabled)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 12)
@@ -318,23 +317,29 @@ struct ChatView: View {
 
     private var streamingStats: some View {
         HStack(spacing: 8) {
-            if streaming.thinkingDuration > 0 {
+            if !streaming.streamingThinking.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "brain")
                         .font(.system(size: 8, weight: .ultraLight))
-                    Text(String(format: "%.1fs", streaming.thinkingDuration))
+                    Text("\(streaming.streamingThinking.count) think chars")
                         .font(.app(10, weight: .medium).monospaced())
                 }
             }
 
-            if streaming.tokenCount > 0 {
+            if !streaming.streamingContent.isEmpty {
                 HStack(spacing: 4) {
-                    Text("\(streaming.tokenCount) tokens")
+                    Text("\(streaming.streamingContent.count) chars")
                         .font(.app(10, weight: .medium).monospaced())
+                    if streaming.tokenCount > 0 {
+                        Text("·")
+                            .font(.app(10))
+                        Text("\(streaming.tokenCount) chunks")
+                            .font(.app(10, weight: .medium).monospaced())
+                    }
                     if streaming.tokensPerSecond > 0.5 {
                         Text("·")
                             .font(.app(10))
-                        Text(String(format: "%.1f tok/s", streaming.tokensPerSecond))
+                        Text(String(format: "%.1f chunk/s", streaming.tokensPerSecond))
                             .font(.app(10, weight: .medium).monospaced())
                     }
                 }

@@ -9,9 +9,20 @@ struct ConversationListView: View {
     @State private var pendingConversation: Conversation?
     @State private var persistenceError: String?
 
+    private var sortedConversations: [Conversation] {
+        conversations.sorted {
+            let lhsPinned = $0.isPinned == true
+            let rhsPinned = $1.isPinned == true
+            if lhsPinned != rhsPinned {
+                return lhsPinned && !rhsPinned
+            }
+            return $0.updatedAt > $1.updatedAt
+        }
+    }
+
     var body: some View {
         List(selection: $selection) {
-            ForEach(conversations) { conversation in
+            ForEach(sortedConversations) { conversation in
                 NavigationLink(value: conversation) {
                     HStack(spacing: 14) {
                         // Avatar
@@ -25,10 +36,17 @@ struct ConversationListView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(conversation.title)
-                                .font(.app(15, weight: .regular))
-                                .foregroundStyle(Color.textPrimary)
-                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                Text(conversation.title)
+                                    .font(.app(15, weight: .regular))
+                                    .foregroundStyle(Color.textPrimary)
+                                    .lineLimit(1)
+                                if conversation.isPinned == true {
+                                    Image(systemName: "pin.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Color.accent)
+                                }
+                            }
 
                             HStack(spacing: 6) {
                                 if !conversation.modelName.isEmpty {
@@ -50,6 +68,21 @@ struct ConversationListView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    Button {
+                        togglePin(conversation)
+                    } label: {
+                        Label(conversation.isPinned == true ? "Unpin" : "Pin", systemImage: conversation.isPinned == true ? "pin.slash" : "pin")
+                    }
+                    .tint(Color.accent)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        deleteConversation(conversation)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
             .onDelete(perform: deleteConversations)
         }
@@ -126,7 +159,7 @@ struct ConversationListView: View {
 
     private func deleteConversations(at offsets: IndexSet) {
         for index in offsets {
-            let conversation = conversations[index]
+            let conversation = sortedConversations[index]
             if selection?.id == conversation.id { selection = nil }
             modelContext.delete(conversation)
         }
@@ -134,6 +167,26 @@ struct ConversationListView: View {
             try modelContext.save()
         } catch {
             persistenceError = "Failed to delete conversation."
+        }
+    }
+
+    private func deleteConversation(_ conversation: Conversation) {
+        if selection?.id == conversation.id { selection = nil }
+        modelContext.delete(conversation)
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to delete conversation."
+        }
+    }
+
+    private func togglePin(_ conversation: Conversation) {
+        conversation.isPinned = !(conversation.isPinned == true)
+        conversation.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to update chat pin."
         }
     }
 }

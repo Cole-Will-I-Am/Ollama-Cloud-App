@@ -32,6 +32,18 @@ xcodegen generate
 open OllamaCloud.xcodeproj
 ```
 
+## Run In Simulator (Deterministic)
+
+Always use this script to avoid installing stale builds from multiple DerivedData folders:
+
+```
+./scripts/run_ios_sim.sh
+```
+
+Defaults:
+- Device: `iPhone 17 Pro`
+- Derived data: `/tmp/OllamaCloud-DerivedData`
+
 ## Optional Backend Relay
 
 This repo includes a lightweight relay backend in `backend/` for rate limiting, model policy, and observability while keeping the same app UX.

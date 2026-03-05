@@ -98,6 +98,7 @@ export function loadConfig(env = process.env) {
 
   if (nodeEnv === 'production') {
     requiredWhenProduction('REDIS_URL', config.redisUrl, nodeEnv);
+    requiredWhenProduction('ADMIN_BEARER_TOKEN', config.adminBearerToken, nodeEnv);
     if (!config.upstreamApiKey && !config.allowCompatibilityBearerAsUpstreamKey) {
       throw new Error('Set UPSTREAM_API_KEY or enable ALLOW_COMPAT_BEARER_KEY in production');
     }

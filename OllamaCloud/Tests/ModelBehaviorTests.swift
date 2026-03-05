@@ -14,6 +14,7 @@ final class ModelBehaviorTests: XCTestCase {
         let conversation = Conversation()
 
         XCTAssertEqual(conversation.title, "New Chat")
+        XCTAssertFalse(conversation.isPinned ?? false)
         XCTAssertTrue(conversation.modelName.isEmpty)
         XCTAssertEqual(conversation.temperature, 0.7, accuracy: 0.0001)
         XCTAssertEqual(conversation.topP, 0.9, accuracy: 0.0001)

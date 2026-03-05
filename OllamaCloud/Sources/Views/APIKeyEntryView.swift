@@ -124,33 +124,34 @@ struct APIKeyEntryView: View {
                 .chromeCard()
                 .padding(.horizontal, 32)
 
-                Spacer()
-                Spacer()
-
-                // Powered by
+                Spacer(minLength: 24)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
                 HStack(spacing: 6) {
                     Text("POWERED BY")
-                        .font(.appLabel(9))
+                        .font(.appLabel(10))
                         .tracking(2)
                     Text("OLLAMA")
-                        .font(.appLabel(9, weight: .medium))
+                        .font(.appLabel(10, weight: .medium))
                         .tracking(2)
                 }
-                .foregroundStyle(Color.textTertiary)
+                .foregroundStyle(Color.textSecondary)
                 .padding(.bottom, 8)
 
                 Link(destination: URL(string: "mailto:licensing@manticthink.com")!) {
                     HStack(spacing: 5) {
                         Image(systemName: "envelope")
-                            .font(.system(size: 9, weight: .ultraLight))
+                            .font(.system(size: 10, weight: .ultraLight))
                         Text("CONTACT")
-                            .font(.appLabel(9))
+                            .font(.appLabel(10))
                             .tracking(2)
                     }
-                    .foregroundStyle(Color.accent)
+                    .foregroundStyle(Color.accent.opacity(0.95))
                 }
-                .padding(.bottom, 24)
             }
+            .padding(.bottom, 24)
         }
     }
 

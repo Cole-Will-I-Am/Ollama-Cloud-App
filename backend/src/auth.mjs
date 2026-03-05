@@ -7,10 +7,12 @@ function base64UrlDecode(input) {
 
 function parseBearer(req) {
   const auth = req.headers.authorization;
-  if (typeof auth !== 'string' || !auth.startsWith('Bearer ')) {
+  if (typeof auth !== 'string') {
     return null;
   }
-  return auth.slice('Bearer '.length).trim();
+  const match = auth.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  return match[1].trim();
 }
 
 function timingSafeEqual(a, b) {
@@ -122,7 +124,7 @@ export function authenticateRequest(req, config) {
 
 export function authenticateAdmin(req, config) {
   const token = parseBearer(req);
-  const adminToken = config.adminBearerToken || config.backendBearerToken;
+  const adminToken = config.adminBearerToken;
 
   if (!adminToken) {
     return { ok: false, reason: 'Admin token is not configured' };
