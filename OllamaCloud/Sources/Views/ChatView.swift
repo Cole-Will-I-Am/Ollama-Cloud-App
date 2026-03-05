@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import MarkdownUI
 import PhotosUI
 import UniformTypeIdentifiers
 #if canImport(UIKit)
@@ -22,6 +21,7 @@ struct ChatView: View {
     @State private var sentFirstTokenHaptic = false
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var bottomAnchorMaxY: CGFloat = 0
+    @State private var lastStreamingAutoScrollAt = Date.distantPast
     @FocusState private var isInputFocused: Bool
     @State private var showAttachmentOptions = false
     @State private var showScaffoldLibrary = false
@@ -62,6 +62,7 @@ struct ChatView: View {
     private var sortedMessages: [Message] {
         conversation.messages.sorted { $0.createdAt < $1.createdAt }
     }
+    private static let streamingAutoScrollThrottleInterval: TimeInterval = 0.1
 
     var body: some View {
         let messages = sortedMessages
@@ -321,25 +322,25 @@ struct ChatView: View {
                         }
                     }
                     .onChange(of: streaming.streamingContent) {
-                        if isAtBottom && shouldAutoFollowStreaming {
-                            scrollToBottom(proxy: proxy, messages: messages)
-                        }
+                        autoFollowStreamingIfNeeded(proxy: proxy, messages: messages)
                         if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
                             sentFirstTokenHaptic = true
                             Haptic.notification(.success)
                         }
                     }
                     .onChange(of: streaming.streamingThinking) {
-                        if isAtBottom && shouldAutoFollowStreaming {
-                            scrollToBottom(proxy: proxy, messages: messages)
-                        }
+                        autoFollowStreamingIfNeeded(proxy: proxy, messages: messages)
                     }
                     .onChange(of: streaming.isStreaming) { _, isNow in
                         if isNow {
                             sentFirstTokenHaptic = false
                             shouldAutoFollowStreaming = isAtBottom
+                            lastStreamingAutoScrollAt = .distantPast
                         } else {
                             shouldAutoFollowStreaming = true
+                            if isAtBottom {
+                                scrollToBottom(proxy: proxy, messages: messages)
+                            }
                         }
                     }
                     .overlay(alignment: .bottom) {
@@ -437,8 +438,6 @@ struct ChatView: View {
 
     // MARK: - Streaming
 
-    // Markdown rendering handled by MarkdownUI
-
     private var streamingBubble: some View {
         HStack {
             VStack(alignment: .leading, spacing: 0) {
@@ -477,8 +476,11 @@ struct ChatView: View {
                         .buttonStyle(.plain)
 
                         if showStreamingThinking {
-                            Markdown(streaming.streamingThinking)
-                                .markdownTheme(.seerThinking)
+                            Text(verbatim: streaming.streamingThinking)
+                                .font(.app(13))
+                                .foregroundStyle(Color.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .multilineTextAlignment(.leading)
                                 .textSelection(.enabled)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 12)
@@ -515,8 +517,11 @@ struct ChatView: View {
                         topTrailingRadius: hasVisibleThinking ? 0 : 20,
                         style: .continuous
                     )
-                    Markdown(streaming.streamingContent)
-                        .markdownTheme(.seerAssistant)
+                    Text(verbatim: streaming.streamingContent)
+                        .font(.app(14))
+                        .foregroundStyle(Color.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .multilineTextAlignment(.leading)
                         .textSelection(.enabled)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
@@ -1112,6 +1117,17 @@ struct ChatView: View {
         Task {
             await streaming.retryLast(conversation: conversation, modelContext: modelContext)
         }
+    }
+
+    private func autoFollowStreamingIfNeeded(proxy: ScrollViewProxy, messages: [Message]) {
+        guard streaming.isStreaming, isAtBottom, shouldAutoFollowStreaming else { return }
+
+        let now = Date()
+        guard now.timeIntervalSince(lastStreamingAutoScrollAt) >= Self.streamingAutoScrollThrottleInterval else {
+            return
+        }
+        lastStreamingAutoScrollAt = now
+        scrollToBottom(proxy: proxy, messages: messages)
     }
 
     private func updateScrollPosition(anchorMaxY: CGFloat? = nil, viewportHeight: CGFloat? = nil) {

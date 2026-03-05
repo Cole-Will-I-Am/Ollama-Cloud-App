@@ -11,6 +11,10 @@
   <strong>Now with first-class Reasoning Scaffolds:</strong> reusable thinking frameworks you can attach to any chat in one tap.
 </p>
 
+<p align="center">
+  <strong>Also includes a built-in SEER assistant profile:</strong> preloaded, pinned by default, and tuned for fast concise in-app guidance.
+</p>
+
 ---
 
 ## Reasoning Scaffolds (Front And Center)
@@ -57,16 +61,39 @@ flowchart LR
 ## Features
 
 - Stream chat completions from Ollama Cloud API
-- Thinking/reasoning display with collapsible disclosure
+- Collapsible thinking/reasoning display for supported models (SEER profile hides thinking output by design)
 - Live streaming stats during generation (thinking chars, chars, chunks, throughput)
 - Conversation management with pin/unpin and delete actions
 - Per-conversation model selection and parameter tuning (temperature, top-p, top-k, penalties, etc.)
+- Built-in `SEER` virtual model profile that maps to a cloud backing model and is pinned by default in favorites
 - Dedicated Reasoning Scaffold library with templates, guided builder, search, attach/swap/clear actions
 - Composer scaffold button + active scaffold chip for one-tap per-chat control
 - Runtime scaffold injection ahead of system prompt for deterministic context shaping
+- Long-press chat actions: `Copy`, `Edit Prompt`, and `Regenerate`
+- Rich code block UX: lightweight syntax highlighting, line numbers, copy action, and auto/manual collapse
+- Attachment chips surface truncation metadata (`truncated shown/original chars`) for large files
+- Account-scoped local persistence for chats/scaffolds/favorites using `API host + API key fingerprint`
 - Keychain-secured API key storage
 - Network monitoring with offline detection, retry logic, and certificate pinning
 - Dark-mode-first UI with wide-tracked typography
+
+## Built-In SEER Assistant Profile
+
+The app ships with a first-class `SEER` model profile for onboarding and product guidance.
+
+- Preloaded into the model list even when not returned by `/api/tags`
+- Seeded as a default favorite per account scope (users can unpin any time)
+- Backed by cloud model `qwen3.5:397b-cloud` by default
+- Uses a dedicated system profile prompt for app/codebase help
+- Tuned for concise responses and lower verbosity
+- Sends requests with `think=false` to avoid long reasoning dumps in normal SEER usage
+
+Environment overrides (Xcode scheme or process env):
+
+- `SEER_MODEL_ENABLED` (`true`/`false`)
+- `OLLAMA_SEER_MODEL_NAME` (alias shown in app, default `SEER`)
+- `OLLAMA_SEER_BACKING_MODEL` (runtime model name, default `qwen3.5:397b-cloud`)
+- Legacy aliases also supported: `SEER_ALIAS_NAME`, `SEER_UPSTREAM_MODEL`
 
 ## Scaffolds Quick Tour
 
