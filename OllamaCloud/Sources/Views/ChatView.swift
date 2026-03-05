@@ -1124,11 +1124,23 @@ struct ChatView: View {
         guard streaming.isStreaming, isAtBottom, shouldAutoFollowStreaming else { return }
 
         let now = Date()
-        guard now.timeIntervalSince(lastStreamingAutoScrollAt) >= Self.streamingAutoScrollThrottleInterval else {
+        guard Self.shouldTriggerStreamingAutoScroll(
+            now: now,
+            lastAutoScrollAt: lastStreamingAutoScrollAt,
+            interval: Self.streamingAutoScrollThrottleInterval
+        ) else {
             return
         }
         lastStreamingAutoScrollAt = now
         scrollToBottom(proxy: proxy, messages: messages)
+    }
+
+    nonisolated static func shouldTriggerStreamingAutoScroll(
+        now: Date,
+        lastAutoScrollAt: Date,
+        interval: TimeInterval = streamingAutoScrollThrottleInterval
+    ) -> Bool {
+        now.timeIntervalSince(lastAutoScrollAt) >= interval
     }
 
     private func updateScrollPosition(anchorMaxY: CGFloat? = nil, viewportHeight: CGFloat? = nil) {

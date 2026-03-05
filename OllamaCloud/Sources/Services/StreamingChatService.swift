@@ -724,6 +724,140 @@ class StreamingChatService: ObservableObject {
         AppTelemetry.track("stream_metrics", metadata: metadata)
     }
 
+#if DEBUG
+    struct StreamBatchingEvent: Sendable {
+        let offsetMs: Int
+        let thinking: String?
+        let content: String?
+
+        init(offsetMs: Int, thinking: String? = nil, content: String? = nil) {
+            self.offsetMs = offsetMs
+            self.thinking = thinking
+            self.content = content
+        }
+    }
+
+    struct StreamBatchingFlush: Sendable, Equatable {
+        let offsetMs: Int
+        let contentDelta: String
+        let thinkingDelta: String
+        let tokenCount: Int
+    }
+
+    struct StreamBatchingSimulation: Sendable, Equatable {
+        let flushes: [StreamBatchingFlush]
+        let finalContent: String
+        let finalThinking: String
+        let tokenCount: Int
+        let firstTokenMs: Int?
+        let flushCount: Int
+        let averageFlushMs: Double?
+    }
+
+    nonisolated static func simulateBatching(
+        events: [StreamBatchingEvent],
+        think: Bool,
+        flushIntervalMs: Int = 40,
+        forceFinalFlush: Bool = true
+    ) -> StreamBatchingSimulation {
+        let sorted = events.sorted { $0.offsetMs < $1.offsetMs }
+        let streamStartedAt = Date(timeIntervalSince1970: 0)
+
+        var fullContent = ""
+        var fullThinking = ""
+        var pendingContent = ""
+        var pendingThinking = ""
+        var tokenCount = 0
+        var firstTokenMs: Int?
+        var contentStartTime: Date?
+
+        var flushes: [StreamBatchingFlush] = []
+        var flushCount = 0
+        var flushIntervalTotalMs = 0.0
+        var lastFlushTime: Date?
+        var thinkingActive = false
+
+        func now(for offsetMs: Int) -> Date {
+            streamStartedAt.addingTimeInterval(Double(offsetMs) / 1000)
+        }
+
+        func flush(now: Date, offsetMs: Int, force: Bool = false) {
+            let hasPendingText = !pendingContent.isEmpty || !pendingThinking.isEmpty
+            guard hasPendingText else { return }
+
+            if !force, let lastFlushTime {
+                let elapsedMs = now.timeIntervalSince(lastFlushTime) * 1000
+                if elapsedMs < Double(flushIntervalMs) {
+                    return
+                }
+            }
+
+            if let lastFlushTime {
+                flushIntervalTotalMs += now.timeIntervalSince(lastFlushTime) * 1000
+            }
+            lastFlushTime = now
+            flushCount += 1
+
+            flushes.append(
+                StreamBatchingFlush(
+                    offsetMs: offsetMs,
+                    contentDelta: pendingContent,
+                    thinkingDelta: pendingThinking,
+                    tokenCount: tokenCount
+                )
+            )
+
+            fullContent += pendingContent
+            fullThinking += pendingThinking
+            pendingContent.removeAll(keepingCapacity: true)
+            pendingThinking.removeAll(keepingCapacity: true)
+        }
+
+        for event in sorted {
+            let now = now(for: event.offsetMs)
+
+            if think, let thinking = event.thinking, !thinking.isEmpty {
+                thinkingActive = true
+                pendingThinking += thinking
+                flush(now: now, offsetMs: event.offsetMs)
+            }
+
+            if let content = event.content, !content.isEmpty {
+                thinkingActive = false
+                tokenCount += 1
+                pendingContent += content
+                if contentStartTime == nil {
+                    contentStartTime = now
+                    firstTokenMs = event.offsetMs
+                }
+                flush(now: now, offsetMs: event.offsetMs)
+            }
+        }
+
+        if forceFinalFlush {
+            let tailOffset = sorted.last?.offsetMs ?? 0
+            flush(now: now(for: tailOffset), offsetMs: tailOffset, force: true)
+        }
+
+        let averageFlushMs: Double? = {
+            guard flushCount > 1 else { return nil }
+            return flushIntervalTotalMs / Double(flushCount - 1)
+        }()
+
+        _ = thinkingActive // keep parity with production state progression
+
+        return StreamBatchingSimulation(
+            flushes: flushes,
+            finalContent: fullContent,
+            finalThinking: fullThinking,
+            tokenCount: tokenCount,
+            firstTokenMs: firstTokenMs,
+            flushCount: flushCount,
+            averageFlushMs: averageFlushMs
+        )
+    }
+#endif
+
     nonisolated private static func nextLineWithTimeout(
         from iterator: AsyncLineIterator,
         timeoutNanoseconds: UInt64
