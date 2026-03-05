@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct APIKeyEntryView: View {
+    @EnvironmentObject private var network: NetworkMonitor
     @AppStorage("hasAPIKey") private var hasAPIKey = false
     @State private var apiKey = ""
     @State private var isValidating = false
+    @State private var isTakingLong = false
     @State private var error: String?
+    @State private var slowTimerTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -69,6 +72,16 @@ struct APIKeyEntryView: View {
                             .padding(.horizontal, 4)
                     }
 
+                    // Slow validation hint
+                    if isTakingLong {
+                        Text("Taking longer than expected...")
+                            .font(.app(12, weight: .medium))
+                            .foregroundStyle(Color.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                            .transition(.opacity)
+                    }
+
                     Button {
                         validate()
                     } label: {
@@ -76,6 +89,13 @@ struct APIKeyEntryView: View {
                             if isValidating {
                                 ProgressView()
                                     .tint(.white)
+                            } else if !network.isConnected {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "wifi.slash")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("No Connection")
+                                        .font(.app(16, weight: .semibold))
+                                }
                             } else {
                                 Text("Connect")
                                     .font(.app(16, weight: .semibold))
@@ -85,13 +105,13 @@ struct APIKeyEntryView: View {
                         .padding(.vertical, 16)
                         .background(
                             Capsule()
-                                .fill(apiKey.isEmpty
+                                .fill(connectButtonDisabled
                                       ? AnyShapeStyle(Color.bgTertiary)
                                       : AnyShapeStyle(LinearGradient.accentGradient))
                         )
                         .foregroundStyle(.white)
                     }
-                    .disabled(apiKey.isEmpty || isValidating)
+                    .disabled(connectButtonDisabled)
                 }
                 .padding(24)
                 .chromeCard()
@@ -103,9 +123,30 @@ struct APIKeyEntryView: View {
         }
     }
 
+    private var connectButtonDisabled: Bool {
+        apiKey.isEmpty || isValidating || !network.isConnected
+    }
+
     private func validate() {
+        guard network.isConnected else {
+            error = "No internet connection"
+            return
+        }
+
         isValidating = true
+        isTakingLong = false
         error = nil
+
+        // Start slow-timer: show hint after 15s
+        slowTimerTask?.cancel()
+        slowTimerTask = Task {
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            if !Task.isCancelled {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    isTakingLong = true
+                }
+            }
+        }
 
         Task {
             do {
@@ -116,10 +157,15 @@ struct APIKeyEntryView: View {
                 } else {
                     error = "Invalid API key"
                 }
+            } catch let apiError as OllamaAPIError {
+                error = apiError.userMessage
             } catch {
-                self.error = error.localizedDescription
+                error = error.localizedDescription
             }
+
+            slowTimerTask?.cancel()
             isValidating = false
+            isTakingLong = false
         }
     }
 }

@@ -4,8 +4,9 @@ import Security
 enum KeychainHelper {
     private static let service = "com.colecantcode.ollamacloud"
 
-    static func save(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
+    @discardableResult
+    static func save(key: String, value: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -14,7 +15,9 @@ enum KeychainHelper {
         SecItemDelete(query as CFDictionary)
         var attrs = query
         attrs[kSecValueData as String] = data
-        SecItemAdd(attrs as CFDictionary, nil)
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        let status = SecItemAdd(attrs as CFDictionary, nil)
+        return status == errSecSuccess
     }
 
     static func load(key: String) -> String? {

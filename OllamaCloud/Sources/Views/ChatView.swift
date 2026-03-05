@@ -3,6 +3,7 @@ import SwiftData
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var network: NetworkMonitor
     @Bindable var conversation: Conversation
     @StateObject private var streaming = StreamingChatService()
     @State private var input = ""
@@ -16,6 +17,11 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Offline banner
+            if !network.isConnected {
+                offlineBanner
+            }
+
             ScrollViewReader { proxy in
                 ScrollView {
                     if sortedMessages.isEmpty && !streaming.isStreaming {
@@ -39,6 +45,7 @@ struct ChatView: View {
 
                             if let error = streaming.error {
                                 errorBubble(error)
+                                    .id("error")
                             }
                         }
                         .padding(.horizontal, 16)
@@ -94,6 +101,23 @@ struct ChatView: View {
         .sheet(isPresented: $showParameters) {
             ParametersView(conversation: conversation)
         }
+    }
+
+    // MARK: - Offline Banner
+
+    private var offlineBanner: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            Text("Offline")
+                .font(.app(12, weight: .semibold))
+        }
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(Color.danger.opacity(0.85))
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.25), value: network.isConnected)
     }
 
     // MARK: - Empty
@@ -230,13 +254,30 @@ struct ChatView: View {
 
     private func errorBubble(_ message: String) -> some View {
         HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .font(.system(size: 13, design: .rounded))
-                Text(message)
-                    .font(.app(13))
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 13, design: .rounded))
+                    Text(message)
+                        .font(.app(13))
+                }
+                .foregroundStyle(Color.danger)
+
+                // Retry button
+                if let lastContent = streaming.lastSentContent, !streaming.isStreaming {
+                    Button {
+                        retry(content: lastContent)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            Text("Retry")
+                                .font(.app(12, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.accent)
+                    }
+                }
             }
-            .foregroundStyle(Color.danger)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
@@ -247,6 +288,12 @@ struct ChatView: View {
                             .stroke(Color.danger.opacity(0.1), lineWidth: 0.5)
                     )
             )
+            // Tap to dismiss
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    streaming.error = nil
+                }
+            }
             Spacer()
         }
     }
@@ -286,7 +333,7 @@ struct ChatView: View {
                     }
                 } else {
                     Button(action: send) {
-                        Image(systemName: "arrow.up")
+                        Image(systemName: canSend ? "arrow.up" : (network.isConnected ? "arrow.up" : "wifi.slash"))
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
@@ -309,6 +356,7 @@ struct ChatView: View {
         !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && !streaming.isStreaming
         && !conversation.modelName.isEmpty
+        && network.isConnected
     }
 
     private func send() {
@@ -321,6 +369,16 @@ struct ChatView: View {
         #endif
 
         streaming.sendMessage(content: text, conversation: conversation, modelContext: modelContext)
+    }
+
+    private func retry(content: String) {
+        streaming.error = nil
+
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
+
+        streaming.sendMessage(content: content, conversation: conversation, modelContext: modelContext)
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
