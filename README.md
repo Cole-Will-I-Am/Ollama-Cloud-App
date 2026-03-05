@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  iOS client for Ollama Cloud — streaming chat with your models.
+  SEER is an iOS client for Ollama Cloud with streaming chat and model controls.
 </p>
 
 ---
@@ -12,6 +12,8 @@
 
 - Stream chat completions from Ollama Cloud API
 - Thinking/reasoning display with collapsible disclosure
+- Live streaming stats during generation (thinking chars, chars, chunks, throughput)
+- Conversation management with pin/unpin and delete actions
 - Per-conversation model selection and parameter tuning (temperature, top-p, top-k, penalties, etc.)
 - Keychain-secured API key storage
 - Network monitoring with offline detection, retry logic, and certificate pinning
