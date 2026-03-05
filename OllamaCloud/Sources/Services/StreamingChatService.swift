@@ -15,28 +15,65 @@ class StreamingChatService: ObservableObject {
 
     /// The last message content that was sent, for retry support
     private(set) var lastSentContent: String?
+    private(set) var lastSentRequestContent: String?
+    private(set) var lastSentImageBase64s: [String] = []
+    private(set) var lastSentAttachmentSummary: String?
 
     private var streamTask: Task<Void, Never>?
     private var receivedAnyTokens = false
     private var contentStartTime: Date?
+    private var finalEvalCount: Int?
     private static let idleTimeout: UInt64 = 60_000_000_000 // 60s in nanoseconds
 
     func sendMessage(
         content: String,
+        requestContent: String? = nil,
+        imageBase64s: [String] = [],
+        attachmentSummary: String? = nil,
         conversation: Conversation,
         modelContext: ModelContext
     ) {
+        let resolvedRequestContent = requestContent ?? content
+        let resolvedDisplayContent: String = {
+            if let attachmentSummary, !attachmentSummary.isEmpty {
+                if content.isEmpty {
+                    return attachmentSummary
+                }
+                return "\(content)\n\n\(attachmentSummary)"
+            }
+            return content
+        }()
+
         lastSentContent = content
+        lastSentRequestContent = resolvedRequestContent
+        lastSentImageBase64s = imageBase64s
+        lastSentAttachmentSummary = attachmentSummary
+
+        let imageJSON: String? = {
+            guard !imageBase64s.isEmpty,
+                  let data = try? JSONEncoder().encode(imageBase64s),
+                  let json = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            return json
+        }()
 
         // Create and persist user message
-        let userMessage = Message(role: "user", content: content, conversation: conversation)
+        let userMessage = Message(
+            role: "user",
+            content: resolvedDisplayContent,
+            attachmentRequestContent: resolvedRequestContent == resolvedDisplayContent ? nil : resolvedRequestContent,
+            imageBase64sJSON: imageJSON,
+            conversation: conversation
+        )
         modelContext.insert(userMessage)
         conversation.updatedAt = Date()
 
         // Auto-title from first user message
         if conversation.messages.count <= 1 && conversation.title == "New Chat" {
-            let preview = String(content.prefix(40))
-            conversation.title = content.count > 40 ? "\(preview)..." : preview
+            let titleSource = content.isEmpty ? (attachmentSummary ?? "Attachment") : content
+            let preview = String(titleSource.prefix(40))
+            conversation.title = titleSource.count > 40 ? "\(preview)..." : preview
         }
 
         do {
@@ -55,7 +92,29 @@ class StreamingChatService: ObservableObject {
 
         let sorted = (conversation.messages).sorted { $0.createdAt < $1.createdAt }
         for msg in sorted {
-            requestMessages.append(ChatRequestMessage(role: msg.role, content: msg.content))
+            let outboundContent: String
+            if msg.role == "user",
+               let attachmentRequestContent = msg.attachmentRequestContent,
+               !attachmentRequestContent.isEmpty {
+                outboundContent = attachmentRequestContent
+            } else {
+                outboundContent = msg.content
+            }
+
+            let outboundImages: [String]? = {
+                guard msg.role == "user",
+                      let json = msg.imageBase64sJSON,
+                      let data = json.data(using: .utf8),
+                      let decoded = try? JSONDecoder().decode([String].self, from: data),
+                      !decoded.isEmpty else {
+                    return nil
+                }
+                return decoded
+            }()
+
+            requestMessages.append(
+                ChatRequestMessage(role: msg.role, content: outboundContent, images: outboundImages)
+            )
         }
 
         let options = ChatOptions(
@@ -86,6 +145,7 @@ class StreamingChatService: ObservableObject {
         tokenCount = 0
         tokensPerSecond = 0
         contentStartTime = nil
+        finalEvalCount = nil
 
         streamTask = Task {
             do {
@@ -120,10 +180,12 @@ class StreamingChatService: ObservableObject {
 
             // Persist the assistant message if we got content
             if !streamingContent.isEmpty || !streamingThinking.isEmpty {
+                let persistedTokenCount = finalEvalCount ?? (tokenCount > 0 ? tokenCount : nil)
                 let assistantMessage = Message(
                     role: "assistant",
                     content: streamingContent,
                     thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
+                    outputTokenCount: persistedTokenCount,
                     conversation: conversation
                 )
                 modelContext.insert(assistantMessage)
@@ -172,6 +234,10 @@ class StreamingChatService: ObservableObject {
                 continue
             }
 
+            if let evalCount = chunk.eval_count, evalCount > 0 {
+                finalEvalCount = evalCount
+            }
+
             if let thinking = chunk.message?.thinking, !thinking.isEmpty {
                 if !isThinking {
                     isThinking = true
@@ -209,6 +275,23 @@ class StreamingChatService: ObservableObject {
         }
     }
 
+    var canRetryLast: Bool {
+        lastSentRequestContent != nil
+    }
+
+    func retryLast(conversation: Conversation, modelContext: ModelContext) {
+        guard let lastSentRequestContent else { return }
+
+        sendMessage(
+            content: lastSentContent ?? "",
+            requestContent: lastSentRequestContent,
+            imageBase64s: lastSentImageBase64s,
+            attachmentSummary: lastSentAttachmentSummary,
+            conversation: conversation,
+            modelContext: modelContext
+        )
+    }
+
     func cancel(conversation: Conversation, modelContext: ModelContext) {
         streamTask?.cancel()
 
@@ -218,6 +301,7 @@ class StreamingChatService: ObservableObject {
                 role: "assistant",
                 content: streamingContent.isEmpty ? "[stopped during thinking]" : streamingContent + "\n\n[stopped]",
                 thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
+                outputTokenCount: tokenCount > 0 ? tokenCount : nil,
                 conversation: conversation
             )
             modelContext.insert(partialMessage)

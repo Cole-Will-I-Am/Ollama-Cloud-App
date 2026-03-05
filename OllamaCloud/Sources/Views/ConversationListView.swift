@@ -55,10 +55,6 @@ struct ConversationListView: View {
                                         .luxuryTracking()
                                         .foregroundStyle(Color.accent)
                                 }
-                                Spacer()
-                                Text(conversation.updatedAt, style: .relative)
-                                    .font(.app(11))
-                                    .foregroundStyle(Color.textTertiary)
                             }
                         }
                     }

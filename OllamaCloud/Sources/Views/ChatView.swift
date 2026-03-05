@@ -1,6 +1,11 @@
 import SwiftUI
 import SwiftData
 import MarkdownUI
+import PhotosUI
+import UniformTypeIdentifiers
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -16,6 +21,27 @@ struct ChatView: View {
     @State private var sentFirstTokenHaptic = false
     @State private var scrollViewportHeight: CGFloat = 0
     @State private var bottomAnchorMaxY: CGFloat = 0
+    @FocusState private var isInputFocused: Bool
+    @State private var showAttachmentOptions = false
+    @State private var showPhotoPicker = false
+    @State private var showFileImporter = false
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var pendingImageAttachments: [PendingImageAttachment] = []
+    @State private var pendingFileAttachments: [PendingFileAttachment] = []
+    @State private var attachmentError: String?
+
+    private struct PendingImageAttachment: Identifiable, Equatable {
+        let id = UUID()
+        let base64: String
+        let byteCount: Int
+    }
+
+    private struct PendingFileAttachment: Identifiable, Equatable {
+        let id = UUID()
+        let name: String
+        let content: String
+        let originalCharacterCount: Int
+    }
 
     private var sortedMessages: [Message] {
         conversation.messages.sorted { $0.createdAt < $1.createdAt }
@@ -35,6 +61,8 @@ struct ChatView: View {
                         ScrollView {
                             if messages.isEmpty && !streaming.isStreaming {
                                 emptyState
+                                    .frame(maxWidth: .infinity)
+                                    .frame(minHeight: scrollGeo.size.height - 1)
                             } else {
                                 LazyVStack(spacing: 16) {
                                     ForEach(messages) { message in
@@ -186,6 +214,67 @@ struct ChatView: View {
                 Haptic.notification(.error)
             }
         }
+        .onAppear {
+            if conversation.messages.isEmpty && !conversation.modelName.isEmpty {
+                isInputFocused = true
+            }
+        }
+        .onChange(of: conversation.modelName) { _, newValue in
+            if !newValue.isEmpty && conversation.messages.isEmpty {
+                isInputFocused = true
+            }
+        }
+        .confirmationDialog(
+            "Attach",
+            isPresented: $showAttachmentOptions,
+            titleVisibility: .visible
+        ) {
+            Button("Photo Library") {
+                showPhotoPicker = true
+            }
+            Button("Files") {
+                showFileImporter = true
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $selectedPhotoItems,
+            maxSelectionCount: 5,
+            matching: .images
+        )
+        .onChange(of: selectedPhotoItems) { _, newItems in
+            guard !newItems.isEmpty else { return }
+            Task {
+                await importSelectedPhotos(newItems)
+                await MainActor.run {
+                    selectedPhotoItems = []
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [
+                .plainText, .utf8PlainText, .text, .sourceCode,
+                .json, .xml, .commaSeparatedText
+            ],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                Task { await importFiles(urls) }
+            case .failure(let error):
+                attachmentError = error.localizedDescription
+            }
+        }
+        .alert("Attachment Error", isPresented: Binding(
+            get: { attachmentError != nil },
+            set: { _ in attachmentError = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(attachmentError ?? "Unable to load attachment.")
+        }
     }
 
     // MARK: - Offline Banner
@@ -218,6 +307,7 @@ struct ChatView: View {
                 Text("Pick a model to begin")
                     .font(.app(15, weight: .light))
                     .foregroundStyle(Color.textSecondary)
+                    .multilineTextAlignment(.center)
                 Button {
                     showModelPicker = true
                 } label: {
@@ -237,10 +327,11 @@ struct ChatView: View {
                 Text("Send a message to begin")
                     .font(.app(15, weight: .light))
                     .foregroundStyle(Color.textSecondary)
+                    .multilineTextAlignment(.center)
             }
             Spacer()
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     // MARK: - Streaming
@@ -386,9 +477,9 @@ struct ChatView: View {
                 .foregroundStyle(Color.danger)
 
                 // Retry button
-                if let lastContent = streaming.lastSentContent, !streaming.isStreaming {
+                if streaming.canRetryLast, !streaming.isStreaming {
                     Button {
-                        retry(content: lastContent)
+                        retryLast()
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "arrow.clockwise")
@@ -427,45 +518,88 @@ struct ChatView: View {
         VStack(spacing: 0) {
             Rectangle().fill(Color.border).frame(height: 0.5)
 
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("", text: $input, prompt: Text(inputPlaceholder).foregroundStyle(Color.textTertiary), axis: .vertical)
-                    .font(.app(15))
-                    .lineLimit(1...6)
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 13)
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(Color.bgSecondary)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .stroke(Color.borderLight, lineWidth: 0.5)
-                            )
-                    )
-                    .onSubmit { send() }
+            VStack(spacing: 8) {
+                if hasPendingAttachments {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(pendingImageAttachments.enumerated()), id: \.element.id) { idx, attachment in
+                                attachmentChip(
+                                    icon: "photo",
+                                    label: "Image \(idx + 1) · \(ByteCountFormatter.string(fromByteCount: Int64(attachment.byteCount), countStyle: .file))"
+                                ) {
+                                    pendingImageAttachments.removeAll { $0.id == attachment.id }
+                                }
+                            }
+                            ForEach(pendingFileAttachments) { file in
+                                attachmentChip(
+                                    icon: "doc.text",
+                                    label: "\(file.name) · \(file.content.count) chars"
+                                ) {
+                                    pendingFileAttachments.removeAll { $0.id == file.id }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                    }
+                }
 
-                if streaming.isStreaming {
+                HStack(alignment: .bottom, spacing: 10) {
                     Button {
-                        Haptic.impact(.medium)
-                        streaming.cancel(conversation: conversation, modelContext: modelContext)
+                        showAttachmentOptions = true
                     } label: {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 13, weight: .ultraLight))
-                            .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Color.danger))
-                    }
-                } else {
-                    Button(action: send) {
-                        Image(systemName: canSend ? "arrow.up" : (network.isConnected ? "arrow.up" : "wifi.slash"))
+                        Image(systemName: "plus")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
+                            .foregroundStyle(Color.accent)
+                            .frame(width: 34, height: 34)
                             .background(
-                                Circle().fill(canSend ? LinearGradient.accentGradient : LinearGradient(colors: [Color.bgTertiary], startPoint: .top, endPoint: .bottom))
+                                Circle()
+                                    .fill(Color.accentSoft)
+                                    .overlay(Circle().stroke(Color.border, lineWidth: 0.5))
                             )
                     }
-                    .disabled(!canSend)
+                    .buttonStyle(.plain)
+                    .disabled(streaming.isStreaming)
+
+                    TextField("", text: $input, prompt: Text(inputPlaceholder).foregroundStyle(Color.textTertiary), axis: .vertical)
+                        .font(.app(15))
+                        .lineLimit(1...6)
+                        .foregroundStyle(Color.textPrimary)
+                        .focused($isInputFocused)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 13)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(Color.bgSecondary)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .stroke(Color.borderLight, lineWidth: 0.5)
+                                )
+                        )
+                        .onSubmit { send() }
+
+                    if streaming.isStreaming {
+                        Button {
+                            Haptic.impact(.medium)
+                            streaming.cancel(conversation: conversation, modelContext: modelContext)
+                        } label: {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 13, weight: .ultraLight))
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Color.danger))
+                        }
+                    } else {
+                        Button(action: send) {
+                            Image(systemName: canSend ? "arrow.up" : (network.isConnected ? "arrow.up" : "wifi.slash"))
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(
+                                    Circle().fill(canSend ? LinearGradient.accentGradient : LinearGradient(colors: [Color.bgTertiary], startPoint: .top, endPoint: .bottom))
+                                )
+                        }
+                        .disabled(!canSend)
+                    }
                 }
             }
             .padding(.horizontal, 14)
@@ -485,26 +619,44 @@ struct ChatView: View {
     }
 
     private var canSend: Bool {
-        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        (!input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasPendingAttachments)
         && !streaming.isStreaming
         && !conversation.modelName.isEmpty
         && network.isConnected
     }
 
-    private func send() {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !conversation.modelName.isEmpty else { return }
-        input = ""
-
-        Haptic.impact()
-        streaming.sendMessage(content: text, conversation: conversation, modelContext: modelContext)
+    private var hasPendingAttachments: Bool {
+        !pendingImageAttachments.isEmpty || !pendingFileAttachments.isEmpty
     }
 
-    private func retry(content: String) {
+    private func send() {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (!text.isEmpty || hasPendingAttachments), !conversation.modelName.isEmpty else { return }
+
+        let attachmentSummary = makeAttachmentSummary()
+        let requestContent = makeRequestContent(userText: text)
+        let imageBase64s = pendingImageAttachments.map(\.base64)
+
+        input = ""
+        pendingImageAttachments.removeAll()
+        pendingFileAttachments.removeAll()
+
+        Haptic.impact()
+        streaming.sendMessage(
+            content: text,
+            requestContent: requestContent,
+            imageBase64s: imageBase64s,
+            attachmentSummary: attachmentSummary,
+            conversation: conversation,
+            modelContext: modelContext
+        )
+    }
+
+    private func retryLast() {
         streaming.error = nil
 
         Haptic.impact()
-        streaming.sendMessage(content: content, conversation: conversation, modelContext: modelContext)
+        streaming.retryLast(conversation: conversation, modelContext: modelContext)
     }
 
     private func updateScrollPosition(anchorMaxY: CGFloat? = nil, viewportHeight: CGFloat? = nil) {
@@ -540,4 +692,182 @@ struct ChatView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func attachmentChip(icon: String, label: String, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .ultraLight))
+            Text(label)
+                .font(.app(11))
+                .lineLimit(1)
+            Button {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.textTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(Color.textSecondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.surface)
+                .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+        )
+    }
+
+    private func makeAttachmentSummary() -> String? {
+        guard hasPendingAttachments else { return nil }
+
+        var components: [String] = []
+        if !pendingImageAttachments.isEmpty {
+            components.append("\(pendingImageAttachments.count) image\(pendingImageAttachments.count == 1 ? "" : "s")")
+        }
+        if !pendingFileAttachments.isEmpty {
+            let names = pendingFileAttachments.map(\.name).joined(separator: ", ")
+            components.append("\(pendingFileAttachments.count) file\(pendingFileAttachments.count == 1 ? "" : "s"): \(names)")
+        }
+        return "Attachments: " + components.joined(separator: " · ")
+    }
+
+    private func makeRequestContent(userText: String) -> String {
+        var body = userText
+        if body.isEmpty {
+            if !pendingImageAttachments.isEmpty && pendingFileAttachments.isEmpty {
+                body = "Please analyze the attached image(s)."
+            } else if pendingImageAttachments.isEmpty && !pendingFileAttachments.isEmpty {
+                body = "Please analyze the attached file(s)."
+            } else {
+                body = "Please analyze the attached image(s) and file(s)."
+            }
+        }
+
+        guard !pendingFileAttachments.isEmpty else { return body }
+
+        let sections = pendingFileAttachments.map { file in
+            """
+            [Attached File: \(file.name)]
+            \(file.content)
+            """
+        }.joined(separator: "\n\n")
+
+        return """
+        \(body)
+
+        --- Begin Attached Files ---
+        \(sections)
+        --- End Attached Files ---
+        """
+    }
+
+    private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        let existing = pendingImageAttachments.count
+        let availableSlots = max(0, 5 - existing)
+        if availableSlots == 0 {
+            await MainActor.run {
+                attachmentError = "You can attach up to 5 images per message."
+            }
+            return
+        }
+
+        for item in items.prefix(availableSlots) {
+            do {
+                guard let originalData = try await item.loadTransferable(type: Data.self) else { continue }
+                let preparedData = normalizedImageData(from: originalData)
+                let base64 = preparedData.base64EncodedString()
+
+                await MainActor.run {
+                    pendingImageAttachments.append(
+                        PendingImageAttachment(base64: base64, byteCount: preparedData.count)
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    attachmentError = "Failed to load one or more images."
+                }
+            }
+        }
+    }
+
+    private func importFiles(_ urls: [URL]) async {
+        let maxCharacters = 18_000
+        for url in urls {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess { url.stopAccessingSecurityScopedResource() }
+            }
+
+            do {
+                let data = try Data(contentsOf: url)
+                guard let decoded = decodeTextFile(data: data) else {
+                    await MainActor.run {
+                        attachmentError = "Unsupported file encoding for \(url.lastPathComponent)."
+                    }
+                    continue
+                }
+
+                let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+
+                let originalCount = trimmed.count
+                let clipped = originalCount > maxCharacters ? String(trimmed.prefix(maxCharacters)) : trimmed
+                let content: String
+                if originalCount > maxCharacters {
+                    content = clipped + "\n\n[Truncated to \(maxCharacters) characters]"
+                } else {
+                    content = clipped
+                }
+
+                await MainActor.run {
+                    pendingFileAttachments.append(
+                        PendingFileAttachment(
+                            name: url.lastPathComponent,
+                            content: content,
+                            originalCharacterCount: originalCount
+                        )
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    attachmentError = "Failed to read \(url.lastPathComponent)."
+                }
+            }
+        }
+    }
+
+    private func decodeTextFile(data: Data) -> String? {
+        if let utf8 = String(data: data, encoding: .utf8) { return utf8 }
+        if let utf16 = String(data: data, encoding: .utf16) { return utf16 }
+        if let isoLatin1 = String(data: data, encoding: .isoLatin1) { return isoLatin1 }
+        return nil
+    }
+
+    private func normalizedImageData(from data: Data) -> Data {
+        #if os(iOS)
+        guard let image = UIImage(data: data) else { return data }
+        let resized = resizeImageIfNeeded(image, maxDimension: 1600)
+        return resized.jpegData(compressionQuality: 0.82) ?? data
+        #else
+        return data
+        #endif
+    }
+
+    #if os(iOS)
+    private func resizeImageIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let largest = max(size.width, size.height)
+        guard largest > maxDimension else { return image }
+
+        let scale = maxDimension / largest
+        let target = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: target)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+    }
+    #endif
 }

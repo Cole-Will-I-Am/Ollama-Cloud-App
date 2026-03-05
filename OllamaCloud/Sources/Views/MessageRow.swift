@@ -1,5 +1,8 @@
 import SwiftUI
 import MarkdownUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct MessageRow: View {
     let message: Message
@@ -18,6 +21,9 @@ struct MessageRow: View {
                     userBubble
                 } else {
                     assistantBubble
+                    if let outputTokenCount = message.outputTokenCount, outputTokenCount > 0 {
+                        tokenFooter(outputTokenCount)
+                    }
                 }
             }
 
@@ -33,6 +39,13 @@ struct MessageRow: View {
             .padding(.vertical, 12)
             .background(LinearGradient.accentGradient)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contextMenu {
+                Button {
+                    copyToClipboard(message.content)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+            }
     }
 
     private var assistantBubble: some View {
@@ -50,6 +63,13 @@ struct MessageRow: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .assistantMaterialBubble(shape: bubbleShape)
+            .contextMenu {
+                Button {
+                    copyToClipboard(message.content)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+            }
     }
 
     private func thinkingSection(_ thinking: String) -> some View {
@@ -119,5 +139,31 @@ struct MessageRow: View {
             )
             .stroke(Color.border, lineWidth: 0.5)
         )
+        .contextMenu {
+            Button {
+                copyToClipboard(thinking)
+            } label: {
+                Label("Copy Thinking", systemImage: "doc.on.doc")
+            }
+        }
+    }
+
+    private func copyToClipboard(_ text: String) {
+        #if os(iOS)
+        UIPasteboard.general.string = text
+        Haptic.notification(.success)
+        #endif
+    }
+
+    private func tokenFooter(_ tokenCount: Int) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "number")
+                .font(.system(size: 8, weight: .ultraLight))
+            Text("\(tokenCount) tokens")
+                .font(.app(10, weight: .medium).monospaced())
+        }
+        .foregroundStyle(Color.textTertiary)
+        .padding(.leading, 6)
+        .padding(.top, 4)
     }
 }

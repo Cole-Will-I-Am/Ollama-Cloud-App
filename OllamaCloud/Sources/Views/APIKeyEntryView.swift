@@ -8,6 +8,7 @@ struct APIKeyEntryView: View {
     @State private var isTakingLong = false
     @State private var errorMessage: String?
     @State private var slowTimerTask: Task<Void, Never>?
+    @State private var showKeyHelp = false
 
     var body: some View {
         ZStack {
@@ -88,6 +89,21 @@ struct APIKeyEntryView: View {
                     }
 
                     Button {
+                        showKeyHelp = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 12, weight: .ultraLight))
+                            Text("How to get an API key")
+                                .font(.app(12))
+                        }
+                        .foregroundStyle(Color.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+
+                    Button {
                         validate()
                     } label: {
                         Group {
@@ -153,6 +169,9 @@ struct APIKeyEntryView: View {
             }
             .padding(.bottom, 24)
         }
+        .sheet(isPresented: $showKeyHelp) {
+            keyHelpSheet
+        }
     }
 
     private var connectButtonDisabled: Bool {
@@ -200,5 +219,45 @@ struct APIKeyEntryView: View {
             isValidating = false
             isTakingLong = false
         }
+    }
+
+    private var keyHelpSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Get your Ollama Cloud API key in a few steps:")
+                        .font(.app(15, weight: .medium))
+                        .foregroundStyle(Color.textPrimary)
+                    Text("1. Sign in to your Ollama account.")
+                        .font(.app(14))
+                        .foregroundStyle(Color.textSecondary)
+                    Text("2. Open account settings and create a new API key.")
+                        .font(.app(14))
+                        .foregroundStyle(Color.textSecondary)
+                    Text("3. Copy the key and paste it into this app.")
+                        .font(.app(14))
+                        .foregroundStyle(Color.textSecondary)
+
+                    Link(destination: URL(string: "https://ollama.com")!) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link")
+                                .font(.system(size: 11, weight: .ultraLight))
+                            Text("Open Ollama")
+                                .font(.appLabel(11))
+                                .tracking(2)
+                        }
+                        .foregroundStyle(Color.accent)
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color.bgPrimary)
+            .navigationTitle("API Key Help")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
     }
 }

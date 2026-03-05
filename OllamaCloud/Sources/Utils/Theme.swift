@@ -217,6 +217,345 @@ extension View {
     }
 }
 
+// MARK: - Code Block Rendering
+
+private struct SeerCodeBlock: View {
+    let language: String?
+    let content: String
+
+    private var normalizedContent: String {
+        content.replacingOccurrences(of: "\t", with: "    ")
+    }
+
+    private var languageLabel: String {
+        guard let language, !language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "plain text"
+        }
+        return language
+    }
+
+    private var lineNumberText: String {
+        let lines = max(1, normalizedContent.components(separatedBy: .newlines).count)
+        return (1...lines).map(String.init).joined(separator: "\n")
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Text(languageLabel)
+                    .font(.appLabel(9))
+                    .foregroundStyle(Color.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule().fill(Color.white.opacity(0.05))
+                    )
+                Spacer()
+                Button {
+                    copyCode()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 10, weight: .ultraLight))
+                        Text("Copy")
+                            .font(.appLabel(9))
+                    }
+                    .foregroundStyle(Color.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Copy code")
+                .accessibilityHint("Copies this code block to the clipboard")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+
+            Rectangle()
+                .fill(Color.border)
+                .frame(height: 0.5)
+
+            ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                HStack(alignment: .top, spacing: 12) {
+                    Text(lineNumberText)
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                        .foregroundStyle(Color.textTertiary)
+                        .multilineTextAlignment(.trailing)
+                        .padding(.trailing, 2)
+                        .textSelection(.disabled)
+
+                    SeerCodeSyntaxHighlighter.shared
+                        .highlightCode(normalizedContent, language: language)
+                        .font(.system(size: 13, weight: .regular, design: .monospaced))
+                        .lineSpacing(3)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+            }
+            .frame(maxHeight: 340)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.bgPrimary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.border, lineWidth: 0.5)
+                )
+        )
+        .markdownMargin(top: .zero, bottom: .em(0.8))
+    }
+
+    private func copyCode() {
+        #if os(iOS)
+        UIPasteboard.general.string = normalizedContent
+        Haptic.notification(.success)
+        #endif
+    }
+}
+
+private enum SeerCodeTokenKind {
+    case plain
+    case keyword
+    case type
+    case string
+    case comment
+    case number
+}
+
+private struct SeerCodeToken {
+    let text: String
+    let kind: SeerCodeTokenKind
+}
+
+struct SeerCodeSyntaxHighlighter: CodeSyntaxHighlighter {
+    static let shared = SeerCodeSyntaxHighlighter()
+
+    func highlightCode(_ code: String, language: String?) -> Text {
+        let tokens = Self.tokenize(code: code, language: language)
+        return tokens.reduce(Text("")) { partial, token in
+            partial + Text(token.text).foregroundColor(Self.color(for: token.kind))
+        }
+    }
+
+    private static func color(for kind: SeerCodeTokenKind) -> Color {
+        switch kind {
+        case .plain:
+            return Color.textPrimary
+        case .keyword:
+            return Color(red: 0.74, green: 0.62, blue: 1.0)
+        case .type:
+            return Color(red: 0.48, green: 0.76, blue: 1.0)
+        case .string:
+            return Color(red: 0.52, green: 0.88, blue: 0.64)
+        case .comment:
+            return Color.textTertiary
+        case .number:
+            return Color(red: 1.0, green: 0.74, blue: 0.42)
+        }
+    }
+
+    private static func tokenize(code: String, language: String?) -> [SeerCodeToken] {
+        var tokens: [SeerCodeToken] = []
+        let keywords = keywordSet(for: language)
+
+        var index = code.startIndex
+        while index < code.endIndex {
+            let char = code[index]
+
+            if char == "/" && nextChar(in: code, from: index) == "/" {
+                let end = consumeUntilLineBreak(in: code, from: index)
+                tokens.append(SeerCodeToken(text: String(code[index..<end]), kind: .comment))
+                index = end
+                continue
+            }
+
+            if char == "/" && nextChar(in: code, from: index) == "*" {
+                let end = consumeBlockComment(in: code, from: index)
+                tokens.append(SeerCodeToken(text: String(code[index..<end]), kind: .comment))
+                index = end
+                continue
+            }
+
+            if char == "#" {
+                let end = consumeUntilLineBreak(in: code, from: index)
+                tokens.append(SeerCodeToken(text: String(code[index..<end]), kind: .comment))
+                index = end
+                continue
+            }
+
+            if char == "\"" || char == "'" || char == "`" {
+                let end = consumeString(in: code, from: index, quote: char)
+                tokens.append(SeerCodeToken(text: String(code[index..<end]), kind: .string))
+                index = end
+                continue
+            }
+
+            if char.isNumber {
+                let end = consumeNumber(in: code, from: index)
+                tokens.append(SeerCodeToken(text: String(code[index..<end]), kind: .number))
+                index = end
+                continue
+            }
+
+            if isWordStart(char) {
+                let end = consumeWord(in: code, from: index)
+                let word = String(code[index..<end])
+                if keywords.contains(word) {
+                    tokens.append(SeerCodeToken(text: word, kind: .keyword))
+                } else if word.first?.isUppercase == true {
+                    tokens.append(SeerCodeToken(text: word, kind: .type))
+                } else {
+                    tokens.append(SeerCodeToken(text: word, kind: .plain))
+                }
+                index = end
+                continue
+            }
+
+            let next = code.index(after: index)
+            tokens.append(SeerCodeToken(text: String(code[index..<next]), kind: .plain))
+            index = next
+        }
+
+        return tokens
+    }
+
+    private static func keywordSet(for language: String?) -> Set<String> {
+        let common: Set<String> = [
+            "if", "else", "for", "while", "return", "switch", "case", "break", "continue",
+            "let", "var", "const", "func", "class", "struct", "enum", "import", "from",
+            "try", "catch", "throw", "throws", "async", "await", "in", "where", "guard",
+            "public", "private", "internal", "final", "extension", "protocol", "static",
+            "true", "false", "nil", "null", "undefined", "new", "this", "self"
+        ]
+
+        guard let language = language?.lowercased() else { return common }
+
+        if language.contains("swift") {
+            return common.union([
+                "actor", "associatedtype", "defer", "fallthrough", "indirect", "init",
+                "inout", "mutating", "nonmutating", "some", "any", "rethrows", "typealias"
+            ])
+        }
+        if language.contains("python") || language == "py" {
+            return common.union([
+                "def", "elif", "lambda", "pass", "with", "as", "is", "not", "and", "or",
+                "raise", "yield", "global", "nonlocal"
+            ])
+        }
+        if language.contains("javascript") || language.contains("typescript") || language == "js" || language == "ts" {
+            return common.union([
+                "function", "interface", "implements", "extends", "typeof", "instanceof",
+                "export", "default", "package", "delete", "void"
+            ])
+        }
+        if language.contains("json") {
+            return ["true", "false", "null"]
+        }
+        if language.contains("go") {
+            return common.union([
+                "package", "map", "chan", "select", "go", "defer", "range", "type", "interface"
+            ])
+        }
+        if language.contains("rust") {
+            return common.union([
+                "fn", "impl", "match", "mod", "pub", "crate", "trait", "mut", "ref", "unsafe"
+            ])
+        }
+
+        return common
+    }
+
+    private static func nextChar(in code: String, from index: String.Index) -> Character? {
+        let next = code.index(after: index)
+        return next < code.endIndex ? code[next] : nil
+    }
+
+    private static func consumeUntilLineBreak(in code: String, from start: String.Index) -> String.Index {
+        var idx = start
+        while idx < code.endIndex && !code[idx].isNewline {
+            idx = code.index(after: idx)
+        }
+        return idx
+    }
+
+    private static func consumeBlockComment(in code: String, from start: String.Index) -> String.Index {
+        var idx = code.index(start, offsetBy: 2, limitedBy: code.endIndex) ?? code.endIndex
+        while idx < code.endIndex {
+            if code[idx] == "*" {
+                let next = code.index(after: idx)
+                if next < code.endIndex && code[next] == "/" {
+                    return code.index(after: next)
+                }
+            }
+            idx = code.index(after: idx)
+        }
+        return code.endIndex
+    }
+
+    private static func consumeString(in code: String, from start: String.Index, quote: Character) -> String.Index {
+        var idx = code.index(after: start)
+        var isEscaped = false
+
+        while idx < code.endIndex {
+            let c = code[idx]
+            if isEscaped {
+                isEscaped = false
+                idx = code.index(after: idx)
+                continue
+            }
+            if c == "\\" {
+                isEscaped = true
+                idx = code.index(after: idx)
+                continue
+            }
+            if c == quote {
+                return code.index(after: idx)
+            }
+            idx = code.index(after: idx)
+        }
+        return code.endIndex
+    }
+
+    private static func consumeNumber(in code: String, from start: String.Index) -> String.Index {
+        var idx = start
+        while idx < code.endIndex {
+            let c = code[idx]
+            if c.isNumber || c == "." || c == "_" {
+                idx = code.index(after: idx)
+            } else {
+                break
+            }
+        }
+        return idx
+    }
+
+    private static func consumeWord(in code: String, from start: String.Index) -> String.Index {
+        var idx = start
+        while idx < code.endIndex {
+            let c = code[idx]
+            if isWord(c) {
+                idx = code.index(after: idx)
+            } else {
+                break
+            }
+        }
+        return idx
+    }
+
+    private static func isWordStart(_ char: Character) -> Bool {
+        char.isLetter || char == "_"
+    }
+
+    private static func isWord(_ char: Character) -> Bool {
+        char.isLetter || char.isNumber || char == "_"
+    }
+}
+
+extension CodeSyntaxHighlighter where Self == SeerCodeSyntaxHighlighter {
+    static var seer: Self {
+        SeerCodeSyntaxHighlighter.shared
+    }
+}
+
 // MARK: - MarkdownUI Themes
 
 extension MarkdownUI.Theme {
@@ -265,23 +604,7 @@ extension MarkdownUI.Theme {
                 }
         }
         .codeBlock { configuration in
-            ScrollView(.horizontal, showsIndicators: false) {
-                configuration.label
-                    .markdownTextStyle {
-                        FontFamilyVariant(.monospaced)
-                        FontSize(13)
-                        ForegroundColor(Color.textPrimary)
-                    }
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.bgPrimary)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.border, lineWidth: 0.5)
-                    )
-            )
+            SeerCodeBlock(language: configuration.language, content: configuration.content)
         }
         .table { configuration in
             configuration.label
@@ -319,6 +642,9 @@ extension MarkdownUI.Theme {
         .link {
             ForegroundColor(.white.opacity(0.85))
         }
+        .codeBlock { configuration in
+            SeerCodeBlock(language: configuration.language, content: configuration.content)
+        }
 
     /// Thinking panel theme — subdued markdown styling.
     static let seerThinking = Theme()
@@ -336,5 +662,8 @@ extension MarkdownUI.Theme {
         }
         .link {
             ForegroundColor(Color.textSecondary)
+        }
+        .codeBlock { configuration in
+            SeerCodeBlock(language: configuration.language, content: configuration.content)
         }
 }
