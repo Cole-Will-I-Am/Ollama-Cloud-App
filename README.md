@@ -53,4 +53,4 @@ See `backend/README.md` for production deployment configuration.
 
 ## License
 
-All rights reserved.
+All rights reserved. No license granted at this time.
