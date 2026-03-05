@@ -25,7 +25,7 @@ struct SettingsView: View {
                                     Text("Connected")
                                         .font(.app(15, weight: .medium))
                                         .foregroundStyle(Color.textPrimary)
-                                    Text("ollama.com")
+                                    Text(AppConfig.apiHostDisplayName)
                                         .font(.app(12))
                                         .foregroundStyle(Color.textTertiary)
                                 }
@@ -63,7 +63,7 @@ struct SettingsView: View {
                         VStack(spacing: 0) {
                             row("Version", "1.0.0")
                             Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
-                            row("API", "ollama.com")
+                            row("API", AppConfig.apiHostDisplayName)
                         }
                     }
                 }

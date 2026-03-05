@@ -49,12 +49,8 @@ enum OllamaAPIError: LocalizedError {
 
 private final class PinningDelegate: NSObject, URLSessionDelegate, Sendable {
     // SHA-256 hashes of the SubjectPublicKeyInfo for ollama.com's certificate chain.
-    // Update these when the certificate rotates.
+    // Leave empty to use standard TLS validation until real pins are configured.
     private let pinnedHashes: Set<String> = [
-        // Primary leaf pin (ollama.com)
-        "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
-        // Backup intermediate pin
-        "sha256/CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=",
     ]
 
     func urlSession(
@@ -64,6 +60,11 @@ private final class PinningDelegate: NSObject, URLSessionDelegate, Sendable {
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               let serverTrust = challenge.protectionSpace.serverTrust,
               challenge.protectionSpace.host.hasSuffix("ollama.com") else {
+            return (.performDefaultHandling, nil)
+        }
+
+        // If pins are not configured yet, rely on platform trust evaluation.
+        guard !pinnedHashes.isEmpty else {
             return (.performDefaultHandling, nil)
         }
 
@@ -99,7 +100,6 @@ private final class PinningDelegate: NSObject, URLSessionDelegate, Sendable {
 actor OllamaAPIClient {
     static let shared = OllamaAPIClient()
 
-    private let baseURL = "https://ollama.com"
     private let maxRetries = 2
     private let retryDelays: [UInt64] = [1_000_000_000, 3_000_000_000] // 1s, 3s in nanoseconds
 
@@ -123,6 +123,24 @@ actor OllamaAPIClient {
 
     private var apiKey: String? {
         KeychainHelper.load(key: "api_key")
+    }
+
+    private var baseURL: String {
+        AppConfig.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    private func makeURL(path: String) -> URL? {
+        URL(string: "\(baseURL)\(path)")
+    }
+
+    private func applyAuthHeaders(to request: inout URLRequest, userAPIKey: String) {
+        if let backendToken = AppConfig.backendBearerToken {
+            request.setValue("Bearer \(backendToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(userAPIKey, forHTTPHeaderField: "X-Ollama-Key")
+        } else {
+            request.setValue("Bearer \(userAPIKey)", forHTTPHeaderField: "Authorization")
+            request.setValue(nil, forHTTPHeaderField: "X-Ollama-Key")
+        }
     }
 
     // MARK: - Error Mapping
@@ -191,12 +209,12 @@ actor OllamaAPIClient {
 
     func validateKey(_ key: String) async throws -> Bool {
         try await performWithRetry {
-            guard let url = URL(string: "\(self.baseURL)/api/tags") else {
+            guard let url = self.makeURL(path: "/api/tags") else {
                 throw OllamaAPIError.invalidResponse
             }
 
             var request = URLRequest(url: url)
-            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            self.applyAuthHeaders(to: &request, userAPIKey: key)
 
             let (_, response) = try await self.session.data(for: request)
 
@@ -216,12 +234,12 @@ actor OllamaAPIClient {
     func fetchModels() async throws -> [OllamaModel] {
         try await performWithRetry {
             guard let key = self.apiKey else { throw OllamaAPIError.unauthorized }
-            guard let url = URL(string: "\(self.baseURL)/api/tags") else {
+            guard let url = self.makeURL(path: "/api/tags") else {
                 throw OllamaAPIError.invalidResponse
             }
 
             var request = URLRequest(url: url)
-            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            self.applyAuthHeaders(to: &request, userAPIKey: key)
 
             let (data, response) = try await self.session.data(for: request)
 
@@ -244,7 +262,7 @@ actor OllamaAPIClient {
         options: ChatOptions? = nil
     ) async throws -> (URLSession.AsyncBytes, URLResponse) {
         guard let key = apiKey else { throw OllamaAPIError.unauthorized }
-        guard let url = URL(string: "\(baseURL)/api/chat") else {
+        guard let url = makeURL(path: "/api/chat") else {
             throw OllamaAPIError.invalidResponse
         }
 
@@ -253,7 +271,7 @@ actor OllamaAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        applyAuthHeaders(to: &request, userAPIKey: key)
         request.httpBody = try JSONEncoder().encode(body)
 
         let (bytes, response): (URLSession.AsyncBytes, URLResponse)

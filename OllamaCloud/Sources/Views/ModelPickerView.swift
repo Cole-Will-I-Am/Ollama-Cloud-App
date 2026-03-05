@@ -8,6 +8,7 @@ struct ModelPickerView: View {
     @State private var isLoading = true
     @State private var error: String?
     @State private var searchText = ""
+    @State private var fetchTask: Task<Void, Never>?
 
     private var filteredModels: [OllamaModel] {
         if searchText.isEmpty { return models }
@@ -104,14 +105,23 @@ struct ModelPickerView: View {
             }
         }
         .onAppear { fetchModels() }
+        .onDisappear { fetchTask?.cancel() }
     }
 
     private func fetchModels() {
+        fetchTask?.cancel()
         isLoading = true
         error = nil
-        Task {
-            do { models = try await OllamaAPIClient.shared.fetchModels() }
-            catch { self.error = error.localizedDescription }
+        fetchTask = Task {
+            do {
+                models = try await OllamaAPIClient.shared.fetchModels()
+            } catch is CancellationError {
+                return
+            } catch let apiError as OllamaAPIError {
+                error = apiError.userMessage
+            } catch let caughtError {
+                error = caughtError.localizedDescription
+            }
             isLoading = false
         }
     }

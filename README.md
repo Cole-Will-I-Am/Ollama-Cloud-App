@@ -32,6 +32,25 @@ xcodegen generate
 open OllamaCloud.xcodeproj
 ```
 
+## Optional Backend Relay
+
+This repo includes a lightweight relay backend in `backend/` for rate limiting, model policy, and observability while keeping the same app UX.
+
+```
+cd backend
+cp .env.example .env
+set -a && source .env && set +a
+npm install
+npm run start
+```
+
+To point the app to the relay in development, set one or both environment variables in your Xcode scheme:
+
+- `OLLAMA_API_BASE_URL` (example: `http://localhost:8787`)
+- `OLLAMA_BACKEND_BEARER_TOKEN` (only if backend auth is enabled)
+
+See `backend/README.md` for production deployment configuration.
+
 ## License
 
 All rights reserved.

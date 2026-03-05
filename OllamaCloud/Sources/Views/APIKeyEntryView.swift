@@ -6,7 +6,7 @@ struct APIKeyEntryView: View {
     @State private var apiKey = ""
     @State private var isValidating = false
     @State private var isTakingLong = false
-    @State private var error: String?
+    @State private var errorMessage: String?
     @State private var slowTimerTask: Task<Void, Never>?
 
     var body: some View {
@@ -61,8 +61,8 @@ struct APIKeyEntryView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    if let error {
-                        Text(error)
+                    if let errorMessage {
+                        Text(errorMessage)
                             .font(.app(12, weight: .medium))
                             .foregroundStyle(Color.danger)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,13 +128,13 @@ struct APIKeyEntryView: View {
 
     private func validate() {
         guard network.isConnected else {
-            error = "No internet connection"
+            errorMessage = "No internet connection"
             return
         }
 
         isValidating = true
         isTakingLong = false
-        error = nil
+        errorMessage = nil
 
         // Start slow-timer: show hint after 15s
         slowTimerTask?.cancel()
@@ -154,12 +154,12 @@ struct APIKeyEntryView: View {
                     KeychainHelper.save(key: "api_key", value: apiKey)
                     hasAPIKey = true
                 } else {
-                    error = "Invalid API key"
+                    errorMessage = "Invalid API key"
                 }
             } catch let apiError as OllamaAPIError {
-                error = apiError.userMessage
+                errorMessage = apiError.userMessage
             } catch {
-                error = error.localizedDescription
+                errorMessage = error.localizedDescription
             }
 
             slowTimerTask?.cancel()
