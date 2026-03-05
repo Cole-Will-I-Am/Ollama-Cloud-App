@@ -2,8 +2,36 @@ function isRetriableStatus(status) {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function toAbortError(reason, fallbackMessage = 'Request aborted') {
+  if (reason instanceof Error) {
+    reason.code ||= 'CLIENT_ABORTED';
+    return reason;
+  }
+  const err = new Error(fallbackMessage);
+  err.code = 'CLIENT_ABORTED';
+  return err;
+}
+
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(toAbortError(signal.reason, 'Retry aborted'));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    function onAbort() {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      reject(toAbortError(signal.reason, 'Retry aborted'));
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 function jitter(baseMs) {
@@ -11,10 +39,28 @@ function jitter(baseMs) {
   return baseMs + delta;
 }
 
-function fetchWithTimeout(url, options, timeoutMs, fetchImpl = fetch) {
+function fetchWithTimeout(url, options, timeoutMs, fetchImpl = fetch, signal) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetchImpl(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  const timer = setTimeout(() => {
+    const timeoutErr = new Error('Upstream request timed out');
+    timeoutErr.code = 'UPSTREAM_TIMEOUT';
+    controller.abort(timeoutErr);
+  }, timeoutMs);
+
+  function onAbort() {
+    controller.abort(toAbortError(signal.reason, 'Client disconnected'));
+  }
+
+  if (signal?.aborted) {
+    onAbort();
+  } else {
+    signal?.addEventListener('abort', onAbort, { once: true });
+  }
+
+  return fetchImpl(url, { ...options, signal: controller.signal }).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+  });
 }
 
 export class CircuitBreaker {
@@ -56,10 +102,15 @@ export async function fetchWithRetry({
   retryBaseMs,
   circuitBreaker,
   fetchImpl = fetch,
+  signal,
   logger,
   requestId,
   route,
 }) {
+  if (signal?.aborted) {
+    throw toAbortError(signal.reason, 'Client disconnected');
+  }
+
   if (circuitBreaker && !circuitBreaker.canRequest()) {
     const err = new Error('Circuit is open');
     err.code = 'CIRCUIT_OPEN';
@@ -71,10 +122,10 @@ export async function fetchWithRetry({
 
   while (attempt <= retryMax) {
     try {
-      const response = await fetchWithTimeout(url, options, timeoutMs, fetchImpl);
+      const response = await fetchWithTimeout(url, options, timeoutMs, fetchImpl, signal);
       if (isRetriableStatus(response.status) && attempt < retryMax) {
         const delayMs = jitter(retryBaseMs * (2 ** attempt));
-        await sleep(delayMs);
+        await sleep(delayMs, signal);
         attempt += 1;
         continue;
       }
@@ -89,6 +140,9 @@ export async function fetchWithRetry({
     } catch (err) {
       lastError = err;
       const isAbort = err && err.name === 'AbortError';
+      if (signal?.aborted || err?.code === 'CLIENT_ABORTED') {
+        throw toAbortError(signal?.reason || err, 'Client disconnected');
+      }
 
       if (attempt >= retryMax) {
         circuitBreaker?.onFailure();
@@ -105,7 +159,7 @@ export async function fetchWithRetry({
         error: String(err),
       });
 
-      await sleep(delayMs);
+      await sleep(delayMs, signal);
       attempt += 1;
     }
   }

@@ -200,6 +200,114 @@ test('rate limiting returns 429 after threshold', async () => {
   await srv.close();
 });
 
+test('chat request is not retried on upstream failure', async () => {
+  const config = baseConfig({ upstreamRetryMax: 3 });
+  let chatCalls = 0;
+
+  const fetchImpl = async (url) => {
+    if (String(url).endsWith('/api/chat')) {
+      chatCalls += 1;
+      throw new Error('upstream failure');
+    }
+    return toJsonResponse({ models: [] }, 200);
+  };
+
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const res = await fetch(`${srv.baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer k',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ model: 'allowed-model', messages: [] }),
+  });
+
+  assert.equal(res.status, 502);
+  assert.equal(chatCalls, 1);
+  await srv.close();
+});
+
+test('tags upstream headers are passed through on non-2xx responses', async () => {
+  const config = baseConfig();
+  const fetchImpl = async () => new Response(JSON.stringify({ error: 'rate limited' }), {
+    status: 429,
+    headers: {
+      'content-type': 'application/json',
+      'retry-after': '17',
+      'x-ratelimit-remaining': '0',
+    },
+  });
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const res = await fetch(`${srv.baseUrl}/api/tags`, {
+    headers: { authorization: 'Bearer k' },
+  });
+
+  assert.equal(res.status, 429);
+  assert.equal(res.headers.get('retry-after'), '17');
+  assert.equal(res.headers.get('x-ratelimit-remaining'), '0');
+  await srv.close();
+});
+
+test('chat upstream headers are passed through', async () => {
+  const config = baseConfig();
+  const fetchImpl = async (url) => {
+    if (String(url).endsWith('/api/chat')) {
+      return new Response(JSON.stringify({ error: 'rate limited' }), {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          'retry-after': '9',
+          'ratelimit-reset': '1712345678',
+        },
+      });
+    }
+    return toJsonResponse({ models: [] }, 200);
+  };
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const res = await fetch(`${srv.baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer k',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ model: 'allowed-model', messages: [] }),
+  });
+
+  assert.equal(res.status, 429);
+  assert.equal(res.headers.get('retry-after'), '9');
+  assert.equal(res.headers.get('ratelimit-reset'), '1712345678');
+  await srv.close();
+});
+
+test('chat request too large returns 413 without calling upstream', async () => {
+  const config = baseConfig({ maxBodyBytes: 30 });
+  let called = false;
+  const fetchImpl = async () => {
+    called = true;
+    return toJsonResponse({ done: true }, 200);
+  };
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const res = await fetch(`${srv.baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer k',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'allowed-model',
+      messages: [{ role: 'user', content: 'this payload is definitely too long for the test limit' }],
+    }),
+  });
+
+  assert.equal(res.status, 413);
+  assert.equal(called, false);
+  await srv.close();
+});
+
 test('circuit breaker opens on repeated upstream failures', async () => {
   const config = baseConfig({ circuitFailureThreshold: 1, upstreamRetryMax: 0 });
   const fetchImpl = async () => {

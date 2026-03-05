@@ -21,31 +21,40 @@ function parseJsonBody(req, maxBodyBytes) {
   return new Promise((resolve, reject) => {
     let bytes = 0;
     const chunks = [];
+    let settled = false;
+
+    function fail(err) {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    }
 
     req.on('data', (chunk) => {
+      if (settled) return;
       bytes += chunk.length;
       if (bytes > maxBodyBytes) {
         const err = new Error('Request body too large');
         err.code = 'BODY_TOO_LARGE';
-        reject(err);
-        req.destroy();
+        fail(err);
         return;
       }
       chunks.push(chunk);
     });
 
     req.on('end', () => {
+      if (settled) return;
       try {
         const raw = Buffer.concat(chunks).toString('utf8');
+        settled = true;
         resolve(raw ? JSON.parse(raw) : {});
       } catch {
         const err = new Error('Invalid JSON body');
         err.code = 'BAD_JSON';
-        reject(err);
+        fail(err);
       }
     });
 
-    req.on('error', reject);
+    req.on('error', fail);
   });
 }
 
@@ -74,6 +83,7 @@ function setCommonHeaders(req, res, config, requestId) {
 }
 
 function writeJson(req, res, config, { statusCode, payload, requestId }) {
+  if (res.writableEnded || res.destroyed) return;
   setCommonHeaders(req, res, config, requestId);
   const data = Buffer.from(JSON.stringify(payload));
   res.writeHead(statusCode, {
@@ -84,6 +94,7 @@ function writeJson(req, res, config, { statusCode, payload, requestId }) {
 }
 
 function writeEmpty(req, res, config, { statusCode, requestId }) {
+  if (res.writableEnded || res.destroyed) return;
   setCommonHeaders(req, res, config, requestId);
   res.writeHead(statusCode);
   res.end();
@@ -95,6 +106,48 @@ function sanitizeRoute(pathname) {
   if (pathname.startsWith('/health')) return '/health';
   if (pathname.startsWith('/admin/metrics')) return '/admin/metrics';
   return pathname;
+}
+
+const UPSTREAM_PASSTHROUGH_HEADERS = [
+  'retry-after',
+  'x-ratelimit-limit',
+  'x-ratelimit-remaining',
+  'x-ratelimit-reset',
+  'ratelimit-limit',
+  'ratelimit-remaining',
+  'ratelimit-reset',
+];
+
+function applyUpstreamPassthroughHeaders(res, headers) {
+  for (const name of UPSTREAM_PASSTHROUGH_HEADERS) {
+    const value = headers.get(name);
+    if (value) {
+      res.setHeader(name, value);
+    }
+  }
+}
+
+function createClientAbortController(req, res) {
+  const controller = new AbortController();
+
+  function onClientDisconnect() {
+    if (!controller.signal.aborted) {
+      const err = new Error('Client disconnected');
+      err.code = 'CLIENT_ABORTED';
+      controller.abort(err);
+    }
+  }
+
+  req.once('aborted', onClientDisconnect);
+  res.once('close', onClientDisconnect);
+
+  return {
+    signal: controller.signal,
+    cleanup() {
+      req.off('aborted', onClientDisconnect);
+      res.off('close', onClientDisconnect);
+    },
+  };
 }
 
 export function createApp({
@@ -110,8 +163,10 @@ export function createApp({
   });
 
   async function relayTags({ req, res, requestId, route }) {
+    const clientAbort = createClientAbortController(req, res);
     const upstreamKey = resolveUpstreamKey(req, config);
     if (!upstreamKey) {
+      clientAbort.cleanup();
       writeJson(req, res, config, {
         statusCode: 401,
         payload: { error: 'Missing Ollama API key' },
@@ -136,11 +191,17 @@ export function createApp({
         retryBaseMs: config.upstreamRetryBaseMs,
         circuitBreaker,
         fetchImpl,
+        signal: clientAbort.signal,
         logger,
         requestId,
         route,
       });
     } catch (err) {
+      clientAbort.cleanup();
+      if (err?.code === 'CLIENT_ABORTED') {
+        logger.info('Client disconnected during tags relay', { requestId, route });
+        return 499;
+      }
       metrics.recordUpstreamError();
       if (err?.code === 'CIRCUIT_OPEN') {
         writeJson(req, res, config, {
@@ -159,16 +220,20 @@ export function createApp({
       });
       return 502;
     }
+    clientAbort.cleanup();
 
     const text = await upstream.text();
 
     if (!upstream.ok) {
       const contentType = upstream.headers.get('content-type') || 'application/json; charset=utf-8';
       setCommonHeaders(req, res, config, requestId);
+      applyUpstreamPassthroughHeaders(res, upstream.headers);
+      const data = Buffer.from(text);
       res.writeHead(upstream.status, {
         'content-type': contentType,
+        'content-length': data.length,
       });
-      res.end(text);
+      res.end(data);
       return upstream.status;
     }
 
@@ -198,8 +263,10 @@ export function createApp({
   }
 
   async function relayChat({ req, res, requestId, route }) {
+    const clientAbort = createClientAbortController(req, res);
     const upstreamKey = resolveUpstreamKey(req, config);
     if (!upstreamKey) {
+      clientAbort.cleanup();
       writeJson(req, res, config, {
         statusCode: 401,
         payload: { error: 'Missing Ollama API key' },
@@ -208,10 +275,25 @@ export function createApp({
       return 401;
     }
 
+    const contentLengthHeader = req.headers['content-length'];
+    if (typeof contentLengthHeader === 'string') {
+      const contentLength = Number(contentLengthHeader);
+      if (Number.isFinite(contentLength) && contentLength > config.maxBodyBytes) {
+        clientAbort.cleanup();
+        writeJson(req, res, config, {
+          statusCode: 413,
+          payload: { error: 'Request body too large' },
+          requestId,
+        });
+        return 413;
+      }
+    }
+
     let body;
     try {
       body = await parseJsonBody(req, config.maxBodyBytes);
     } catch (err) {
+      clientAbort.cleanup();
       const code = err?.code;
       const statusCode = code === 'BODY_TOO_LARGE' ? 413 : 400;
       writeJson(req, res, config, {
@@ -223,6 +305,7 @@ export function createApp({
     }
 
     if (!body || typeof body !== 'object' || !Array.isArray(body.messages) || typeof body.model !== 'string') {
+      clientAbort.cleanup();
       writeJson(req, res, config, {
         statusCode: 400,
         payload: { error: 'Invalid chat request payload' },
@@ -232,6 +315,7 @@ export function createApp({
     }
 
     if (config.allowedModels.size > 0 && !config.allowedModels.has(body.model)) {
+      clientAbort.cleanup();
       writeJson(req, res, config, {
         statusCode: 403,
         payload: { error: `Model '${body.model}' is not allowed` },
@@ -254,15 +338,21 @@ export function createApp({
           body: JSON.stringify(body),
         },
         timeoutMs: config.upstreamTimeoutMs,
-        retryMax: 1,
+        retryMax: 0,
         retryBaseMs: config.upstreamRetryBaseMs,
         circuitBreaker,
         fetchImpl,
+        signal: clientAbort.signal,
         logger,
         requestId,
         route,
       });
     } catch (err) {
+      clientAbort.cleanup();
+      if (err?.code === 'CLIENT_ABORTED') {
+        logger.info('Client disconnected during chat relay', { requestId, route });
+        return 499;
+      }
       metrics.recordUpstreamError();
       if (err?.code === 'CIRCUIT_OPEN') {
         writeJson(req, res, config, {
@@ -281,8 +371,10 @@ export function createApp({
       });
       return 502;
     }
+    clientAbort.cleanup();
 
     setCommonHeaders(req, res, config, requestId);
+    applyUpstreamPassthroughHeaders(res, upstream.headers);
     res.writeHead(upstream.status, {
       'content-type': upstream.headers.get('content-type') || 'application/x-ndjson',
     });
@@ -293,8 +385,17 @@ export function createApp({
     }
 
     const stream = Readable.fromWeb(upstream.body);
+    const onClientClose = () => {
+      stream.destroy(new Error('Client disconnected'));
+    };
+    res.once('close', onClientClose);
     await new Promise((resolve) => {
       stream.on('error', (err) => {
+        if (res.destroyed || req.destroyed) {
+          logger.info('Chat stream closed by client', { requestId, route });
+          resolve();
+          return;
+        }
         logger.error('Upstream stream error', { requestId, error: String(err) });
         try {
           res.end();
@@ -306,6 +407,7 @@ export function createApp({
       stream.on('end', resolve);
       stream.pipe(res);
     });
+    res.off('close', onClientClose);
 
     return upstream.status;
   }

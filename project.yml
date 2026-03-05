@@ -30,3 +30,15 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  OllamaCloudTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - OllamaCloud/Tests
+    dependencies:
+      - target: OllamaCloud
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.colecantcode.ollamacloud.tests
+        GENERATE_INFOPLIST_FILE: true
