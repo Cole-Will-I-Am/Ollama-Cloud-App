@@ -5,6 +5,13 @@ import { URL } from 'node:url';
 
 import { authenticateAdmin, authenticateRequest, resolveUpstreamKey } from './auth.mjs';
 import { Metrics } from './metrics.mjs';
+import {
+  filterTagsByAllowlist,
+  isModelAllowedForRequest,
+  isSeerAliasRequest,
+  maybeAppendSeerAliasModel,
+  transformChatBodyForSeer,
+} from './seer-assistant.mjs';
 import { CircuitBreaker, fetchWithRetry } from './upstream.mjs';
 
 function nowMs() {
@@ -250,9 +257,9 @@ export function createApp({
       return 502;
     }
 
-    if (config.allowedModels.size > 0 && Array.isArray(payload.models)) {
-      payload.models = payload.models.filter((model) => config.allowedModels.has(model?.name));
-    }
+    const upstreamModels = Array.isArray(payload.models) ? payload.models : [];
+    payload.models = filterTagsByAllowlist(payload.models, config.allowedModels);
+    maybeAppendSeerAliasModel({ payload, config, upstreamModels });
 
     writeJson(req, res, config, {
       statusCode: 200,
@@ -314,7 +321,12 @@ export function createApp({
       return 400;
     }
 
-    if (config.allowedModels.size > 0 && !config.allowedModels.has(body.model)) {
+    const seerRequest = isSeerAliasRequest(body.model, config);
+    if (!isModelAllowedForRequest({
+      requestedModel: body.model,
+      isSeerRequest: seerRequest,
+      config,
+    })) {
       clientAbort.cleanup();
       writeJson(req, res, config, {
         statusCode: 403,
@@ -322,6 +334,11 @@ export function createApp({
         requestId,
       });
       return 403;
+    }
+
+    if (seerRequest) {
+      const transformed = transformChatBodyForSeer(body, config);
+      body = transformed.body;
     }
 
     let upstream;

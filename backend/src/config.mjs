@@ -76,6 +76,10 @@ export function loadConfig(env = process.env) {
 
     allowedModels: parseCsvSet(env.ALLOWED_MODELS),
 
+    seerModelEnabled: parseBool(env.SEER_MODEL_ENABLED, true),
+    seerAliasName: (env.SEER_ALIAS_NAME || 'SEER').trim() || 'SEER',
+    seerUpstreamModel: (env.SEER_UPSTREAM_MODEL || 'qwen3.5:397b-cloud').trim() || 'qwen3.5:397b-cloud',
+
     adminBearerToken: env.ADMIN_BEARER_TOKEN || '',
   };
 

@@ -32,6 +32,9 @@ function baseConfig(overrides = {}) {
     circuitFailureThreshold: 2,
     circuitOpenMs: 10000,
     allowedModels: new Set(),
+    seerModelEnabled: true,
+    seerAliasName: 'SEER',
+    seerUpstreamModel: 'qwen3.5:397b-cloud',
     adminBearerToken: 'admin',
     ...overrides,
   };
@@ -354,5 +357,60 @@ test('admin metrics require explicit admin token', async () => {
   });
 
   assert.equal(res.status, 401);
+  await srv.close();
+});
+
+test('SEER alias appears in tags and routes chat to upstream model with system context', async () => {
+  const config = baseConfig();
+  let capturedChatBody = null;
+
+  const fetchImpl = async (url, options = {}) => {
+    if (String(url).endsWith('/api/tags')) {
+      return toJsonResponse({
+        models: [
+          { name: 'qwen3.5:397b-cloud' },
+          { name: 'qwen3:8b' },
+        ],
+      }, 200);
+    }
+
+    if (String(url).endsWith('/api/chat')) {
+      capturedChatBody = JSON.parse(String(options.body || '{}'));
+      return new Response('{"done":true}\n', {
+        status: 200,
+        headers: { 'content-type': 'application/x-ndjson' },
+      });
+    }
+
+    return toJsonResponse({}, 404);
+  };
+
+  const srv = await startTestServer({ config, fetchImpl });
+
+  const tagsRes = await fetch(`${srv.baseUrl}/api/tags`, {
+    headers: { authorization: 'Bearer k' },
+  });
+  assert.equal(tagsRes.status, 200);
+  const tags = await tagsRes.json();
+  assert.ok(tags.models.some((model) => model.name === 'SEER'));
+
+  const chatRes = await fetch(`${srv.baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer k',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'SEER',
+      messages: [{ role: 'user', content: 'How do scaffolds work?' }],
+    }),
+  });
+
+  assert.equal(chatRes.status, 200);
+  assert.equal(capturedChatBody.model, 'qwen3.5:397b-cloud');
+  assert.ok(Array.isArray(capturedChatBody.messages));
+  assert.equal(capturedChatBody.messages[0]?.role, 'system');
+  assert.match(String(capturedChatBody.messages[0]?.content || ''), /You are SEER/i);
+
   await srv.close();
 });

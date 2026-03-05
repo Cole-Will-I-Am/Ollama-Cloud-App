@@ -7,6 +7,7 @@ Production-focused relay for the iOS app.
 - Auth modes: `none`, `static`, `jwt (HS256)`
 - Distributed rate limiting (Redis) with memory fallback for local dev
 - Upstream retry + timeout + circuit breaker
+- Built-in `SEER` alias model routing to a configurable upstream model
 - Security headers and optional CORS allowlist
 - Request ID propagation and structured JSON logs
 - Readiness/liveness endpoints
@@ -44,6 +45,16 @@ Set these at minimum:
 
 If `AUTH_MODE=static`, set `BACKEND_BEARER_TOKEN`.
 If `AUTH_MODE=jwt`, set `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_HS256_SECRET`.
+
+### SEER Alias Model
+
+The relay can expose a virtual model named `SEER` in `/api/tags` and route it to a cloud model on `/api/chat`.
+
+- `SEER_MODEL_ENABLED=1`
+- `SEER_ALIAS_NAME=SEER`
+- `SEER_UPSTREAM_MODEL=qwen3.5:397b-cloud`
+
+When selected, `SEER` receives a backend-injected system message with app/codebase guidance and safety restraints.
 
 ## Auth Behavior
 

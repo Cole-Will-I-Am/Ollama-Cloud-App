@@ -6,6 +6,7 @@ enum AppConfig {
     static let reasoningScaffoldsEnabledKey = "reasoning_scaffolds_enabled"
 
     private static let defaultAPIBaseURL = "https://ollama.com"
+    private static let defaultSeerModelName = "SEER"
 
     static var apiBaseURL: String {
         let defaultsValue = UserDefaults.standard.string(forKey: apiBaseURLKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -57,6 +58,14 @@ enum AppConfig {
         }
 
         return true
+    }
+
+    static var seerModelName: String {
+        let envValue = ProcessInfo.processInfo.environment["OLLAMA_SEER_MODEL_NAME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let value = envValue, !value.isEmpty {
+            return value
+        }
+        return defaultSeerModelName
     }
 
     private static func parseBoolString(_ raw: String, defaultValue: Bool) -> Bool {

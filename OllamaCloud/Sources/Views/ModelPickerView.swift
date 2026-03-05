@@ -45,6 +45,13 @@ struct ModelPickerView: View {
 
     /// Infer capability tags from model name.
     private func capabilityTags(for name: String) -> [(String, String, Color)] {
+        if isSeerModel(name) {
+            return [
+                ("sparkles", "APP EXPERT", Color.accent),
+                ("brain", "GUIDE", Color(red: 0.55, green: 0.38, blue: 0.95)),
+            ]
+        }
+
         let lower = name.lowercased()
         var tags: [(String, String, Color)] = []
 
@@ -74,6 +81,11 @@ struct ModelPickerView: View {
         }
 
         return tags
+    }
+
+    private func isSeerModel(_ name: String) -> Bool {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            == AppConfig.seerModelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     var body: some View {
@@ -378,7 +390,15 @@ struct ModelPickerView: View {
         error = nil
         fetchTask = Task {
             do {
-                models = try await OllamaAPIClient.shared.fetchModels()
+                let fetched = try await OllamaAPIClient.shared.fetchModels()
+                models = fetched.sorted { lhs, rhs in
+                    let leftIsSeer = isSeerModel(lhs.name)
+                    let rightIsSeer = isSeerModel(rhs.name)
+                    if leftIsSeer != rightIsSeer {
+                        return leftIsSeer && !rightIsSeer
+                    }
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
             } catch is CancellationError {
                 return
             } catch let apiError as OllamaAPIError {

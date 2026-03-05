@@ -16,6 +16,9 @@ app.server.listen(config.port, config.host, () => {
     authMode: config.authMode,
     redisConfigured: Boolean(config.redisUrl),
     allowlistSize: config.allowedModels.size,
+    seerModelEnabled: config.seerModelEnabled,
+    seerAliasName: config.seerAliasName,
+    seerUpstreamModel: config.seerUpstreamModel,
   });
 });
 
