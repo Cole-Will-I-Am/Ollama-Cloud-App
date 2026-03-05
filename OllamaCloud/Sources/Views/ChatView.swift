@@ -29,7 +29,7 @@ struct ChatView: View {
 
                             // Streaming content
                             if streaming.isStreaming {
-                                if !streaming.streamingContent.isEmpty {
+                                if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
                                     streamingBubble
                                         .id("streaming")
                                 } else {
@@ -127,15 +127,78 @@ struct ChatView: View {
         (try? AttributedString(markdown: streaming.streamingContent, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(streaming.streamingContent)
     }
 
+    @State private var showStreamingThinking = true
+
     private var streamingBubble: some View {
         HStack {
-            Text(streamingRendered)
-                .textSelection(.enabled)
-                .padding(12)
-                .background(Color.assistantBubble)
-                .foregroundStyle(Color.textPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .font(.body)
+            VStack(alignment: .leading, spacing: 0) {
+                // Thinking section (while thinking or if thinking completed)
+                if !streaming.streamingThinking.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showStreamingThinking.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "brain")
+                                    .font(.caption)
+                                if streaming.isThinking {
+                                    Text("Thinking...")
+                                        .font(.caption.weight(.medium))
+                                } else {
+                                    Text("Thinking")
+                                        .font(.caption.weight(.medium))
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .rotationEffect(.degrees(showStreamingThinking ? 90 : 0))
+                            }
+                            .foregroundStyle(Color.textSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+
+                        if showStreamingThinking {
+                            Text(streaming.streamingThinking)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                                .textSelection(.enabled)
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 8)
+                        }
+                    }
+                    .background(Color.assistantBubble.opacity(0.7))
+                    .clipShape(
+                        .rect(
+                            topLeadingRadius: 16,
+                            bottomLeadingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
+                            bottomTrailingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
+                            topTrailingRadius: 16
+                        )
+                    )
+                }
+
+                // Response content
+                if !streaming.streamingContent.isEmpty {
+                    Text(streamingRendered)
+                        .textSelection(.enabled)
+                        .padding(12)
+                        .background(Color.assistantBubble)
+                        .foregroundStyle(Color.textPrimary)
+                        .clipShape(
+                            .rect(
+                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 16 : 0,
+                                bottomLeadingRadius: 16,
+                                bottomTrailingRadius: 16,
+                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 16 : 0
+                            )
+                        )
+                        .font(.body)
+                }
+            }
             Spacer(minLength: 60)
         }
     }

@@ -4,7 +4,9 @@ import SwiftData
 @MainActor
 class StreamingChatService: ObservableObject {
     @Published var streamingContent = ""
+    @Published var streamingThinking = ""
     @Published var isStreaming = false
+    @Published var isThinking = false
     @Published var error: String?
 
     private var streamTask: Task<Void, Never>?
@@ -50,7 +52,9 @@ class StreamingChatService: ObservableObject {
 
         // Start streaming
         isStreaming = true
+        isThinking = false
         streamingContent = ""
+        streamingThinking = ""
         error = nil
 
         streamTask = Task {
@@ -70,7 +74,15 @@ class StreamingChatService: ObservableObject {
                         continue
                     }
 
-                    if let token = chunk.message?.content {
+                    if let thinking = chunk.message?.thinking, !thinking.isEmpty {
+                        isThinking = true
+                        streamingThinking += thinking
+                    }
+
+                    if let token = chunk.message?.content, !token.isEmpty {
+                        if isThinking {
+                            isThinking = false
+                        }
                         streamingContent += token
                     }
 
@@ -80,10 +92,11 @@ class StreamingChatService: ObservableObject {
                 }
 
                 // Persist the assistant message
-                if !streamingContent.isEmpty {
+                if !streamingContent.isEmpty || !streamingThinking.isEmpty {
                     let assistantMessage = Message(
                         role: "assistant",
                         content: streamingContent,
+                        thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
                         conversation: conversation
                     )
                     modelContext.insert(assistantMessage)
@@ -95,10 +108,11 @@ class StreamingChatService: ObservableObject {
                     self.error = error.localizedDescription
 
                     // Save partial response if we have one
-                    if !streamingContent.isEmpty {
+                    if !streamingContent.isEmpty || !streamingThinking.isEmpty {
                         let partialMessage = Message(
                             role: "assistant",
                             content: streamingContent,
+                            thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
                             conversation: conversation
                         )
                         modelContext.insert(partialMessage)
@@ -108,7 +122,9 @@ class StreamingChatService: ObservableObject {
             }
 
             streamingContent = ""
+            streamingThinking = ""
             isStreaming = false
+            isThinking = false
         }
     }
 
@@ -116,10 +132,11 @@ class StreamingChatService: ObservableObject {
         streamTask?.cancel()
 
         // Save partial content if any
-        if !streamingContent.isEmpty {
+        if !streamingContent.isEmpty || !streamingThinking.isEmpty {
             let partialMessage = Message(
                 role: "assistant",
-                content: streamingContent + "\n\n[stopped]",
+                content: streamingContent.isEmpty ? "[stopped during thinking]" : streamingContent + "\n\n[stopped]",
+                thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
                 conversation: conversation
             )
             modelContext.insert(partialMessage)
@@ -127,7 +144,9 @@ class StreamingChatService: ObservableObject {
         }
 
         streamingContent = ""
+        streamingThinking = ""
         isStreaming = false
+        isThinking = false
         streamTask = nil
     }
 }

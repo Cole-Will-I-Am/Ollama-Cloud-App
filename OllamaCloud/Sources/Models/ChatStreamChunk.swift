@@ -8,5 +8,6 @@ struct ChatStreamChunk: Decodable {
     struct ChunkMessage: Decodable {
         let role: String
         let content: String
+        let thinking: String?
     }
 }

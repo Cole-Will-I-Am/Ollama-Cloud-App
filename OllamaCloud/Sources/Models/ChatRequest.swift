@@ -4,12 +4,14 @@ struct ChatRequest: Encodable {
     let model: String
     let messages: [ChatRequestMessage]
     let stream: Bool
+    let think: Bool
     let options: ChatOptions?
 
-    init(model: String, messages: [ChatRequestMessage], stream: Bool = true, options: ChatOptions? = nil) {
+    init(model: String, messages: [ChatRequestMessage], stream: Bool = true, think: Bool = true, options: ChatOptions? = nil) {
         self.model = model
         self.messages = messages
         self.stream = stream
+        self.think = think
         self.options = options
     }
 }
