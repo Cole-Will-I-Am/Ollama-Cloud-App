@@ -31,16 +31,11 @@ struct APIKeyEntryView: View {
                 Spacer()
 
                 // Logo
-                Image(systemName: "cloud.fill")
-                    .font(.system(size: 48, weight: .ultraLight))
-                    .foregroundStyle(Color.accent.opacity(0.7))
-                    .padding(.bottom, 20)
-
-                Text("Ollama Cloud")
-                    .font(.appDisplay(30, weight: .light))
-                    .titleTracking()
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(.bottom, 6)
+                Image("SeerLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 36)
+                    .padding(.bottom, 24)
 
                 Text("ENTER YOUR API KEY TO CONNECT")
                     .font(.appLabel(11))
