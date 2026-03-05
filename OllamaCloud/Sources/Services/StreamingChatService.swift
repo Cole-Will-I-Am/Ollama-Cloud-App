@@ -28,22 +28,40 @@ class StreamingChatService: ObservableObject {
 
     private var streamTask: Task<Void, Never>?
     private var receivedAnyTokens = false
-    private var contentStartTime: Date?
     private var finalEvalCount: Int?
     private static let idleTimeout: UInt64 = 60_000_000_000 // 60s in nanoseconds
     private static let uiFlushIntervalNanoseconds: UInt64 = 40_000_000 // 40ms
 
-    private var bufferedContent = ""
-    private var bufferedThinking = ""
-    private var bufferedTokenCount = 0
-    private var bufferedTokensPerSecond: Double = 0
-    private var pendingFlushTask: Task<Void, Never>?
+    private struct StreamFlushUpdate: Sendable {
+        let contentDelta: String
+        let thinkingDelta: String
+        let tokenCount: Int
+        let tokensPerSecond: Double
+        let isThinking: Bool
+    }
 
-    private var streamStartTime: Date?
-    private var firstTokenLatencyMs: Double?
-    private var uiFlushCount = 0
-    private var uiFlushIntervalTotalMs: Double = 0
-    private var lastUIFlushTime: Date?
+    private struct StreamMetricsSnapshot: Sendable {
+        let completionMs: Int
+        let firstTokenMs: Int?
+        let flushCount: Int
+        let averageFlushMs: Double?
+    }
+
+    private struct StreamRunResult: Sendable {
+        let content: String
+        let thinking: String
+        let tokenCount: Int
+        let tokensPerSecond: Double
+        let finalEvalCount: Int?
+        let sawTokens: Bool
+        let metrics: StreamMetricsSnapshot
+    }
+
+    private struct StreamRunFailure: Error {
+        let underlying: Error
+        let sawTokens: Bool
+        let metrics: StreamMetricsSnapshot
+    }
 
     func sendMessage(
         content: String,
@@ -184,54 +202,102 @@ class StreamingChatService: ObservableObject {
         streamingContent = ""
         streamingThinking = ""
         receivedAnyTokens = false
-        resetBufferedStreamState()
-        streamStartTime = Date()
         tokenCount = 0
         tokensPerSecond = 0
-        contentStartTime = nil
         finalEvalCount = nil
 
         streamTask = Task {
-            do {
-                try await performStream(
-                    model: model,
-                    messages: requestMessages,
-                    options: options,
-                    think: thinkingEnabled
-                )
-            } catch {
-                let apiError = error as? OllamaAPIError
+            var streamResult: StreamRunResult?
+            var streamFailure: StreamRunFailure?
 
-                // Retry once on transient failure if we haven't received any tokens yet
-                if !receivedAnyTokens, apiError?.isTransient == true, !Task.isCancelled {
-                    // Wait 1s before retry
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-
-                    if !Task.isCancelled {
-                        do {
-                            try await performStream(
-                                model: model,
-                                messages: requestMessages,
-                                options: options,
-                                think: thinkingEnabled
-                            )
-                        } catch {
-                            handleStreamError(error)
-                        }
+            func executeStreamAttempt() async -> Result<StreamRunResult, StreamRunFailure> {
+                do {
+                    let result = try await Self.performStreamOffMain(
+                        model: model,
+                        messages: requestMessages,
+                        options: options,
+                        think: thinkingEnabled,
+                        idleTimeoutNanoseconds: Self.idleTimeout,
+                        uiFlushIntervalNanoseconds: Self.uiFlushIntervalNanoseconds
+                    ) { [weak self] update in
+                        guard let self else { return }
+                        await self.applyStreamFlush(update)
                     }
-                } else {
-                    handleStreamError(error)
+                    return .success(result)
+                } catch let failure as StreamRunFailure {
+                    return .failure(failure)
+                } catch {
+                    let fallbackMetrics = StreamMetricsSnapshot(
+                        completionMs: 0,
+                        firstTokenMs: nil,
+                        flushCount: 0,
+                        averageFlushMs: nil
+                    )
+                    return .failure(
+                        StreamRunFailure(
+                            underlying: error,
+                            sawTokens: false,
+                            metrics: fallbackMetrics
+                        )
+                    )
                 }
             }
 
-            flushBufferedUpdates(force: true)
+            switch await executeStreamAttempt() {
+            case .success(let result):
+                streamResult = result
+            case .failure(let failure):
+                let apiError = failure.underlying as? OllamaAPIError
+
+                // Retry once on transient failure if we haven't received any tokens yet
+                if !failure.sawTokens, apiError?.isTransient == true, !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    if !Task.isCancelled {
+                        switch await executeStreamAttempt() {
+                        case .success(let result):
+                            streamResult = result
+                        case .failure(let retryFailure):
+                            streamFailure = retryFailure
+                        }
+                    } else {
+                        streamFailure = failure
+                    }
+                } else {
+                    streamFailure = failure
+                }
+            }
+
+            if let streamResult {
+                finalEvalCount = streamResult.finalEvalCount
+                streamingContent = streamResult.content
+                streamingThinking = streamResult.thinking
+                tokenCount = streamResult.tokenCount
+                tokensPerSecond = streamResult.tokensPerSecond
+                receivedAnyTokens = streamResult.sawTokens
+            }
+            if let streamFailure {
+                receivedAnyTokens = streamFailure.sawTokens
+                if !Task.isCancelled {
+                    handleStreamError(streamFailure.underlying)
+                }
+            }
+
+            let wasCancelled = Task.isCancelled
 
             // Persist the assistant message if we got content
             if !streamingContent.isEmpty || !streamingThinking.isEmpty {
                 let persistedTokenCount = finalEvalCount ?? (tokenCount > 0 ? tokenCount : nil)
+                let persistedContent: String
+                if wasCancelled {
+                    persistedContent = streamingContent.isEmpty
+                        ? "[stopped during thinking]"
+                        : streamingContent + "\n\n[stopped]"
+                } else {
+                    persistedContent = streamingContent
+                }
                 let assistantMessage = Message(
                     role: "assistant",
-                    content: streamingContent,
+                    content: persistedContent,
                     thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
                     outputTokenCount: persistedTokenCount,
                     conversation: conversation
@@ -243,17 +309,20 @@ class StreamingChatService: ObservableObject {
                 } catch {
                     self.error = "Failed to save response"
                 }
-            } else if self.error == nil, !Task.isCancelled {
+            } else if self.error == nil, !wasCancelled {
                 self.error = "No response received. Try again."
                 self.recoveryAction = .retry
             }
 
             let streamOutcome: String = {
-                if Task.isCancelled { return "cancelled" }
+                if wasCancelled { return "cancelled" }
                 if self.error != nil { return "error" }
                 return "completed"
             }()
-            trackStreamMetrics(outcome: streamOutcome)
+            trackStreamMetrics(
+                outcome: streamOutcome,
+                metrics: streamResult?.metrics ?? streamFailure?.metrics
+            )
 
             streamingContent = ""
             streamingThinking = ""
@@ -262,7 +331,7 @@ class StreamingChatService: ObservableObject {
             if self.error == nil {
                 recoveryAction = nil
             }
-            resetBufferedStreamState()
+            streamTask = nil
         }
     }
 
@@ -428,13 +497,29 @@ class StreamingChatService: ObservableObject {
         return decoded
     }
 
-    /// Perform the actual stream reading with idle timeout
-    private func performStream(
+    private func applyStreamFlush(_ update: StreamFlushUpdate) {
+        if !update.thinkingDelta.isEmpty {
+            streamingThinking += update.thinkingDelta
+        }
+        if !update.contentDelta.isEmpty {
+            streamingContent += update.contentDelta
+            receivedAnyTokens = true
+        }
+        tokenCount = update.tokenCount
+        tokensPerSecond = update.tokensPerSecond
+        isThinking = update.isThinking
+    }
+
+    nonisolated private static func performStreamOffMain(
         model: String,
         messages: [ChatRequestMessage],
         options: ChatOptions,
-        think: Bool
-    ) async throws {
+        think: Bool,
+        idleTimeoutNanoseconds: UInt64,
+        uiFlushIntervalNanoseconds: UInt64,
+        onFlush: @Sendable (StreamFlushUpdate) async -> Void
+    ) async throws -> StreamRunResult {
+        let streamStartedAt = Date()
         let (bytes, _) = try await OllamaAPIClient.shared.streamChat(
             model: model,
             messages: messages,
@@ -444,58 +529,143 @@ class StreamingChatService: ObservableObject {
 
         let lineIterator = AsyncLineIterator(bytes.lines.makeAsyncIterator())
 
-        while !Task.isCancelled {
-            guard let line = try await nextLineWithTimeout(
-                from: lineIterator,
-                timeoutNanoseconds: Self.idleTimeout
-            ) else {
-                break
-            }
-            guard !Task.isCancelled else { break }
+        var fullContent = ""
+        var fullThinking = ""
+        var pendingContent = ""
+        var pendingThinking = ""
 
-            guard !line.isEmpty else { continue }
+        var tokenCount = 0
+        var tokensPerSecond = 0.0
+        var contentStartTime: Date?
+        var firstTokenMs: Int?
+        var sawTokens = false
+        var finalEvalCount: Int?
+        var thinkingActive = false
 
-            guard let data = line.data(using: .utf8),
-                  let chunk = try? JSONDecoder().decode(ChatStreamChunk.self, from: data) else {
-                continue
-            }
+        var lastFlushTime: Date?
+        var flushCount = 0
+        var flushIntervalTotalMs = 0.0
 
-            if let evalCount = chunk.eval_count, evalCount > 0 {
-                finalEvalCount = evalCount
-            }
+        func flushPending(force: Bool = false) async {
+            let hasPendingText = !pendingContent.isEmpty || !pendingThinking.isEmpty
+            guard hasPendingText else { return }
 
-            if think, let thinking = chunk.message?.thinking, !thinking.isEmpty {
-                if !isThinking {
-                    isThinking = true
+            let now = Date()
+            if !force, let lastFlushTime {
+                let elapsedNanos = now.timeIntervalSince(lastFlushTime) * 1_000_000_000
+                if elapsedNanos < Double(uiFlushIntervalNanoseconds) {
+                    return
                 }
-                bufferedThinking += thinking
-                scheduleBufferedFlushIfNeeded()
             }
 
-            if let token = chunk.message?.content, !token.isEmpty {
-                receivedAnyTokens = true
-                if isThinking {
-                    isThinking = false
+            let update = StreamFlushUpdate(
+                contentDelta: pendingContent,
+                thinkingDelta: pendingThinking,
+                tokenCount: tokenCount,
+                tokensPerSecond: tokensPerSecond,
+                isThinking: thinkingActive
+            )
+
+            pendingContent.removeAll(keepingCapacity: true)
+            pendingThinking.removeAll(keepingCapacity: true)
+
+            if let lastFlushTime {
+                flushIntervalTotalMs += now.timeIntervalSince(lastFlushTime) * 1000
+            }
+            lastFlushTime = now
+            flushCount += 1
+
+            await onFlush(update)
+        }
+
+        do {
+            while !Task.isCancelled {
+                guard let line = try await Self.nextLineWithTimeout(
+                    from: lineIterator,
+                    timeoutNanoseconds: idleTimeoutNanoseconds
+                ) else {
+                    break
                 }
-                bufferedTokenCount += 1
-                if contentStartTime == nil {
-                    contentStartTime = Date()
-                    if let streamStartTime {
-                        firstTokenLatencyMs = Date().timeIntervalSince(streamStartTime) * 1000
+                guard !Task.isCancelled else { break }
+                guard !line.isEmpty else { continue }
+
+                guard let data = line.data(using: .utf8),
+                      let chunk = try? JSONDecoder().decode(ChatStreamChunk.self, from: data) else {
+                    continue
+                }
+
+                if let evalCount = chunk.eval_count, evalCount > 0 {
+                    finalEvalCount = evalCount
+                }
+
+                if think, let thinking = chunk.message?.thinking, !thinking.isEmpty {
+                    thinkingActive = true
+                    pendingThinking += thinking
+                    fullThinking += thinking
+                    await flushPending()
+                }
+
+                if let token = chunk.message?.content, !token.isEmpty {
+                    sawTokens = true
+                    thinkingActive = false
+                    tokenCount += 1
+                    pendingContent += token
+                    fullContent += token
+
+                    if contentStartTime == nil {
+                        contentStartTime = Date()
+                        firstTokenMs = Int(contentStartTime!.timeIntervalSince(streamStartedAt) * 1000)
                     }
+                    if let contentStartTime {
+                        let elapsed = Date().timeIntervalSince(contentStartTime)
+                        if elapsed > 0.1 {
+                            tokensPerSecond = Double(tokenCount) / elapsed
+                        }
+                    }
+                    await flushPending()
                 }
-                let elapsed = Date().timeIntervalSince(contentStartTime!)
-                if elapsed > 0.1 {
-                    bufferedTokensPerSecond = Double(bufferedTokenCount) / elapsed
+
+                if chunk.done {
+                    break
                 }
-                bufferedContent += token
-                scheduleBufferedFlushIfNeeded()
             }
 
-            if chunk.done {
-                flushBufferedUpdates(force: true)
-                break
-            }
+            await flushPending(force: true)
+            let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
+            let averageFlushMs: Double? = {
+                guard flushCount > 1 else { return nil }
+                return flushIntervalTotalMs / Double(flushCount - 1)
+            }()
+            let metrics = StreamMetricsSnapshot(
+                completionMs: completionMs,
+                firstTokenMs: firstTokenMs,
+                flushCount: flushCount,
+                averageFlushMs: averageFlushMs
+            )
+
+            return StreamRunResult(
+                content: fullContent,
+                thinking: fullThinking,
+                tokenCount: tokenCount,
+                tokensPerSecond: tokensPerSecond,
+                finalEvalCount: finalEvalCount,
+                sawTokens: sawTokens,
+                metrics: metrics
+            )
+        } catch {
+            await flushPending(force: true)
+            let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
+            let averageFlushMs: Double? = {
+                guard flushCount > 1 else { return nil }
+                return flushIntervalTotalMs / Double(flushCount - 1)
+            }()
+            let metrics = StreamMetricsSnapshot(
+                completionMs: completionMs,
+                firstTokenMs: firstTokenMs,
+                flushCount: flushCount,
+                averageFlushMs: averageFlushMs
+            )
+            throw StreamRunFailure(underlying: error, sawTokens: sawTokens, metrics: metrics)
         }
     }
 
@@ -529,117 +699,32 @@ class StreamingChatService: ObservableObject {
         )
     }
 
-    func cancel(conversation: Conversation, modelContext: ModelContext) {
+    func cancel(conversation _: Conversation, modelContext _: ModelContext) {
         streamTask?.cancel()
-        flushBufferedUpdates(force: true)
-
-        // Save partial content if any
-        if !streamingContent.isEmpty || !streamingThinking.isEmpty {
-            let partialMessage = Message(
-                role: "assistant",
-                content: streamingContent.isEmpty ? "[stopped during thinking]" : streamingContent + "\n\n[stopped]",
-                thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
-                outputTokenCount: tokenCount > 0 ? tokenCount : nil,
-                conversation: conversation
-            )
-            modelContext.insert(partialMessage)
-            do {
-                try modelContext.save()
-            } catch {
-                self.error = "Failed to save partial response"
-            }
-        }
-
-        streamingContent = ""
-        streamingThinking = ""
-        isStreaming = false
-        isThinking = false
         notice = nil
         recoveryAction = nil
-        streamTask = nil
     }
 
-    private func resetBufferedStreamState() {
-        pendingFlushTask?.cancel()
-        pendingFlushTask = nil
-        bufferedContent.removeAll(keepingCapacity: true)
-        bufferedThinking.removeAll(keepingCapacity: true)
-        bufferedTokenCount = 0
-        bufferedTokensPerSecond = 0
-        streamStartTime = nil
-        firstTokenLatencyMs = nil
-        uiFlushCount = 0
-        uiFlushIntervalTotalMs = 0
-        lastUIFlushTime = nil
-    }
-
-    private func scheduleBufferedFlushIfNeeded() {
-        guard pendingFlushTask == nil else { return }
-
-        pendingFlushTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.uiFlushIntervalNanoseconds)
-            guard !Task.isCancelled else { return }
-            self?.flushBufferedUpdates()
-        }
-    }
-
-    private func flushBufferedUpdates(force: Bool = false) {
-        if force {
-            pendingFlushTask?.cancel()
-        }
-        pendingFlushTask = nil
-
-        let hasTextUpdates = !bufferedContent.isEmpty || !bufferedThinking.isEmpty
-        let hasMetricsUpdates = tokenCount != bufferedTokenCount
-            || abs(tokensPerSecond - bufferedTokensPerSecond) > 0.0001
-        guard hasTextUpdates || hasMetricsUpdates else { return }
-
-        if !bufferedThinking.isEmpty {
-            streamingThinking += bufferedThinking
-            bufferedThinking.removeAll(keepingCapacity: true)
-        }
-
-        if !bufferedContent.isEmpty {
-            streamingContent += bufferedContent
-            bufferedContent.removeAll(keepingCapacity: true)
-        }
-
-        if tokenCount != bufferedTokenCount {
-            tokenCount = bufferedTokenCount
-        }
-        if abs(tokensPerSecond - bufferedTokensPerSecond) > 0.0001 {
-            tokensPerSecond = bufferedTokensPerSecond
-        }
-
-        let now = Date()
-        if let lastUIFlushTime {
-            uiFlushIntervalTotalMs += now.timeIntervalSince(lastUIFlushTime) * 1000
-        }
-        lastUIFlushTime = now
-        uiFlushCount += 1
-    }
-
-    private func trackStreamMetrics(outcome: String) {
-        guard let streamStartTime else { return }
+    private func trackStreamMetrics(outcome: String, metrics: StreamMetricsSnapshot?) {
+        guard let metrics else { return }
 
         var metadata: [String: String] = [
             "outcome": outcome,
-            "completion_ms": String(Int(Date().timeIntervalSince(streamStartTime) * 1000)),
-            "flush_count": String(uiFlushCount)
+            "completion_ms": String(metrics.completionMs),
+            "flush_count": String(metrics.flushCount)
         ]
 
-        if let firstTokenLatencyMs {
-            metadata["first_token_ms"] = String(Int(firstTokenLatencyMs.rounded()))
+        if let firstTokenMs = metrics.firstTokenMs {
+            metadata["first_token_ms"] = String(firstTokenMs)
         }
-        if uiFlushCount > 1 {
-            let avgInterval = uiFlushIntervalTotalMs / Double(uiFlushCount - 1)
-            metadata["avg_flush_ms"] = String(format: "%.1f", avgInterval)
+        if let averageFlushMs = metrics.averageFlushMs {
+            metadata["avg_flush_ms"] = String(format: "%.1f", averageFlushMs)
         }
 
         AppTelemetry.track("stream_metrics", metadata: metadata)
     }
 
-    private func nextLineWithTimeout(
+    nonisolated private static func nextLineWithTimeout(
         from iterator: AsyncLineIterator,
         timeoutNanoseconds: UInt64
     ) async throws -> String? {

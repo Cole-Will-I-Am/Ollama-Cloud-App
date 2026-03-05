@@ -245,6 +245,7 @@ struct ChatView: View {
                                 ForEach(messages) { message in
                                     MessageRow(
                                         message: message,
+                                        chatMessageCount: messages.count,
                                         showsThinkingSection: shouldShowThinkingUI,
                                         onEditPrompt: { selected in
                                             requestEditPrompt(for: selected)

@@ -6,10 +6,18 @@ import UIKit
 
 struct MessageRow: View {
     let message: Message
+    let chatMessageCount: Int
     let showsThinkingSection: Bool
     let onEditPrompt: ((Message) -> Void)?
     let onRegenerate: ((Message) -> Void)?
     @State private var isThinkingExpanded = false
+    @State private var showAssistantMarkdown = true
+    @State private var assistantMarkdownDebounceTask: Task<Void, Never>?
+
+    private static let longChatThreshold = 40
+    private static let longAssistantThreshold = 900
+    private static let freshAssistantWindow: TimeInterval = 4.0
+    private static let assistantMarkdownDebounceNanoseconds: UInt64 = 160_000_000
 
     var body: some View {
         HStack(alignment: .bottom) {
@@ -65,9 +73,20 @@ struct MessageRow: View {
             topTrailingRadius: hasThinking ? 0 : 20,
             style: .continuous
         )
-        return Markdown(message.content)
-            .markdownTheme(.seerAssistant)
-            .textSelection(.enabled)
+        return Group {
+            if shouldDebounceAssistantMarkdown && !showAssistantMarkdown {
+                Text(verbatim: message.content)
+                    .font(.app(14))
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                    .textSelection(.enabled)
+            } else {
+                Markdown(message.content)
+                    .markdownTheme(.seerAssistant)
+                    .textSelection(.enabled)
+            }
+        }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .assistantMaterialBubble(shape: bubbleShape)
@@ -83,6 +102,38 @@ struct MessageRow: View {
                     Label("Regenerate", systemImage: "arrow.clockwise")
                 }
             }
+            .onAppear {
+                scheduleAssistantMarkdownDebounceIfNeeded()
+            }
+            .onDisappear {
+                assistantMarkdownDebounceTask?.cancel()
+            }
+    }
+
+    private var shouldDebounceAssistantMarkdown: Bool {
+        guard message.role == "assistant" else { return false }
+        guard chatMessageCount >= Self.longChatThreshold else { return false }
+        guard message.content.count >= Self.longAssistantThreshold else { return false }
+        let age = Date().timeIntervalSince(message.createdAt)
+        return age >= 0 && age <= Self.freshAssistantWindow
+    }
+
+    private func scheduleAssistantMarkdownDebounceIfNeeded() {
+        assistantMarkdownDebounceTask?.cancel()
+
+        guard shouldDebounceAssistantMarkdown else {
+            showAssistantMarkdown = true
+            return
+        }
+
+        showAssistantMarkdown = false
+        assistantMarkdownDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: Self.assistantMarkdownDebounceNanoseconds)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                showAssistantMarkdown = true
+            }
+        }
     }
 
     private func thinkingSection(_ thinking: String) -> some View {
