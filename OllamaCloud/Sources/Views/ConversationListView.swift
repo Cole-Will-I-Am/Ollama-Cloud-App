@@ -13,52 +13,43 @@ struct ConversationListView: View {
             ForEach(conversations) { conversation in
                 NavigationLink(value: conversation) {
                     HStack(spacing: 14) {
-                        // Model icon
+                        // Avatar
                         ZStack {
-                            Circle()
-                                .fill(Color.surfaceElevated)
-                                .frame(width: 38, height: 38)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.border, lineWidth: 0.5)
-                                )
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.accentSoft)
+                                .frame(width: 40, height: 40)
                             Image(systemName: "cpu")
-                                .font(.system(size: 14, weight: .light))
+                                .font(.system(size: 15, weight: .light, design: .rounded))
                                 .foregroundStyle(Color.accent)
                         }
 
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(conversation.title)
-                                .font(.subheadline.weight(.medium))
+                                .font(.app(15, weight: .medium))
                                 .foregroundStyle(Color.textPrimary)
                                 .lineLimit(1)
 
                             HStack(spacing: 6) {
                                 if !conversation.modelName.isEmpty {
                                     Text(conversation.modelName)
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.accent.opacity(0.8))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(
-                                            Capsule()
-                                                .fill(Color.accent.opacity(0.1))
-                                        )
+                                        .font(.app(11))
+                                        .foregroundStyle(Color.accent)
                                 }
                                 Spacer()
                                 Text(conversation.updatedAt, style: .relative)
-                                    .font(.caption2)
+                                    .font(.app(11))
                                     .foregroundStyle(Color.textTertiary)
                             }
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
                 .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
             .onDelete(perform: deleteConversations)
         }
-        .listStyle(.sidebar)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.bgPrimary)
         .navigationTitle("Chats")
@@ -67,10 +58,13 @@ struct ConversationListView: View {
                 Button {
                     newConversation()
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
-                        .symbolRenderingMode(.hierarchical)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.accent)
+                        .padding(8)
+                        .background(
+                            Circle().fill(Color.accentSoft)
+                        )
                 }
             }
         }
@@ -86,16 +80,13 @@ struct ConversationListView: View {
         }
         .overlay {
             if conversations.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Image(systemName: "bubble.left")
-                        .font(.system(size: 36, weight: .ultraLight))
+                        .font(.system(size: 32, weight: .ultraLight, design: .rounded))
                         .foregroundStyle(Color.textTertiary)
-                    Text("No conversations yet")
-                        .font(.subheadline)
+                    Text("No conversations")
+                        .font(.app(15))
                         .foregroundStyle(Color.textTertiary)
-                    Text("Tap + to start")
-                        .font(.caption)
-                        .foregroundStyle(Color.textTertiary.opacity(0.6))
                 }
             }
         }
@@ -112,9 +103,7 @@ struct ConversationListView: View {
     private func deleteConversations(at offsets: IndexSet) {
         for index in offsets {
             let conversation = conversations[index]
-            if selection?.id == conversation.id {
-                selection = nil
-            }
+            if selection?.id == conversation.id { selection = nil }
             modelContext.delete(conversation)
         }
         try? modelContext.save()

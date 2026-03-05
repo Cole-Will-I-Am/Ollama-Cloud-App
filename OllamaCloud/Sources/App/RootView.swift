@@ -32,7 +32,7 @@ struct MainAppView: View {
                             showSettings = true
                         } label: {
                             Image(systemName: "gearshape")
-                                .font(.body.weight(.light))
+                                .font(.system(size: 16, weight: .light, design: .rounded))
                                 .foregroundStyle(Color.textSecondary)
                         }
                     }
@@ -43,12 +43,12 @@ struct MainAppView: View {
             } else {
                 ZStack {
                     Color.bgPrimary.ignoresSafeArea()
-                    VStack(spacing: 12) {
+                    VStack(spacing: 10) {
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 40, weight: .ultraLight))
+                            .font(.system(size: 36, weight: .ultraLight, design: .rounded))
                             .foregroundStyle(Color.textTertiary)
                         Text("Select a conversation")
-                            .font(.subheadline)
+                            .font(.app(14))
                             .foregroundStyle(Color.textTertiary)
                     }
                 }

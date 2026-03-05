@@ -10,68 +10,63 @@ struct APIKeyEntryView: View {
         ZStack {
             Color.bgPrimary.ignoresSafeArea()
 
-            VStack(spacing: 32) {
+            // Ambient glow
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.accent.opacity(0.08), Color.clear],
+                        center: .center,
+                        startRadius: 40,
+                        endRadius: 260
+                    )
+                )
+                .frame(width: 500, height: 500)
+                .offset(y: -80)
+                .blur(radius: 40)
+
+            VStack(spacing: 0) {
                 Spacer()
 
                 // Logo
-                ZStack {
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.accent.opacity(0.15), Color.clear],
-                                center: .center,
-                                startRadius: 20,
-                                endRadius: 80
-                            )
-                        )
-                        .frame(width: 140, height: 140)
+                Image(systemName: "cloud.fill")
+                    .font(.system(size: 48, weight: .ultraLight))
+                    .foregroundStyle(Color.accent.opacity(0.7))
+                    .padding(.bottom, 20)
 
-                    Image(systemName: "cloud.fill")
-                        .font(.system(size: 52, weight: .thin))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.accent, Color.accentHover],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
+                Text("Ollama Cloud")
+                    .font(.app(30, weight: .semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(.bottom, 6)
 
-                VStack(spacing: 8) {
-                    Text("Ollama Cloud")
-                        .font(.system(size: 28, weight: .semibold, design: .default))
+                Text("Enter your API key to connect")
+                    .font(.app(15, weight: .regular))
+                    .foregroundStyle(Color.textSecondary)
+                    .padding(.bottom, 40)
+
+                // Input card
+                VStack(spacing: 18) {
+                    SecureField("", text: $apiKey, prompt: Text("Paste API key").foregroundStyle(Color.textTertiary))
+                        .font(.app(15))
                         .foregroundStyle(Color.textPrimary)
-
-                    Text("Chat with your cloud models.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.textSecondary)
-                }
-
-                // Card
-                VStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("API KEY")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.textTertiary)
-                            .tracking(1.2)
-
-                        SecureField("Paste your key", text: $apiKey)
-                            .textFieldStyle(.plain)
-                            .foregroundStyle(Color.textPrimary)
-                            .glassField()
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.bgSecondary)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(Color.borderLight, lineWidth: 0.5)
+                                )
+                        )
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
 
                     if let error {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .font(.caption)
-                            Text(error)
-                                .font(.caption)
-                        }
-                        .foregroundStyle(Color.danger)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(error)
+                            .font(.app(12, weight: .medium))
+                            .foregroundStyle(Color.danger)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
                     }
 
                     Button {
@@ -83,33 +78,24 @@ struct APIKeyEntryView: View {
                                     .tint(.white)
                             } else {
                                 Text("Connect")
-                                    .font(.body.weight(.semibold))
+                                    .font(.app(16, weight: .semibold))
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 15)
+                        .padding(.vertical, 16)
                         .background(
-                            Group {
-                                if apiKey.isEmpty {
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(Color.bgTertiary)
-                                } else {
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(LinearGradient.accentGradient)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 14)
-                                                .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                                        )
-                                }
-                            }
+                            Capsule()
+                                .fill(apiKey.isEmpty
+                                      ? AnyShapeStyle(Color.bgTertiary)
+                                      : AnyShapeStyle(LinearGradient.accentGradient))
                         )
                         .foregroundStyle(.white)
                     }
                     .disabled(apiKey.isEmpty || isValidating)
                 }
                 .padding(24)
-                .chromeCard(cornerRadius: 20)
-                .padding(.horizontal, 28)
+                .chromeCard()
+                .padding(.horizontal, 32)
 
                 Spacer()
                 Spacer()
@@ -128,7 +114,7 @@ struct APIKeyEntryView: View {
                     KeychainHelper.save(key: "api_key", value: apiKey)
                     hasAPIKey = true
                 } else {
-                    error = "Invalid API key."
+                    error = "Invalid API key"
                 }
             } catch {
                 self.error = error.localizedDescription

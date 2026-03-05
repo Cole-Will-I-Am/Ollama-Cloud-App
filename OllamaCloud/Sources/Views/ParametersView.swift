@@ -8,73 +8,49 @@ struct ParametersView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Model section
-                    paramSection("MODEL") {
-                        HStack {
+                VStack(spacing: 24) {
+                    // Model
+                    section("MODEL") {
+                        HStack(spacing: 12) {
                             Image(systemName: "cpu")
-                                .font(.body.weight(.light))
+                                .font(.system(size: 15, weight: .light, design: .rounded))
                                 .foregroundStyle(Color.accent)
-                            Text(conversation.modelName.isEmpty ? "Not selected" : conversation.modelName)
-                                .font(.subheadline)
+                            Text(conversation.modelName.isEmpty ? "None" : conversation.modelName)
+                                .font(.app(14))
                                 .foregroundStyle(Color.textPrimary)
                             Spacer()
                         }
-                        .padding(14)
+                        .padding(16)
                     }
 
-                    // Generation section
-                    paramSection("GENERATION") {
-                        VStack(spacing: 18) {
-                            paramSlider(
-                                label: "Temperature",
-                                value: String(format: "%.2f", conversation.temperature),
-                                binding: $conversation.temperature,
-                                range: 0...2,
-                                step: 0.05
-                            )
-                            paramSlider(
-                                label: "Top P",
-                                value: String(format: "%.2f", conversation.topP),
-                                binding: $conversation.topP,
-                                range: 0...1,
-                                step: 0.05
-                            )
-                            paramSlider(
-                                label: "Top K",
-                                value: "\(conversation.topK)",
-                                binding: Binding(
-                                    get: { Double(conversation.topK) },
-                                    set: { conversation.topK = Int($0) }
-                                ),
-                                range: 1...100,
-                                step: 1
-                            )
-                            paramSlider(
-                                label: "Max Tokens",
-                                value: "\(conversation.numPredict)",
-                                binding: Binding(
-                                    get: { Double(conversation.numPredict) },
-                                    set: { conversation.numPredict = Int($0) }
-                                ),
-                                range: 128...8192,
-                                step: 128
-                            )
+                    // Generation
+                    section("GENERATION") {
+                        VStack(spacing: 20) {
+                            slider(label: "Temperature", value: String(format: "%.2f", conversation.temperature),
+                                   binding: $conversation.temperature, range: 0...2, step: 0.05)
+                            slider(label: "Top P", value: String(format: "%.2f", conversation.topP),
+                                   binding: $conversation.topP, range: 0...1, step: 0.05)
+                            slider(label: "Top K", value: "\(conversation.topK)",
+                                   binding: Binding(get: { Double(conversation.topK) }, set: { conversation.topK = Int($0) }),
+                                   range: 1...100, step: 1)
+                            slider(label: "Max Tokens", value: "\(conversation.numPredict)",
+                                   binding: Binding(get: { Double(conversation.numPredict) }, set: { conversation.numPredict = Int($0) }),
+                                   range: 128...8192, step: 128)
                         }
-                        .padding(14)
+                        .padding(16)
                     }
 
                     // System prompt
-                    paramSection("SYSTEM PROMPT") {
+                    section("SYSTEM PROMPT") {
                         TextEditor(text: $conversation.systemPrompt)
-                            .font(.subheadline)
+                            .font(.app(14))
                             .foregroundStyle(Color.textPrimary)
                             .scrollContentBackground(.hidden)
                             .frame(minHeight: 120)
-                            .padding(14)
+                            .padding(16)
                     }
                 }
-                .padding(16)
+                .padding(20)
             }
             .background(Color.bgPrimary)
             .navigationTitle("Parameters")
@@ -85,47 +61,38 @@ struct ParametersView: View {
                         try? modelContext.save()
                         dismiss()
                     }
+                    .font(.app(15, weight: .medium))
                     .foregroundStyle(Color.accent)
                 }
             }
         }
     }
 
-    private func paramSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.caption2.weight(.semibold))
+                .font(.app(11, weight: .semibold))
                 .foregroundStyle(Color.textTertiary)
-                .tracking(1.2)
+                .tracking(1.5)
                 .padding(.leading, 4)
-
             content()
-                .chromeCard(cornerRadius: 14)
+                .chromeCard()
         }
     }
 
-    private func paramSlider(
-        label: String,
-        value: String,
-        binding: Binding<Double>,
-        range: ClosedRange<Double>,
-        step: Double
-    ) -> some View {
-        VStack(spacing: 6) {
+    private func slider(label: String, value: String, binding: Binding<Double>, range: ClosedRange<Double>, step: Double) -> some View {
+        VStack(spacing: 8) {
             HStack {
                 Text(label)
-                    .font(.subheadline)
+                    .font(.app(14))
                     .foregroundStyle(Color.textPrimary)
                 Spacer()
                 Text(value)
-                    .font(.caption.monospaced())
+                    .font(.app(12, weight: .medium).monospaced())
                     .foregroundStyle(Color.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule()
-                            .fill(Color.accent.opacity(0.1))
-                    )
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.accentSoft))
             }
             Slider(value: binding, in: range, step: step)
                 .tint(Color.accent)

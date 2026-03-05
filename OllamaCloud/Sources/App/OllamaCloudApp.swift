@@ -7,6 +7,7 @@ struct OllamaCloudApp: App {
         WindowGroup {
             RootView()
                 .preferredColorScheme(.dark)
+                .tint(Color.accent)
         }
         .modelContainer(for: [Conversation.self, Message.self])
     }

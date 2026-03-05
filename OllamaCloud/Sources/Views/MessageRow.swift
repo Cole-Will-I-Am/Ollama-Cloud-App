@@ -9,16 +9,14 @@ struct MessageRow: View {
     }
 
     var body: some View {
-        HStack {
-            if message.role == "user" { Spacer(minLength: 60) }
+        HStack(alignment: .bottom) {
+            if message.role == "user" { Spacer(minLength: 48) }
 
             VStack(alignment: .leading, spacing: 0) {
-                // Thinking disclosure
                 if let thinking = message.thinkingContent, !thinking.isEmpty {
                     thinkingSection(thinking)
                 }
 
-                // Content
                 if message.role == "user" {
                     userBubble
                 } else {
@@ -26,48 +24,46 @@ struct MessageRow: View {
                 }
             }
 
-            if message.role != "user" { Spacer(minLength: 60) }
+            if message.role != "user" { Spacer(minLength: 48) }
         }
     }
 
     private var userBubble: some View {
         Text(rendered)
             .textSelection(.enabled)
-            .padding(12)
-            .font(.body)
+            .font(.app(15))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .foregroundStyle(.white)
-            .background(
-                LinearGradient.accentGradient
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-            )
+            .background(LinearGradient.accentGradient)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var assistantBubble: some View {
-        let hasThinking = message.thinkingContent != nil && !(message.thinkingContent?.isEmpty ?? true)
+        let hasThinking = !(message.thinkingContent ?? "").isEmpty
         return Text(rendered)
             .textSelection(.enabled)
-            .padding(12)
-            .font(.body)
+            .font(.app(15))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .foregroundStyle(Color.textPrimary)
             .background(Color.assistantBubble)
             .clipShape(
-                .rect(
-                    topLeadingRadius: hasThinking ? 0 : 16,
-                    bottomLeadingRadius: 16,
-                    bottomTrailingRadius: 16,
-                    topTrailingRadius: hasThinking ? 0 : 16
+                UnevenRoundedRectangle(
+                    topLeadingRadius: hasThinking ? 0 : 20,
+                    bottomLeadingRadius: 20,
+                    bottomTrailingRadius: 20,
+                    topTrailingRadius: hasThinking ? 0 : 20,
+                    style: .continuous
                 )
             )
             .overlay(
                 UnevenRoundedRectangle(
-                    topLeadingRadius: hasThinking ? 0 : 16,
-                    bottomLeadingRadius: 16,
-                    bottomTrailingRadius: 16,
-                    topTrailingRadius: hasThinking ? 0 : 16
+                    topLeadingRadius: hasThinking ? 0 : 20,
+                    bottomLeadingRadius: 20,
+                    bottomTrailingRadius: 20,
+                    topTrailingRadius: hasThinking ? 0 : 20,
+                    style: .continuous
                 )
                 .stroke(Color.border, lineWidth: 0.5)
             )
@@ -76,51 +72,53 @@ struct MessageRow: View {
     private func thinkingSection(_ thinking: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.snappy(duration: 0.25)) {
                     showThinking.toggle()
                 }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "brain")
-                        .font(.caption2)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                     Text("Thinking")
-                        .font(.caption2.weight(.medium))
+                        .font(.app(12, weight: .medium))
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
                         .rotationEffect(.degrees(showThinking ? 90 : 0))
                 }
                 .foregroundStyle(Color.textTertiary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
             .buttonStyle(.plain)
 
             if showThinking {
                 Text(thinking)
-                    .font(.caption)
+                    .font(.app(13))
                     .foregroundStyle(Color.textTertiary)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                    .transition(.opacity)
             }
         }
         .background(Color.white.opacity(0.02))
         .clipShape(
-            .rect(
-                topLeadingRadius: 16,
+            UnevenRoundedRectangle(
+                topLeadingRadius: 20,
                 bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0,
-                topTrailingRadius: 16
+                topTrailingRadius: 20,
+                style: .continuous
             )
         )
         .overlay(
             UnevenRoundedRectangle(
-                topLeadingRadius: 16,
+                topLeadingRadius: 20,
                 bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0,
-                topTrailingRadius: 16
+                topTrailingRadius: 20,
+                style: .continuous
             )
             .stroke(Color.border, lineWidth: 0.5)
         )

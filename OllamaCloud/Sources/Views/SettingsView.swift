@@ -8,25 +8,25 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 24) {
                     // Connection
-                    settingsSection("CONNECTION") {
-                        VStack(spacing: 14) {
+                    section("CONNECTION") {
+                        VStack(spacing: 16) {
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.success.opacity(0.15))
-                                        .frame(width: 36, height: 36)
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.body)
+                                        .fill(Color.success.opacity(0.12))
+                                        .frame(width: 38, height: 38)
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                                         .foregroundStyle(Color.success)
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Connected")
-                                        .font(.subheadline.weight(.medium))
+                                        .font(.app(15, weight: .medium))
                                         .foregroundStyle(Color.textPrimary)
                                     Text("ollama.com")
-                                        .font(.caption)
+                                        .font(.app(12))
                                         .foregroundStyle(Color.textTertiary)
                                 }
                                 Spacer()
@@ -35,38 +35,38 @@ struct SettingsView: View {
                             Button {
                                 showRemoveConfirmation = true
                             } label: {
-                                HStack {
+                                HStack(spacing: 8) {
                                     Image(systemName: "key.slash")
-                                        .font(.subheadline)
+                                        .font(.system(size: 13, weight: .medium, design: .rounded))
                                     Text("Remove API Key")
-                                        .font(.subheadline)
+                                        .font(.app(14, weight: .medium))
                                 }
                                 .foregroundStyle(Color.danger)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
+                                .padding(.vertical, 13)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.danger.opacity(0.08))
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.danger.opacity(0.06))
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .stroke(Color.danger.opacity(0.15), lineWidth: 0.5)
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .stroke(Color.danger.opacity(0.1), lineWidth: 0.5)
                                         )
                                 )
                             }
                         }
-                        .padding(14)
+                        .padding(16)
                     }
 
                     // About
-                    settingsSection("ABOUT") {
+                    section("ABOUT") {
                         VStack(spacing: 0) {
-                            settingsRow(label: "Version", value: "1.0.0")
-                            Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 14)
-                            settingsRow(label: "API", value: "ollama.com")
+                            row("Version", "1.0.0")
+                            Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
+                            row("API", "ollama.com")
                         }
                     }
                 }
-                .padding(16)
+                .padding(20)
             }
             .background(Color.bgPrimary)
             .navigationTitle("Settings")
@@ -74,6 +74,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .font(.app(15, weight: .medium))
                         .foregroundStyle(Color.accent)
                 }
             }
@@ -89,34 +90,33 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("You'll need to re-enter your API key to use the app.")
+                Text("You'll need to re-enter your key to continue.")
             }
         }
     }
 
-    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.caption2.weight(.semibold))
+                .font(.app(11, weight: .semibold))
                 .foregroundStyle(Color.textTertiary)
-                .tracking(1.2)
+                .tracking(1.5)
                 .padding(.leading, 4)
-
             content()
-                .chromeCard(cornerRadius: 14)
+                .chromeCard()
         }
     }
 
-    private func settingsRow(label: String, value: String) -> some View {
+    private func row(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
-                .font(.subheadline)
+                .font(.app(14))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
             Text(value)
-                .font(.subheadline)
+                .font(.app(14))
                 .foregroundStyle(Color.textTertiary)
         }
-        .padding(14)
+        .padding(16)
     }
 }

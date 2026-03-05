@@ -16,19 +16,17 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Messages
             ScrollViewReader { proxy in
                 ScrollView {
                     if sortedMessages.isEmpty && !streaming.isStreaming {
                         emptyState
                     } else {
-                        LazyVStack(spacing: 14) {
+                        LazyVStack(spacing: 16) {
                             ForEach(sortedMessages) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
                             }
 
-                            // Streaming
                             if streaming.isStreaming {
                                 if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
                                     streamingBubble
@@ -44,18 +42,14 @@ struct ChatView: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
                     }
                 }
-                .onChange(of: sortedMessages.count) {
-                    scrollToBottom(proxy: proxy)
-                }
-                .onChange(of: streaming.streamingContent) {
-                    scrollToBottom(proxy: proxy)
-                }
+                .onChange(of: sortedMessages.count) { scrollToBottom(proxy: proxy) }
+                .onChange(of: streaming.streamingContent) { scrollToBottom(proxy: proxy) }
             }
 
-            // Input bar
             inputBar
         }
         .background(Color.bgPrimary)
@@ -63,37 +57,28 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 14) {
-                    // Model badge
+                HStack(spacing: 10) {
                     if !conversation.modelName.isEmpty {
                         Text(conversation.modelName)
-                            .font(.caption2.weight(.medium))
+                            .font(.app(11, weight: .medium))
                             .foregroundStyle(Color.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
                             .background(
-                                Capsule()
-                                    .fill(Color.accent.opacity(0.1))
-                                    .overlay(
-                                        Capsule().stroke(Color.accent.opacity(0.2), lineWidth: 0.5)
-                                    )
+                                Capsule().fill(Color.accentSoft)
                             )
                             .onTapGesture { showModelPicker = true }
                     }
 
-                    Button {
-                        showModelPicker = true
-                    } label: {
+                    Button { showModelPicker = true } label: {
                         Image(systemName: "cpu")
-                            .font(.body.weight(.light))
+                            .font(.system(size: 15, weight: .light, design: .rounded))
                             .foregroundStyle(Color.textSecondary)
                     }
 
-                    Button {
-                        showParameters = true
-                    } label: {
+                    Button { showParameters = true } label: {
                         Image(systemName: "slider.horizontal.3")
-                            .font(.body.weight(.light))
+                            .font(.system(size: 15, weight: .light, design: .rounded))
                             .foregroundStyle(Color.textSecondary)
                     }
                 }
@@ -111,40 +96,35 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - Empty State
+    // MARK: - Empty
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Spacer()
             if conversation.modelName.isEmpty {
                 Image(systemName: "cpu")
-                    .font(.system(size: 44, weight: .ultraLight))
+                    .font(.system(size: 40, weight: .ultraLight, design: .rounded))
                     .foregroundStyle(Color.textTertiary)
-                Text("Select a model")
-                    .font(.subheadline)
+                Text("Pick a model to begin")
+                    .font(.app(15))
                     .foregroundStyle(Color.textSecondary)
                 Button {
                     showModelPicker = true
                 } label: {
                     Text("Choose Model")
-                        .font(.subheadline.weight(.medium))
+                        .font(.app(14, weight: .semibold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(LinearGradient.accentGradient)
-                                .overlay(
-                                    Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                                )
-                        )
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 11)
+                        .background(Capsule().fill(LinearGradient.accentGradient))
                 }
+                .padding(.top, 4)
             } else {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 40, weight: .ultraLight))
-                    .foregroundStyle(Color.accent.opacity(0.5))
-                Text("Start a conversation")
-                    .font(.subheadline)
+                    .font(.system(size: 36, weight: .ultraLight, design: .rounded))
+                    .foregroundStyle(Color.accent.opacity(0.4))
+                Text("Send a message to begin")
+                    .font(.app(15))
                     .foregroundStyle(Color.textSecondary)
             }
             Spacer()
@@ -152,7 +132,7 @@ struct ChatView: View {
         .frame(maxHeight: .infinity)
     }
 
-    // MARK: - Streaming Bubble
+    // MARK: - Streaming
 
     private var streamingRendered: AttributedString {
         (try? AttributedString(markdown: streaming.streamingContent, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(streaming.streamingContent)
@@ -161,87 +141,90 @@ struct ChatView: View {
     private var streamingBubble: some View {
         HStack {
             VStack(alignment: .leading, spacing: 0) {
-                // Thinking
                 if !streaming.streamingThinking.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(.snappy(duration: 0.25)) {
                                 showStreamingThinking.toggle()
                             }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "brain")
-                                    .font(.caption2)
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
                                 Text(streaming.isThinking ? "Thinking..." : "Thinking")
-                                    .font(.caption2.weight(.medium))
+                                    .font(.app(12, weight: .medium))
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 8, weight: .semibold))
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
                                     .rotationEffect(.degrees(showStreamingThinking ? 90 : 0))
                             }
                             .foregroundStyle(Color.textTertiary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
 
                         if showStreamingThinking {
                             Text(streaming.streamingThinking)
-                                .font(.caption)
+                                .font(.app(13))
                                 .foregroundStyle(Color.textTertiary)
                                 .textSelection(.enabled)
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 8)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
                         }
                     }
                     .background(Color.white.opacity(0.02))
                     .clipShape(
-                        .rect(
-                            topLeadingRadius: 16,
-                            bottomLeadingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
-                            bottomTrailingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
-                            topTrailingRadius: 16
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 20,
+                            bottomLeadingRadius: streaming.streamingContent.isEmpty ? 20 : 0,
+                            bottomTrailingRadius: streaming.streamingContent.isEmpty ? 20 : 0,
+                            topTrailingRadius: 20,
+                            style: .continuous
                         )
                     )
                     .overlay(
                         UnevenRoundedRectangle(
-                            topLeadingRadius: 16,
-                            bottomLeadingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
-                            bottomTrailingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
-                            topTrailingRadius: 16
+                            topLeadingRadius: 20,
+                            bottomLeadingRadius: streaming.streamingContent.isEmpty ? 20 : 0,
+                            bottomTrailingRadius: streaming.streamingContent.isEmpty ? 20 : 0,
+                            topTrailingRadius: 20,
+                            style: .continuous
                         )
                         .stroke(Color.border, lineWidth: 0.5)
                     )
                 }
 
-                // Content
                 if !streaming.streamingContent.isEmpty {
                     Text(streamingRendered)
                         .textSelection(.enabled)
-                        .padding(12)
-                        .font(.body)
+                        .font(.app(15))
                         .foregroundStyle(Color.textPrimary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                         .background(Color.assistantBubble)
                         .clipShape(
-                            .rect(
-                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 16 : 0,
-                                bottomLeadingRadius: 16,
-                                bottomTrailingRadius: 16,
-                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 16 : 0
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                                bottomLeadingRadius: 20,
+                                bottomTrailingRadius: 20,
+                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                                style: .continuous
                             )
                         )
                         .overlay(
                             UnevenRoundedRectangle(
-                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 16 : 0,
-                                bottomLeadingRadius: 16,
-                                bottomTrailingRadius: 16,
-                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 16 : 0
+                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                                bottomLeadingRadius: 20,
+                                bottomTrailingRadius: 20,
+                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
+                                style: .continuous
                             )
                             .stroke(Color.border, lineWidth: 0.5)
                         )
                 }
             }
-            Spacer(minLength: 60)
+            Spacer(minLength: 48)
         }
     }
 
@@ -249,42 +232,43 @@ struct ChatView: View {
         HStack {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.circle.fill")
-                    .font(.caption)
+                    .font(.system(size: 13, design: .rounded))
                 Text(message)
-                    .font(.caption)
+                    .font(.app(13))
             }
             .foregroundStyle(Color.danger)
-            .padding(12)
-            .background(Color.danger.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.danger.opacity(0.15), lineWidth: 0.5)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.danger.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.danger.opacity(0.1), lineWidth: 0.5)
+                    )
             )
             Spacer()
         }
     }
 
-    // MARK: - Input Bar
+    // MARK: - Input
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            Rectangle()
-                .fill(Color.border)
-                .frame(height: 0.5)
+            Rectangle().fill(Color.border).frame(height: 0.5)
 
-            HStack(spacing: 12) {
-                TextField("Message...", text: $input, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...5)
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Message", text: $input, axis: .vertical)
+                    .font(.app(15))
+                    .lineLimit(1...6)
                     .foregroundStyle(Color.textPrimary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 13)
                     .background(
-                        RoundedRectangle(cornerRadius: 20)
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
                             .fill(Color.bgSecondary)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 20)
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
                                     .stroke(Color.borderLight, lineWidth: 0.5)
                             )
                     )
@@ -294,21 +278,26 @@ struct ChatView: View {
                     Button {
                         streaming.cancel(conversation: conversation, modelContext: modelContext)
                     } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(Color.danger)
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(Circle().fill(Color.danger))
                     }
                 } else {
                     Button(action: send) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 34))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(canSend ? Color.accent : Color.textTertiary.opacity(0.4))
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(
+                                Circle().fill(canSend ? LinearGradient.accentGradient : LinearGradient(colors: [Color.bgTertiary], startPoint: .top, endPoint: .bottom))
+                            )
                     }
                     .disabled(!canSend)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(Color.bgPrimary)
         }
@@ -328,8 +317,7 @@ struct ChatView: View {
         input = ""
 
         #if os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
 
         streaming.sendMessage(content: text, conversation: conversation, modelContext: modelContext)
@@ -343,7 +331,7 @@ struct ChatView: View {
                 proxy.scrollTo("typing", anchor: .bottom)
             }
         } else if let last = sortedMessages.last {
-            withAnimation {
+            withAnimation(.easeOut(duration: 0.2)) {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
         }

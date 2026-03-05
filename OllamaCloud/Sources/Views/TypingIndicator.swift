@@ -5,26 +5,26 @@ struct TypingIndicator: View {
 
     var body: some View {
         HStack {
-            HStack(spacing: 5) {
-                ForEach(0..<3, id: \.self) { index in
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { i in
                     Circle()
-                        .fill(Color.accent.opacity(0.6))
-                        .frame(width: 6, height: 6)
-                        .offset(y: sin(phase + Double(index) * 0.8) * 3)
+                        .fill(Color.accent.opacity(0.5))
+                        .frame(width: 5, height: 5)
+                        .offset(y: sin(phase + Double(i) * 0.9) * 3)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .background(Color.assistantBubble)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(Color.border, lineWidth: 0.5)
             )
             Spacer()
         }
         .onAppear {
-            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+            withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) {
                 phase = .pi * 2
             }
         }
