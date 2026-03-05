@@ -1,5 +1,6 @@
 <p align="center">
-  <img src=".github/seer_logo.png" alt="SEER" width="320">
+  <img src=".github/seer_logo_white.png#gh-dark-mode-only" alt="SEER" width="320">
+  <img src=".github/seer_logo_black.png#gh-light-mode-only" alt="SEER" width="320">
 </p>
 
 <p align="center">
