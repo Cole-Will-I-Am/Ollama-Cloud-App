@@ -14,6 +14,8 @@ struct ChatView: View {
     @State private var isAtBottom = true
     @State private var hasNewMessage = false
     @State private var sentFirstTokenHaptic = false
+    @State private var scrollViewportHeight: CGFloat = 0
+    @State private var bottomAnchorMaxY: CGFloat = 0
 
     private var sortedMessages: [Message] {
         conversation.messages.sorted { $0.createdAt < $1.createdAt }
@@ -28,95 +30,114 @@ struct ChatView: View {
             }
 
             ZStack(alignment: .bottom) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        if messages.isEmpty && !streaming.isStreaming {
-                            emptyState
-                        } else {
-                            LazyVStack(spacing: 16) {
-                                ForEach(messages) { message in
-                                    MessageRow(message: message)
-                                        .id(message.id)
-                                }
-
-                                if streaming.isStreaming {
-                                    if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            streamingBubble
-                                            streamingStats
-                                        }
-                                        .id("streaming")
-                                    } else {
-                                        TypingIndicator()
-                                            .id("typing")
+                GeometryReader { scrollGeo in
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            if messages.isEmpty && !streaming.isStreaming {
+                                emptyState
+                            } else {
+                                LazyVStack(spacing: 16) {
+                                    ForEach(messages) { message in
+                                        MessageRow(message: message)
+                                            .id(message.id)
                                     }
-                                }
 
-                                if let error = streaming.error {
-                                    errorBubble(error)
-                                        .id("error")
-                                }
+                                    if streaming.isStreaming {
+                                        if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                streamingBubble
+                                                streamingStats
+                                            }
+                                            .id("streaming")
+                                        } else {
+                                            TypingIndicator()
+                                                .id("typing")
+                                        }
+                                    }
 
-                                // Bottom anchor for scroll detection
-                                Color.clear
+                                    if let error = streaming.error {
+                                        errorBubble(error)
+                                            .id("error")
+                                    }
+
+                                    // Bottom anchor for scroll detection
+                                    GeometryReader { anchorGeo in
+                                        Color.clear
+                                            .onAppear {
+                                                updateScrollPosition(
+                                                    anchorMaxY: anchorGeo.frame(in: .named("chatScroll")).maxY
+                                                )
+                                            }
+                                            .onChange(of: anchorGeo.frame(in: .named("chatScroll")).maxY) { _, newValue in
+                                                updateScrollPosition(anchorMaxY: newValue)
+                                            }
+                                    }
                                     .frame(height: 1)
                                     .id("bottomAnchor")
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.top, 12)
-                            .padding(.bottom, 8)
-                        }
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .onChange(of: messages.count) {
-                        if isAtBottom {
-                            scrollToBottom(proxy: proxy, messages: messages)
-                        } else {
-                            withAnimation(.easeOut(duration: 0.2)) { hasNewMessage = true }
-                        }
-                    }
-                    .onChange(of: streaming.streamingContent) {
-                        if isAtBottom {
-                            scrollToBottom(proxy: proxy, messages: messages)
-                        }
-                        // Success haptic on first token arrival
-                        if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
-                            sentFirstTokenHaptic = true
-                            Haptic.notification(.success)
-                        }
-                    }
-                    .onChange(of: streaming.isStreaming) { _, isNow in
-                        if isNow { sentFirstTokenHaptic = false }
-                    }
-                    .overlay(alignment: .bottom) {
-                        // "New Messages" floating button
-                        if hasNewMessage && !isAtBottom {
-                            Button {
-                                withAnimation(.snappy(duration: 0.3)) {
-                                    scrollToBottom(proxy: proxy, messages: messages)
-                                    hasNewMessage = false
-                                    isAtBottom = true
                                 }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "arrow.down")
-                                        .font(.system(size: 10, weight: .medium))
-                                    Text("NEW")
-                                        .font(.appLabel(9))
-                                        .tracking(2)
-                                }
-                                .foregroundStyle(.white)
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule()
-                                        .fill(.ultraThinMaterial)
-                                        .overlay(Capsule().fill(Color.accent.opacity(0.5)))
-                                )
-                                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                                .padding(.top, 12)
+                                .padding(.bottom, 8)
                             }
-                            .padding(.bottom, 8)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        .coordinateSpace(name: "chatScroll")
+                        .scrollDismissesKeyboard(.interactively)
+                        .onAppear {
+                            updateScrollPosition(viewportHeight: scrollGeo.size.height)
+                        }
+                        .onChange(of: scrollGeo.size.height) { _, newHeight in
+                            updateScrollPosition(viewportHeight: newHeight)
+                        }
+                        .onChange(of: messages.count) {
+                            if isAtBottom {
+                                scrollToBottom(proxy: proxy, messages: messages)
+                            } else {
+                                withAnimation(.easeOut(duration: 0.2)) { hasNewMessage = true }
+                            }
+                        }
+                        .onChange(of: streaming.streamingContent) {
+                            if isAtBottom {
+                                scrollToBottom(proxy: proxy, messages: messages)
+                            }
+                            // Success haptic on first token arrival
+                            if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
+                                sentFirstTokenHaptic = true
+                                Haptic.notification(.success)
+                            }
+                        }
+                        .onChange(of: streaming.isStreaming) { _, isNow in
+                            if isNow { sentFirstTokenHaptic = false }
+                        }
+                        .overlay(alignment: .bottom) {
+                            // "New Messages" floating button
+                            if hasNewMessage && !isAtBottom {
+                                Button {
+                                    withAnimation(.snappy(duration: 0.3)) {
+                                        scrollToBottom(proxy: proxy, messages: messages)
+                                        hasNewMessage = false
+                                        isAtBottom = true
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.down")
+                                            .font(.system(size: 10, weight: .medium))
+                                        Text("NEW")
+                                            .font(.appLabel(9))
+                                            .tracking(2)
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule()
+                                            .fill(.ultraThinMaterial)
+                                            .overlay(Capsule().fill(Color.accent.opacity(0.5)))
+                                    )
+                                    .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                                }
+                                .padding(.bottom, 8)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
                         }
                     }
                 }
@@ -484,6 +505,26 @@ struct ChatView: View {
 
         Haptic.impact()
         streaming.sendMessage(content: content, conversation: conversation, modelContext: modelContext)
+    }
+
+    private func updateScrollPosition(anchorMaxY: CGFloat? = nil, viewportHeight: CGFloat? = nil) {
+        if let anchorMaxY {
+            bottomAnchorMaxY = anchorMaxY
+        }
+        if let viewportHeight {
+            scrollViewportHeight = viewportHeight
+        }
+
+        guard scrollViewportHeight > 0 else { return }
+
+        let bottomThreshold: CGFloat = 48
+        let nowAtBottom = bottomAnchorMaxY <= scrollViewportHeight + bottomThreshold
+        if nowAtBottom != isAtBottom {
+            isAtBottom = nowAtBottom
+        }
+        if nowAtBottom && hasNewMessage {
+            hasNewMessage = false
+        }
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy, messages: [Message]) {

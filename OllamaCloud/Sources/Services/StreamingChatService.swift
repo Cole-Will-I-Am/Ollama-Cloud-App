@@ -12,16 +12,13 @@ class StreamingChatService: ObservableObject {
     // Streaming metrics
     @Published var tokenCount: Int = 0
     @Published var tokensPerSecond: Double = 0
-    @Published var thinkingDuration: TimeInterval = 0
 
     /// The last message content that was sent, for retry support
     private(set) var lastSentContent: String?
 
     private var streamTask: Task<Void, Never>?
     private var receivedAnyTokens = false
-    private var thinkingStartTime: Date?
     private var contentStartTime: Date?
-    private var thinkingTimer: Task<Void, Never>?
     private static let idleTimeout: UInt64 = 60_000_000_000 // 60s in nanoseconds
 
     func sendMessage(
@@ -88,8 +85,6 @@ class StreamingChatService: ObservableObject {
         receivedAnyTokens = false
         tokenCount = 0
         tokensPerSecond = 0
-        thinkingDuration = 0
-        thinkingStartTime = nil
         contentStartTime = nil
 
         streamTask = Task {
@@ -140,7 +135,6 @@ class StreamingChatService: ObservableObject {
                 }
             }
 
-            stopThinkingTimer()
             streamingContent = ""
             streamingThinking = ""
             isStreaming = false
@@ -181,8 +175,6 @@ class StreamingChatService: ObservableObject {
             if let thinking = chunk.message?.thinking, !thinking.isEmpty {
                 if !isThinking {
                     isThinking = true
-                    thinkingStartTime = thinkingStartTime ?? Date()
-                    startThinkingTimer()
                 }
                 streamingThinking += thinking
             }
@@ -191,10 +183,6 @@ class StreamingChatService: ObservableObject {
                 receivedAnyTokens = true
                 if isThinking {
                     isThinking = false
-                    stopThinkingTimer()
-                    if let start = thinkingStartTime {
-                        thinkingDuration = Date().timeIntervalSince(start)
-                    }
                 }
                 tokenCount += 1
                 if contentStartTime == nil { contentStartTime = Date() }
@@ -211,22 +199,6 @@ class StreamingChatService: ObservableObject {
         }
     }
 
-    private func startThinkingTimer() {
-        thinkingTimer?.cancel()
-        thinkingTimer = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-                guard !Task.isCancelled, let start = thinkingStartTime, isThinking else { continue }
-                thinkingDuration = Date().timeIntervalSince(start)
-            }
-        }
-    }
-
-    private func stopThinkingTimer() {
-        thinkingTimer?.cancel()
-        thinkingTimer = nil
-    }
-
     private func handleStreamError(_ error: Error) {
         guard !Task.isCancelled else { return }
 
@@ -239,7 +211,6 @@ class StreamingChatService: ObservableObject {
 
     func cancel(conversation: Conversation, modelContext: ModelContext) {
         streamTask?.cancel()
-        stopThinkingTimer()
 
         // Save partial content if any
         if !streamingContent.isEmpty || !streamingThinking.isEmpty {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var network: NetworkMonitor
     @AppStorage("hasAPIKey") private var hasAPIKey = false
     @State private var showRemoveConfirmation = false
 
@@ -15,14 +16,14 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.success.opacity(0.12))
+                                        .fill(connectionColor.opacity(0.12))
                                         .frame(width: 38, height: 38)
-                                    Image(systemName: "checkmark")
+                                    Image(systemName: connectionIcon)
                                         .font(.system(size: 14, weight: .ultraLight))
-                                        .foregroundStyle(Color.success)
+                                        .foregroundStyle(connectionColor)
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Connected")
+                                    Text(connectionTitle)
                                         .font(.app(15, weight: .medium))
                                         .foregroundStyle(Color.textPrimary)
                                     Text(AppConfig.apiHostDisplayName)
@@ -61,7 +62,7 @@ struct SettingsView: View {
                     // About
                     section("ABOUT") {
                         VStack(spacing: 0) {
-                            row("Version", "1.0.0")
+                            row("Version", appVersionDisplay)
                             Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
                             row("API", AppConfig.apiHostDisplayName)
                         }
@@ -111,6 +112,25 @@ struct SettingsView: View {
                 Text("You'll need to re-enter your key to continue.")
             }
         }
+    }
+
+    private var connectionTitle: String {
+        network.isConnected ? "Connected" : "Offline"
+    }
+
+    private var connectionIcon: String {
+        network.isConnected ? "checkmark" : "wifi.slash"
+    }
+
+    private var connectionColor: Color {
+        network.isConnected ? Color.success : Color.danger
+    }
+
+    private var appVersionDisplay: String {
+        let info = Bundle.main.infoDictionary
+        let version = (info?["CFBundleShortVersionString"] as? String) ?? "Unknown"
+        let build = (info?["CFBundleVersion"] as? String) ?? ""
+        return build.isEmpty ? version : "\(version) (\(build))"
     }
 
     private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
