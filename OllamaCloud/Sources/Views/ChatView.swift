@@ -123,9 +123,13 @@ struct ChatView: View {
         .frame(maxHeight: .infinity)
     }
 
+    private var streamingRendered: AttributedString {
+        (try? AttributedString(markdown: streaming.streamingContent, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(streaming.streamingContent)
+    }
+
     private var streamingBubble: some View {
         HStack {
-            Text(streaming.streamingContent)
+            Text(streamingRendered)
                 .textSelection(.enabled)
                 .padding(12)
                 .background(Color.assistantBubble)
