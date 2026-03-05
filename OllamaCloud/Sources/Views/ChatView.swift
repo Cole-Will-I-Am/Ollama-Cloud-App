@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import MarkdownUI
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -124,35 +125,21 @@ struct ChatView: View {
             inputBar
         }
         .background(Color.bgPrimary)
-        .navigationTitle(conversation.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                if !conversation.modelName.isEmpty {
+                    Text(conversation.modelName.uppercased())
+                        .font(.appLabel(10))
+                        .luxuryTracking()
+                        .foregroundStyle(Color.accent)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 10) {
-                    if !conversation.modelName.isEmpty {
-                        Text(conversation.modelName.uppercased())
-                            .font(.appLabel(9))
-                            .luxuryTracking()
-                            .foregroundStyle(Color.accent)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule().fill(Color.accentSoft)
-                            )
-                            .onTapGesture { showModelPicker = true }
-                    }
-
-                    Button { showModelPicker = true } label: {
-                        Image(systemName: "cpu")
-                            .font(.system(size: 15, weight: .ultraLight))
-                            .foregroundStyle(Color.textSecondary)
-                    }
-
-                    Button { showParameters = true } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 15, weight: .ultraLight))
-                            .foregroundStyle(Color.textSecondary)
-                    }
+                Button { showParameters = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 15, weight: .ultraLight))
+                        .foregroundStyle(Color.textSecondary)
                 }
             }
         }
@@ -237,9 +224,7 @@ struct ChatView: View {
 
     // MARK: - Streaming
 
-    private var streamingRendered: AttributedString {
-        (try? AttributedString(markdown: streaming.streamingContent, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(streaming.streamingContent)
-    }
+    // Markdown rendering handled by MarkdownUI
 
     private var streamingBubble: some View {
         HStack {
@@ -317,13 +302,11 @@ struct ChatView: View {
                         topTrailingRadius: streaming.streamingThinking.isEmpty ? 20 : 0,
                         style: .continuous
                     )
-                    Text(streamingRendered)
+                    Markdown(streaming.streamingContent)
+                        .markdownTheme(.seerAssistant)
                         .textSelection(.enabled)
-                        .font(.app(15))
-                        .foregroundStyle(Color.textPrimary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .contentTransition(.interpolate)
                         .assistantMaterialBubble(shape: contentShape)
                     }
             }
@@ -419,7 +402,7 @@ struct ChatView: View {
             Rectangle().fill(Color.border).frame(height: 0.5)
 
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message", text: $input, axis: .vertical)
+                TextField("", text: $input, prompt: Text(inputPlaceholder).foregroundStyle(Color.textTertiary), axis: .vertical)
                     .font(.app(15))
                     .lineLimit(1...6)
                     .foregroundStyle(Color.textPrimary)
@@ -466,6 +449,14 @@ struct ChatView: View {
     }
 
     // MARK: - Helpers
+
+    private var inputPlaceholder: String {
+        if conversation.modelName.isEmpty { return "Message" }
+        // Use the display-friendly part (e.g. "kimi-k2-thinking" → "Kimi K2")
+        let name = conversation.modelName
+            .split(separator: ":").first.map(String.init) ?? conversation.modelName
+        return "Message \(name)"
+    }
 
     private var canSend: Bool {
         !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

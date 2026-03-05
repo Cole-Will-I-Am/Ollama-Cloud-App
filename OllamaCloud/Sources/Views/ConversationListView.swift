@@ -96,11 +96,12 @@ struct ConversationListView: View {
         }
         .overlay {
             if conversations.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 32, weight: .ultraLight))
-                        .foregroundStyle(Color.textTertiary)
-                    Text("No conversations")
+                VStack(spacing: 14) {
+                    Image("SeerEmblem")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 48)
+                    Text("Let's Party")
                         .font(.app(15, weight: .light))
                         .foregroundStyle(Color.textTertiary)
                 }

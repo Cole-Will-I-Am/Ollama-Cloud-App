@@ -1,12 +1,9 @@
 import SwiftUI
+import MarkdownUI
 
 struct MessageRow: View {
     let message: Message
     @State private var showThinking = false
-
-    private var rendered: AttributedString {
-        (try? AttributedString(markdown: message.content, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(message.content)
-    }
 
     var body: some View {
         HStack(alignment: .bottom) {
@@ -29,12 +26,11 @@ struct MessageRow: View {
     }
 
     private var userBubble: some View {
-        Text(rendered)
+        Markdown(message.content)
+            .markdownTheme(.seerUser)
             .textSelection(.enabled)
-            .font(.app(15))
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .foregroundStyle(.white)
             .background(LinearGradient.accentGradient)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
@@ -48,13 +44,11 @@ struct MessageRow: View {
             topTrailingRadius: hasThinking ? 0 : 20,
             style: .continuous
         )
-        return Text(rendered)
+        return Markdown(message.content)
+            .markdownTheme(.seerAssistant)
             .textSelection(.enabled)
-            .font(.app(15))
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .foregroundStyle(Color.textPrimary)
-            .contentTransition(.interpolate)
             .assistantMaterialBubble(shape: bubbleShape)
     }
 

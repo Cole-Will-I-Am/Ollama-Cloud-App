@@ -31,12 +31,19 @@ struct APIKeyEntryView: View {
             VStack(spacing: 0) {
                 Spacer()
 
+                // Emblem
+                Image("SeerEmblem")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 64)
+                    .padding(.bottom, 16)
+
                 // Logo
                 Image("SeerLogo")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(height: 36)
-                    .padding(.bottom, 24)
+                    .frame(height: 32)
+                    .padding(.bottom, 12)
 
                 Text("ENTER YOUR API KEY TO CONNECT")
                     .font(.appLabel(11))
@@ -46,7 +53,7 @@ struct APIKeyEntryView: View {
 
                 // Input card
                 VStack(spacing: 18) {
-                    SecureField("", text: $apiKey, prompt: Text("Paste API key").foregroundStyle(Color.textTertiary))
+                    SecureField("", text: $apiKey, prompt: Text("Paste Ollama API Key").foregroundStyle(Color.textTertiary))
                         .font(.app(15))
                         .foregroundStyle(Color.textPrimary)
                         .padding(.horizontal, 18)
@@ -119,6 +126,30 @@ struct APIKeyEntryView: View {
 
                 Spacer()
                 Spacer()
+
+                // Powered by
+                HStack(spacing: 6) {
+                    Text("POWERED BY")
+                        .font(.appLabel(9))
+                        .tracking(2)
+                    Text("OLLAMA")
+                        .font(.appLabel(9, weight: .medium))
+                        .tracking(2)
+                }
+                .foregroundStyle(Color.textTertiary)
+                .padding(.bottom, 8)
+
+                Link(destination: URL(string: "mailto:licensing@manticthink.com")!) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "envelope")
+                            .font(.system(size: 9, weight: .ultraLight))
+                        Text("CONTACT")
+                            .font(.appLabel(9))
+                            .tracking(2)
+                    }
+                    .foregroundStyle(Color.accent)
+                }
+                .padding(.bottom, 24)
             }
         }
     }

@@ -66,6 +66,20 @@ struct SettingsView: View {
                             row("API", AppConfig.apiHostDisplayName)
                         }
                     }
+
+                    // Contact
+                    Link(destination: URL(string: "mailto:licensing@manticthink.com")!) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "envelope")
+                                .font(.system(size: 11, weight: .ultraLight))
+                            Text("CONTACT")
+                                .font(.appLabel(10))
+                                .tracking(2)
+                        }
+                        .foregroundStyle(Color.accent)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
                 }
                 .padding(20)
             }

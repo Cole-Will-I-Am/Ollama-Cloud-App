@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -214,4 +215,108 @@ extension View {
     func chromeCard(cornerRadius: CGFloat = 20) -> some View {
         modifier(ChromeCard(radius: cornerRadius))
     }
+}
+
+// MARK: - MarkdownUI Themes
+
+extension MarkdownUI.Theme {
+    /// Assistant bubble markdown theme — light text on dark, styled tables and code.
+    static let seerAssistant = Theme()
+        .text {
+            ForegroundColor(Color.textPrimary)
+            FontSize(15)
+        }
+        .strong {
+            FontWeight(.semibold)
+        }
+        .code {
+            FontFamilyVariant(.monospaced)
+            ForegroundColor(Color.accent)
+            FontSize(13)
+        }
+        .link {
+            ForegroundColor(Color.accent)
+        }
+        .heading1 { configuration in
+            configuration.label
+                .markdownMargin(top: 16, bottom: 8)
+                .markdownTextStyle {
+                    FontSize(20)
+                    FontWeight(.semibold)
+                    ForegroundColor(Color.textPrimary)
+                }
+        }
+        .heading2 { configuration in
+            configuration.label
+                .markdownMargin(top: 12, bottom: 6)
+                .markdownTextStyle {
+                    FontSize(17)
+                    FontWeight(.semibold)
+                    ForegroundColor(Color.textPrimary)
+                }
+        }
+        .heading3 { configuration in
+            configuration.label
+                .markdownMargin(top: 10, bottom: 4)
+                .markdownTextStyle {
+                    FontSize(15)
+                    FontWeight(.semibold)
+                    ForegroundColor(Color.textPrimary)
+                }
+        }
+        .codeBlock { configuration in
+            ScrollView(.horizontal, showsIndicators: false) {
+                configuration.label
+                    .markdownTextStyle {
+                        FontFamilyVariant(.monospaced)
+                        FontSize(13)
+                        ForegroundColor(Color.textPrimary)
+                    }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.bgPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.border, lineWidth: 0.5)
+                    )
+            )
+        }
+        .table { configuration in
+            configuration.label
+                .markdownTableBorderStyle(
+                    .init(color: Color.border, width: 0.5)
+                )
+                .markdownTableBackgroundStyle(
+                    .alternatingRows(Color.clear, Color.white.opacity(0.02))
+                )
+        }
+        .tableCell { configuration in
+            configuration.label
+                .markdownTextStyle {
+                    FontSize(13)
+                    ForegroundColor(Color.textPrimary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+        }
+
+    /// User bubble theme — white text.
+    static let seerUser = Theme()
+        .text {
+            ForegroundColor(.white)
+            FontSize(15)
+        }
+        .strong {
+            FontWeight(.semibold)
+        }
+        .code {
+            FontFamilyVariant(.monospaced)
+            ForegroundColor(.white.opacity(0.85))
+            FontSize(13)
+        }
+        .link {
+            ForegroundColor(.white.opacity(0.85))
+        }
 }
