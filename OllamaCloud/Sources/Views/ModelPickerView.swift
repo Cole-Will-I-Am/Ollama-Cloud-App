@@ -1,17 +1,19 @@
 import SwiftUI
+import CryptoKit
 
 struct ModelPickerView: View {
     let onSelect: (OllamaModel) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("favorite_model_names_json") private var favoriteModelNamesJSON = "[]"
-    @AppStorage("hide_non_favorite_models") private var hideNonFavoriteModels = false
+    @AppStorage("favorite_model_names_by_account_json") private var favoriteModelNamesByAccountJSON = "{}"
+    @AppStorage("hide_non_favorite_models_by_account_json") private var hideNonFavoriteModelsByAccountJSON = "{}"
     @State private var models: [OllamaModel] = []
     @State private var isLoading = true
     @State private var error: String?
     @State private var searchText = ""
     @State private var fetchTask: Task<Void, Never>?
     @State private var favoriteModelNames: Set<String> = []
+    @State private var hideNonFavoriteModels = false
 
     private var searchedModels: [OllamaModel] {
         if searchText.isEmpty { return models }
@@ -115,6 +117,7 @@ struct ModelPickerView: View {
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     hideNonFavoriteModels = false
                                 }
+                                persistHideNonFavoritePreference()
                             } label: {
                                 Text("SHOW ALL MODELS")
                                     .font(.appLabel(10))
@@ -137,6 +140,7 @@ struct ModelPickerView: View {
                                     withAnimation(.snappy(duration: 0.2)) {
                                         hideNonFavoriteModels.toggle()
                                     }
+                                    persistHideNonFavoritePreference()
                                     Haptic.selection()
                                 } label: {
                                     HStack(spacing: 5) {
@@ -194,7 +198,7 @@ struct ModelPickerView: View {
             }
         }
         .onAppear {
-            loadFavorites()
+            loadPreferences()
             fetchModels()
         }
         .onDisappear { fetchTask?.cancel() }
@@ -295,22 +299,62 @@ struct ModelPickerView: View {
         .padding(.horizontal, 12)
     }
 
-    private func loadFavorites() {
-        guard let data = favoriteModelNamesJSON.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
-            favoriteModelNames = []
-            return
+    private func accountScopeKey() -> String {
+        let rawHost = URL(string: AppConfig.apiBaseURL)?.host ?? AppConfig.apiBaseURL
+        let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let apiKey = KeychainHelper.load(key: "api_key")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let fingerprint = SHA256.hash(data: Data(apiKey.utf8))
+            .compactMap { String(format: "%02x", $0) }
+            .joined()
+        return "\(host)#\(fingerprint)"
+    }
+
+    private func loadPreferences() {
+        let scope = accountScopeKey()
+        let favoriteMap = decodeFavoritesByAccount()
+        favoriteModelNames = Set(favoriteMap[scope] ?? [])
+
+        let hideMap = decodeHidePreferenceByAccount()
+        hideNonFavoriteModels = hideMap[scope] ?? false
+    }
+
+    private func decodeFavoritesByAccount() -> [String: [String]] {
+        guard let data = favoriteModelNamesByAccountJSON.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String: [String]].self, from: data) else {
+            return [:]
         }
-        favoriteModelNames = Set(decoded)
+        return decoded
+    }
+
+    private func decodeHidePreferenceByAccount() -> [String: Bool] {
+        guard let data = hideNonFavoriteModelsByAccountJSON.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String: Bool].self, from: data) else {
+            return [:]
+        }
+        return decoded
     }
 
     private func persistFavorites() {
         let encoded = Array(favoriteModelNames).sorted()
-        guard let data = try? JSONEncoder().encode(encoded),
+        var map = decodeFavoritesByAccount()
+        map[accountScopeKey()] = encoded
+
+        guard let data = try? JSONEncoder().encode(map),
               let json = String(data: data, encoding: .utf8) else {
             return
         }
-        favoriteModelNamesJSON = json
+        favoriteModelNamesByAccountJSON = json
+    }
+
+    private func persistHideNonFavoritePreference() {
+        var map = decodeHidePreferenceByAccount()
+        map[accountScopeKey()] = hideNonFavoriteModels
+
+        guard let data = try? JSONEncoder().encode(map),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        hideNonFavoriteModelsByAccountJSON = json
     }
 
     private func toggleFavorite(_ model: OllamaModel) {

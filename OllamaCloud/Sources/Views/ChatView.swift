@@ -29,6 +29,7 @@ struct ChatView: View {
     @State private var pendingImageAttachments: [PendingImageAttachment] = []
     @State private var pendingFileAttachments: [PendingFileAttachment] = []
     @State private var attachmentError: String?
+    @State private var showVisionModelWarning = false
 
     private struct PendingImageAttachment: Identifiable, Equatable {
         let id = UUID()
@@ -55,121 +56,7 @@ struct ChatView: View {
                 offlineBanner
             }
 
-            ZStack(alignment: .bottom) {
-                GeometryReader { scrollGeo in
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            if messages.isEmpty && !streaming.isStreaming {
-                                emptyState
-                                    .frame(maxWidth: .infinity)
-                                    .frame(minHeight: scrollGeo.size.height - 1)
-                            } else {
-                                LazyVStack(spacing: 16) {
-                                    ForEach(messages) { message in
-                                        MessageRow(message: message)
-                                            .id(message.id)
-                                    }
-
-                                    if streaming.isStreaming {
-                                        if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                streamingBubble
-                                                streamingStats
-                                            }
-                                            .id("streaming")
-                                        } else {
-                                            TypingIndicator()
-                                                .id("typing")
-                                        }
-                                    }
-
-                                    if let error = streaming.error {
-                                        errorBubble(error)
-                                            .id("error")
-                                    }
-
-                                    // Bottom anchor for scroll detection
-                                    GeometryReader { anchorGeo in
-                                        Color.clear
-                                            .onAppear {
-                                                updateScrollPosition(
-                                                    anchorMaxY: anchorGeo.frame(in: .named("chatScroll")).maxY
-                                                )
-                                            }
-                                            .onChange(of: anchorGeo.frame(in: .named("chatScroll")).maxY) { _, newValue in
-                                                updateScrollPosition(anchorMaxY: newValue)
-                                            }
-                                    }
-                                    .frame(height: 1)
-                                    .id("bottomAnchor")
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.top, 12)
-                                .padding(.bottom, 8)
-                            }
-                        }
-                        .coordinateSpace(name: "chatScroll")
-                        .scrollDismissesKeyboard(.interactively)
-                        .onAppear {
-                            updateScrollPosition(viewportHeight: scrollGeo.size.height)
-                        }
-                        .onChange(of: scrollGeo.size.height) { _, newHeight in
-                            updateScrollPosition(viewportHeight: newHeight)
-                        }
-                        .onChange(of: messages.count) {
-                            if isAtBottom {
-                                scrollToBottom(proxy: proxy, messages: messages)
-                            } else {
-                                withAnimation(.easeOut(duration: 0.2)) { hasNewMessage = true }
-                            }
-                        }
-                        .onChange(of: streaming.streamingContent) {
-                            if isAtBottom {
-                                scrollToBottom(proxy: proxy, messages: messages)
-                            }
-                            // Success haptic on first token arrival
-                            if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
-                                sentFirstTokenHaptic = true
-                                Haptic.notification(.success)
-                            }
-                        }
-                        .onChange(of: streaming.isStreaming) { _, isNow in
-                            if isNow { sentFirstTokenHaptic = false }
-                        }
-                        .overlay(alignment: .bottom) {
-                            // "New Messages" floating button
-                            if hasNewMessage && !isAtBottom {
-                                Button {
-                                    withAnimation(.snappy(duration: 0.3)) {
-                                        scrollToBottom(proxy: proxy, messages: messages)
-                                        hasNewMessage = false
-                                        isAtBottom = true
-                                    }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "arrow.down")
-                                            .font(.system(size: 10, weight: .medium))
-                                        Text("NEW")
-                                            .font(.appLabel(9))
-                                            .tracking(2)
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        Capsule()
-                                            .fill(.ultraThinMaterial)
-                                            .overlay(Capsule().fill(Color.accent.opacity(0.5)))
-                                    )
-                                    .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-                                }
-                                .padding(.bottom, 8)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
-                        }
-                    }
-                }
-            }
+            chatContent(messages: messages)
 
             inputBar
         }
@@ -274,6 +161,130 @@ struct ChatView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(attachmentError ?? "Unable to load attachment.")
+        }
+        .alert("Vision Model Recommended", isPresented: $showVisionModelWarning) {
+            Button("Choose Model") {
+                showModelPicker = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The selected model may not support image input. Choose a vision-capable model or remove image attachments.")
+        }
+    }
+
+    @ViewBuilder
+    private func chatContent(messages: [Message]) -> some View {
+        ZStack(alignment: .bottom) {
+            GeometryReader { scrollGeo in
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        if messages.isEmpty && !streaming.isStreaming {
+                            emptyState
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: scrollGeo.size.height - 1)
+                        } else {
+                            LazyVStack(spacing: 16) {
+                                ForEach(messages) { message in
+                                    MessageRow(message: message)
+                                        .id(message.id)
+                                }
+
+                                if streaming.isStreaming {
+                                    if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            streamingBubble
+                                            streamingStats
+                                        }
+                                        .id("streaming")
+                                    } else {
+                                        TypingIndicator()
+                                            .id("typing")
+                                    }
+                                }
+
+                                if let error = streaming.error {
+                                    errorBubble(error)
+                                        .id("error")
+                                }
+
+                                GeometryReader { anchorGeo in
+                                    Color.clear
+                                        .onAppear {
+                                            updateScrollPosition(
+                                                anchorMaxY: anchorGeo.frame(in: .named("chatScroll")).maxY
+                                            )
+                                        }
+                                        .onChange(of: anchorGeo.frame(in: .named("chatScroll")).maxY) { _, newValue in
+                                            updateScrollPosition(anchorMaxY: newValue)
+                                        }
+                                }
+                                .frame(height: 1)
+                                .id("bottomAnchor")
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .padding(.bottom, 8)
+                        }
+                    }
+                    .coordinateSpace(name: "chatScroll")
+                    .scrollDismissesKeyboard(.interactively)
+                    .onAppear {
+                        updateScrollPosition(viewportHeight: scrollGeo.size.height)
+                    }
+                    .onChange(of: scrollGeo.size.height) { _, newHeight in
+                        updateScrollPosition(viewportHeight: newHeight)
+                    }
+                    .onChange(of: messages.count) {
+                        if isAtBottom {
+                            scrollToBottom(proxy: proxy, messages: messages)
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) { hasNewMessage = true }
+                        }
+                    }
+                    .onChange(of: streaming.streamingContent) {
+                        if isAtBottom {
+                            scrollToBottom(proxy: proxy, messages: messages)
+                        }
+                        if !sentFirstTokenHaptic && !streaming.streamingContent.isEmpty {
+                            sentFirstTokenHaptic = true
+                            Haptic.notification(.success)
+                        }
+                    }
+                    .onChange(of: streaming.isStreaming) { _, isNow in
+                        if isNow { sentFirstTokenHaptic = false }
+                    }
+                    .overlay(alignment: .bottom) {
+                        if hasNewMessage && !isAtBottom {
+                            Button {
+                                withAnimation(.snappy(duration: 0.3)) {
+                                    scrollToBottom(proxy: proxy, messages: messages)
+                                    hasNewMessage = false
+                                    isAtBottom = true
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 10, weight: .medium))
+                                    Text("NEW")
+                                        .font(.appLabel(9))
+                                        .tracking(2)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule()
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(Capsule().fill(Color.accent.opacity(0.5)))
+                                )
+                                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                            }
+                            .padding(.bottom, 8)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -476,8 +487,23 @@ struct ChatView: View {
                 }
                 .foregroundStyle(Color.danger)
 
-                // Retry button
-                if streaming.canRetryLast, !streaming.isStreaming {
+                // Recovery button
+                if streaming.recoveryAction == .chooseModel, !streaming.isStreaming {
+                    Button {
+                        showModelPicker = true
+                        streaming.error = nil
+                        streaming.recoveryAction = nil
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 10, weight: .ultraLight))
+                            Text("CHOOSE MODEL")
+                                .font(.appLabel(10))
+                                .tracking(2)
+                        }
+                        .foregroundStyle(Color.accent)
+                    }
+                } else if streaming.canRetryLast, !streaming.isStreaming {
                     Button {
                         retryLast()
                     } label: {
@@ -506,6 +532,7 @@ struct ChatView: View {
             .onTapGesture {
                 withAnimation(.easeOut(duration: 0.2)) {
                     streaming.error = nil
+                    streaming.recoveryAction = nil
                 }
             }
             Spacer()
@@ -632,6 +659,10 @@ struct ChatView: View {
     private func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (!text.isEmpty || hasPendingAttachments), !conversation.modelName.isEmpty else { return }
+        if !pendingImageAttachments.isEmpty && !isLikelyVisionModel(conversation.modelName) {
+            showVisionModelWarning = true
+            return
+        }
 
         let attachmentSummary = makeAttachmentSummary()
         let requestContent = makeRequestContent(userText: text)
@@ -642,21 +673,25 @@ struct ChatView: View {
         pendingFileAttachments.removeAll()
 
         Haptic.impact()
-        streaming.sendMessage(
-            content: text,
-            requestContent: requestContent,
-            imageBase64s: imageBase64s,
-            attachmentSummary: attachmentSummary,
-            conversation: conversation,
-            modelContext: modelContext
-        )
+        Task {
+            await streaming.sendMessage(
+                content: text,
+                requestContent: requestContent,
+                imageBase64s: imageBase64s,
+                attachmentSummary: attachmentSummary,
+                conversation: conversation,
+                modelContext: modelContext
+            )
+        }
     }
 
     private func retryLast() {
         streaming.error = nil
 
         Haptic.impact()
-        streaming.retryLast(conversation: conversation, modelContext: modelContext)
+        Task {
+            await streaming.retryLast(conversation: conversation, modelContext: modelContext)
+        }
     }
 
     private func updateScrollPosition(anchorMaxY: CGFloat? = nil, viewportHeight: CGFloat? = nil) {
@@ -762,6 +797,15 @@ struct ChatView: View {
         \(sections)
         --- End Attached Files ---
         """
+    }
+
+    private func isLikelyVisionModel(_ modelName: String) -> Bool {
+        let lower = modelName.lowercased()
+        return lower.contains("vision")
+            || lower.contains("llava")
+            || lower.contains("moondream")
+            || lower.contains("vl")
+            || lower.contains("multimodal")
     }
 
     private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {

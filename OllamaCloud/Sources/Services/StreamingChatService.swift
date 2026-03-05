@@ -3,11 +3,17 @@ import SwiftData
 
 @MainActor
 class StreamingChatService: ObservableObject {
+    enum RecoveryAction: Equatable {
+        case retry
+        case chooseModel
+    }
+
     @Published var streamingContent = ""
     @Published var streamingThinking = ""
     @Published var isStreaming = false
     @Published var isThinking = false
     @Published var error: String?
+    @Published var recoveryAction: RecoveryAction?
 
     // Streaming metrics
     @Published var tokenCount: Int = 0
@@ -32,7 +38,7 @@ class StreamingChatService: ObservableObject {
         attachmentSummary: String? = nil,
         conversation: Conversation,
         modelContext: ModelContext
-    ) {
+    ) async {
         let resolvedRequestContent = requestContent ?? content
         let resolvedDisplayContent: String = {
             if let attachmentSummary, !attachmentSummary.isEmpty {
@@ -48,6 +54,27 @@ class StreamingChatService: ObservableObject {
         lastSentRequestContent = resolvedRequestContent
         lastSentImageBase64s = imageBase64s
         lastSentAttachmentSummary = attachmentSummary
+        recoveryAction = nil
+        error = nil
+
+        let model = conversation.modelName
+
+        do {
+            let modelAvailable = try await OllamaAPIClient.shared.isModelAvailable(model)
+            guard modelAvailable else {
+                error = OllamaAPIError.modelUnavailable.userMessage
+                recoveryAction = .chooseModel
+                return
+            }
+        } catch let apiError as OllamaAPIError {
+            self.error = apiError.userMessage
+            recoveryAction = apiError.suggestsModelReselect ? .chooseModel : .retry
+            return
+        } catch let caughtError {
+            self.error = caughtError.localizedDescription
+            recoveryAction = .retry
+            return
+        }
 
         let imageJSON: String? = {
             guard !imageBase64s.isEmpty,
@@ -133,14 +160,11 @@ class StreamingChatService: ObservableObject {
             num_thread: conversation.numThread != 0 ? conversation.numThread : nil
         )
 
-        let model = conversation.modelName
-
         // Start streaming
         isStreaming = true
         isThinking = false
         streamingContent = ""
         streamingThinking = ""
-        error = nil
         receivedAnyTokens = false
         tokenCount = 0
         tokensPerSecond = 0
@@ -201,6 +225,7 @@ class StreamingChatService: ObservableObject {
             streamingThinking = ""
             isStreaming = false
             isThinking = false
+            recoveryAction = nil
         }
     }
 
@@ -270,8 +295,10 @@ class StreamingChatService: ObservableObject {
 
         if let apiError = error as? OllamaAPIError {
             self.error = apiError.userMessage
+            self.recoveryAction = apiError.suggestsModelReselect ? .chooseModel : (canRetryLast ? .retry : nil)
         } else {
             self.error = error.localizedDescription
+            self.recoveryAction = canRetryLast ? .retry : nil
         }
     }
 
@@ -279,10 +306,10 @@ class StreamingChatService: ObservableObject {
         lastSentRequestContent != nil
     }
 
-    func retryLast(conversation: Conversation, modelContext: ModelContext) {
+    func retryLast(conversation: Conversation, modelContext: ModelContext) async {
         guard let lastSentRequestContent else { return }
 
-        sendMessage(
+        await sendMessage(
             content: lastSentContent ?? "",
             requestContent: lastSentRequestContent,
             imageBase64s: lastSentImageBase64s,
@@ -316,6 +343,7 @@ class StreamingChatService: ObservableObject {
         streamingThinking = ""
         isStreaming = false
         isThinking = false
+        recoveryAction = nil
         streamTask = nil
     }
 

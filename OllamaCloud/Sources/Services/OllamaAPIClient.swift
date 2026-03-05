@@ -7,6 +7,7 @@ enum OllamaAPIError: LocalizedError {
     case offline
     case timeout
     case unauthorized
+    case modelUnavailable
     case rateLimited(retryAfter: TimeInterval?)
     case serverError(String)
     case invalidResponse
@@ -17,6 +18,7 @@ enum OllamaAPIError: LocalizedError {
         case .offline: return "No internet connection"
         case .timeout: return "Request timed out"
         case .unauthorized: return "Invalid API key"
+        case .modelUnavailable: return "Selected model is unavailable"
         case .rateLimited: return "Too many requests — please wait a moment"
         case .serverError(let msg): return msg
         case .invalidResponse: return "Invalid server response"
@@ -30,6 +32,7 @@ enum OllamaAPIError: LocalizedError {
         case .offline: return "You're offline. Check your connection."
         case .timeout: return "Request timed out. Try again."
         case .unauthorized: return "Invalid API key. Update it in Settings."
+        case .modelUnavailable: return "Selected model is no longer available. Choose another model."
         case .rateLimited: return "Rate limited. Wait a moment and retry."
         case .serverError: return "Server error. Try again shortly."
         case .invalidResponse: return "Unexpected response from server."
@@ -40,7 +43,16 @@ enum OllamaAPIError: LocalizedError {
     var isTransient: Bool {
         switch self {
         case .timeout, .serverError, .networkError, .offline: return true
-        case .unauthorized, .rateLimited, .invalidResponse: return false
+        case .unauthorized, .modelUnavailable, .rateLimited, .invalidResponse: return false
+        }
+    }
+
+    var suggestsModelReselect: Bool {
+        switch self {
+        case .modelUnavailable:
+            return true
+        default:
+            return false
         }
     }
 }
@@ -103,6 +115,10 @@ actor OllamaAPIClient {
 
     private let maxRetries = 2
     private let retryDelays: [UInt64] = [1_000_000_000, 3_000_000_000] // 1s, 3s in nanoseconds
+    private let modelCacheTTL: TimeInterval = 60
+    private var cachedModels: [OllamaModel]?
+    private var cachedModelsAt: Date?
+    private var cachedModelsScopeKey: String?
 
     // Dedicated session with timeouts
     private let session: URLSession = {
@@ -128,6 +144,15 @@ actor OllamaAPIClient {
 
     private var baseURL: String {
         AppConfig.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    private func cacheScopeKey(for key: String?) -> String? {
+        guard let key, !key.isEmpty else { return nil }
+        let host = URL(string: baseURL)?.host?.lowercased() ?? baseURL.lowercased()
+        let digest = SHA256.hash(data: Data(key.utf8))
+            .compactMap { String(format: "%02x", $0) }
+            .joined()
+        return "\(host)#\(digest)"
     }
 
     private func makeURL(path: String) -> URL? {
@@ -232,9 +257,26 @@ actor OllamaAPIClient {
 
     // MARK: - Fetch Models
 
-    func fetchModels() async throws -> [OllamaModel] {
-        try await performWithRetry {
-            guard let key = self.apiKey else { throw OllamaAPIError.unauthorized }
+    func fetchModels(useCache: Bool = true) async throws -> [OllamaModel] {
+        let key = apiKey
+        let scopeKey = cacheScopeKey(for: key)
+
+        if useCache,
+           let cachedModels,
+           let cachedModelsAt,
+           let cachedModelsScopeKey,
+           cachedModelsScopeKey == scopeKey,
+           Date().timeIntervalSince(cachedModelsAt) < modelCacheTTL {
+            return cachedModels
+        }
+
+        return try await performWithRetry {
+            guard let key else {
+                self.cachedModels = nil
+                self.cachedModelsAt = nil
+                self.cachedModelsScopeKey = nil
+                throw OllamaAPIError.unauthorized
+            }
             guard let url = self.makeURL(path: "/api/tags") else {
                 throw OllamaAPIError.invalidResponse
             }
@@ -251,8 +293,36 @@ actor OllamaAPIClient {
             if let error = self.classifyHTTPResponse(http) { throw error }
 
             let decoded = try JSONDecoder().decode(OllamaModelsResponse.self, from: data)
+            self.cachedModels = decoded.models
+            self.cachedModelsAt = Date()
+            self.cachedModelsScopeKey = scopeKey
             return decoded.models
         }
+    }
+
+    func isModelAvailable(_ modelName: String) async throws -> Bool {
+        let normalizedModel = normalizeModelName(modelName)
+        let cached = try await fetchModels(useCache: true)
+        if containsModel(named: normalizedModel, in: cached) {
+            return true
+        }
+
+        let fresh = try await fetchModels(useCache: false)
+        return containsModel(named: normalizedModel, in: fresh)
+    }
+
+    private func containsModel(named modelName: String, in models: [OllamaModel]) -> Bool {
+        let normalizedTarget = normalizeModelName(modelName)
+        for model in models {
+            if normalizeModelName(model.name) == normalizedTarget {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func normalizeModelName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     // MARK: - Stream Chat (no retry — caller handles retry for streams)
@@ -284,6 +354,10 @@ actor OllamaAPIClient {
 
         guard let http = response as? HTTPURLResponse else {
             throw OllamaAPIError.invalidResponse
+        }
+
+        if http.statusCode == 400 || http.statusCode == 404 {
+            throw OllamaAPIError.modelUnavailable
         }
 
         if let error = classifyHTTPResponse(http) {
