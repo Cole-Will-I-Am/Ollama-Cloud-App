@@ -12,7 +12,6 @@ struct RootView: View {
             }
         }
         .onAppear {
-            // Sync AppStorage with Keychain state
             if KeychainHelper.load(key: "api_key") == nil {
                 hasAPIKey = false
             }
@@ -33,6 +32,7 @@ struct MainAppView: View {
                             showSettings = true
                         } label: {
                             Image(systemName: "gearshape")
+                                .font(.body.weight(.light))
                                 .foregroundStyle(Color.textSecondary)
                         }
                     }
@@ -41,11 +41,17 @@ struct MainAppView: View {
             if let conversation = selectedConversation {
                 ChatView(conversation: conversation)
             } else {
-                ContentUnavailableView(
-                    "No Conversation Selected",
-                    systemImage: "bubble.left.and.bubble.right",
-                    description: Text("Select or create a conversation to start chatting.")
-                )
+                ZStack {
+                    Color.bgPrimary.ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 40, weight: .ultraLight))
+                            .foregroundStyle(Color.textTertiary)
+                        Text("Select a conversation")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                }
             }
         }
         .sheet(isPresented: $showSettings) {

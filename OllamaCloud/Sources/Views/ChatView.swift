@@ -8,6 +8,7 @@ struct ChatView: View {
     @State private var input = ""
     @State private var showModelPicker = false
     @State private var showParameters = false
+    @State private var showStreamingThinking = true
 
     private var sortedMessages: [Message] {
         conversation.messages.sorted { $0.createdAt < $1.createdAt }
@@ -21,13 +22,13 @@ struct ChatView: View {
                     if sortedMessages.isEmpty && !streaming.isStreaming {
                         emptyState
                     } else {
-                        LazyVStack(spacing: 12) {
+                        LazyVStack(spacing: 14) {
                             ForEach(sortedMessages) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
                             }
 
-                            // Streaming content
+                            // Streaming
                             if streaming.isStreaming {
                                 if !streaming.streamingThinking.isEmpty || !streaming.streamingContent.isEmpty {
                                     streamingBubble
@@ -38,12 +39,12 @@ struct ChatView: View {
                                 }
                             }
 
-                            // Error
                             if let error = streaming.error {
                                 errorBubble(error)
                             }
                         }
-                        .padding()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
                 }
                 .onChange(of: sortedMessages.count) {
@@ -54,9 +55,6 @@ struct ChatView: View {
                 }
             }
 
-            Divider()
-                .background(Color.border)
-
             // Input bar
             inputBar
         }
@@ -65,11 +63,29 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 16) {
+                HStack(spacing: 14) {
+                    // Model badge
+                    if !conversation.modelName.isEmpty {
+                        Text(conversation.modelName)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(Color.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.accent.opacity(0.1))
+                                    .overlay(
+                                        Capsule().stroke(Color.accent.opacity(0.2), lineWidth: 0.5)
+                                    )
+                            )
+                            .onTapGesture { showModelPicker = true }
+                    }
+
                     Button {
                         showModelPicker = true
                     } label: {
                         Image(systemName: "cpu")
+                            .font(.body.weight(.light))
                             .foregroundStyle(Color.textSecondary)
                     }
 
@@ -77,6 +93,7 @@ struct ChatView: View {
                         showParameters = true
                     } label: {
                         Image(systemName: "slider.horizontal.3")
+                            .font(.body.weight(.light))
                             .foregroundStyle(Color.textSecondary)
                     }
                 }
@@ -94,45 +111,57 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Spacer()
             if conversation.modelName.isEmpty {
                 Image(systemName: "cpu")
-                    .font(.system(size: 48))
+                    .font(.system(size: 44, weight: .ultraLight))
+                    .foregroundStyle(Color.textTertiary)
+                Text("Select a model")
+                    .font(.subheadline)
                     .foregroundStyle(Color.textSecondary)
-                Text("Select a model to start chatting")
-                    .foregroundStyle(Color.textSecondary)
-                Button("Choose Model") {
+                Button {
                     showModelPicker = true
+                } label: {
+                    Text("Choose Model")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(LinearGradient.accentGradient)
+                                .overlay(
+                                    Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                                )
+                        )
                 }
-                .buttonStyle(.borderedProminent)
             } else {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 48))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 40, weight: .ultraLight))
+                    .foregroundStyle(Color.accent.opacity(0.5))
+                Text("Start a conversation")
+                    .font(.subheadline)
                     .foregroundStyle(Color.textSecondary)
-                Text("Send a message to start chatting with **\(conversation.modelName)**")
-                    .foregroundStyle(Color.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
             }
             Spacer()
         }
         .frame(maxHeight: .infinity)
     }
 
+    // MARK: - Streaming Bubble
+
     private var streamingRendered: AttributedString {
         (try? AttributedString(markdown: streaming.streamingContent, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(streaming.streamingContent)
     }
 
-    @State private var showStreamingThinking = true
-
     private var streamingBubble: some View {
         HStack {
             VStack(alignment: .leading, spacing: 0) {
-                // Thinking section (while thinking or if thinking completed)
+                // Thinking
                 if !streaming.streamingThinking.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         Button {
@@ -142,20 +171,15 @@ struct ChatView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "brain")
-                                    .font(.caption)
-                                if streaming.isThinking {
-                                    Text("Thinking...")
-                                        .font(.caption.weight(.medium))
-                                } else {
-                                    Text("Thinking")
-                                        .font(.caption.weight(.medium))
-                                }
+                                    .font(.caption2)
+                                Text(streaming.isThinking ? "Thinking..." : "Thinking")
+                                    .font(.caption2.weight(.medium))
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.caption2)
+                                    .font(.system(size: 8, weight: .semibold))
                                     .rotationEffect(.degrees(showStreamingThinking ? 90 : 0))
                             }
-                            .foregroundStyle(Color.textSecondary)
+                            .foregroundStyle(Color.textTertiary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                         }
@@ -164,13 +188,13 @@ struct ChatView: View {
                         if showStreamingThinking {
                             Text(streaming.streamingThinking)
                                 .font(.caption)
-                                .foregroundStyle(Color.textSecondary)
+                                .foregroundStyle(Color.textTertiary)
                                 .textSelection(.enabled)
                                 .padding(.horizontal, 12)
                                 .padding(.bottom, 8)
                         }
                     }
-                    .background(Color.assistantBubble.opacity(0.7))
+                    .background(Color.white.opacity(0.02))
                     .clipShape(
                         .rect(
                             topLeadingRadius: 16,
@@ -179,15 +203,25 @@ struct ChatView: View {
                             topTrailingRadius: 16
                         )
                     )
+                    .overlay(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 16,
+                            bottomLeadingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
+                            bottomTrailingRadius: streaming.streamingContent.isEmpty ? 16 : 0,
+                            topTrailingRadius: 16
+                        )
+                        .stroke(Color.border, lineWidth: 0.5)
+                    )
                 }
 
-                // Response content
+                // Content
                 if !streaming.streamingContent.isEmpty {
                     Text(streamingRendered)
                         .textSelection(.enabled)
                         .padding(12)
-                        .background(Color.assistantBubble)
+                        .font(.body)
                         .foregroundStyle(Color.textPrimary)
+                        .background(Color.assistantBubble)
                         .clipShape(
                             .rect(
                                 topLeadingRadius: streaming.streamingThinking.isEmpty ? 16 : 0,
@@ -196,7 +230,15 @@ struct ChatView: View {
                                 topTrailingRadius: streaming.streamingThinking.isEmpty ? 16 : 0
                             )
                         )
-                        .font(.body)
+                        .overlay(
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: streaming.streamingThinking.isEmpty ? 16 : 0,
+                                bottomLeadingRadius: 16,
+                                bottomTrailingRadius: 16,
+                                topTrailingRadius: streaming.streamingThinking.isEmpty ? 16 : 0
+                            )
+                            .stroke(Color.border, lineWidth: 0.5)
+                        )
                 }
             }
             Spacer(minLength: 60)
@@ -205,48 +247,71 @@ struct ChatView: View {
 
     private func errorBubble(_ message: String) -> some View {
         HStack {
-            Label(message, systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(Color.danger)
-                .padding(12)
-                .background(Color.danger.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.caption)
+                Text(message)
+                    .font(.caption)
+            }
+            .foregroundStyle(Color.danger)
+            .padding(12)
+            .background(Color.danger.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.danger.opacity(0.15), lineWidth: 0.5)
+            )
             Spacer()
         }
     }
 
-    private var inputBar: some View {
-        HStack(spacing: 12) {
-            TextField("Message...", text: $input, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .padding(12)
-                .background(Color.bgSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.border, lineWidth: 1)
-                )
-                .onSubmit { send() }
+    // MARK: - Input Bar
 
-            if streaming.isStreaming {
-                Button {
-                    streaming.cancel(conversation: conversation, modelContext: modelContext)
-                } label: {
-                    Image(systemName: "stop.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color.danger)
+    private var inputBar: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.border)
+                .frame(height: 0.5)
+
+            HStack(spacing: 12) {
+                TextField("Message...", text: $input, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...5)
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.bgSecondary)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.borderLight, lineWidth: 0.5)
+                            )
+                    )
+                    .onSubmit { send() }
+
+                if streaming.isStreaming {
+                    Button {
+                        streaming.cancel(conversation: conversation, modelContext: modelContext)
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 34))
+                            .foregroundStyle(Color.danger)
+                    }
+                } else {
+                    Button(action: send) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 34))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(canSend ? Color.accent : Color.textTertiary.opacity(0.4))
+                    }
+                    .disabled(!canSend)
                 }
-            } else {
-                Button(action: send) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(canSend ? Color.accent : Color.border)
-                }
-                .disabled(!canSend)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.bgPrimary)
         }
-        .padding()
     }
 
     // MARK: - Helpers
@@ -272,7 +337,7 @@ struct ChatView: View {
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
         if streaming.isStreaming {
-            if !streaming.streamingContent.isEmpty {
+            if !streaming.streamingContent.isEmpty || !streaming.streamingThinking.isEmpty {
                 proxy.scrollTo("streaming", anchor: .bottom)
             } else {
                 proxy.scrollTo("typing", anchor: .bottom)

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MessageRow: View {
     let message: Message
-
     @State private var showThinking = false
 
     private var rendered: AttributedString {
@@ -19,26 +18,59 @@ struct MessageRow: View {
                     thinkingSection(thinking)
                 }
 
-                // Main content
-                Text(rendered)
-                    .textSelection(.enabled)
-                    .padding(12)
-                    .background(message.role == "user" ? Color.userBubble : Color.assistantBubble)
-                    .foregroundStyle(message.role == "user" ? .white : Color.textPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: message.thinkingContent != nil ? 0 : 16))
-                    .clipShape(
-                        .rect(
-                            topLeadingRadius: message.thinkingContent != nil ? 0 : 16,
-                            bottomLeadingRadius: 16,
-                            bottomTrailingRadius: 16,
-                            topTrailingRadius: message.thinkingContent != nil ? 0 : 16
-                        )
-                    )
-                    .font(.body)
+                // Content
+                if message.role == "user" {
+                    userBubble
+                } else {
+                    assistantBubble
+                }
             }
 
             if message.role != "user" { Spacer(minLength: 60) }
         }
+    }
+
+    private var userBubble: some View {
+        Text(rendered)
+            .textSelection(.enabled)
+            .padding(12)
+            .font(.body)
+            .foregroundStyle(.white)
+            .background(
+                LinearGradient.accentGradient
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+            )
+    }
+
+    private var assistantBubble: some View {
+        let hasThinking = message.thinkingContent != nil && !(message.thinkingContent?.isEmpty ?? true)
+        return Text(rendered)
+            .textSelection(.enabled)
+            .padding(12)
+            .font(.body)
+            .foregroundStyle(Color.textPrimary)
+            .background(Color.assistantBubble)
+            .clipShape(
+                .rect(
+                    topLeadingRadius: hasThinking ? 0 : 16,
+                    bottomLeadingRadius: 16,
+                    bottomTrailingRadius: 16,
+                    topTrailingRadius: hasThinking ? 0 : 16
+                )
+            )
+            .overlay(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: hasThinking ? 0 : 16,
+                    bottomLeadingRadius: 16,
+                    bottomTrailingRadius: 16,
+                    topTrailingRadius: hasThinking ? 0 : 16
+                )
+                .stroke(Color.border, lineWidth: 0.5)
+            )
     }
 
     private func thinkingSection(_ thinking: String) -> some View {
@@ -50,15 +82,15 @@ struct MessageRow: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "brain")
-                        .font(.caption)
+                        .font(.caption2)
                     Text("Thinking")
-                        .font(.caption.weight(.medium))
+                        .font(.caption2.weight(.medium))
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption2)
+                        .font(.system(size: 8, weight: .semibold))
                         .rotationEffect(.degrees(showThinking ? 90 : 0))
                 }
-                .foregroundStyle(Color.textSecondary)
+                .foregroundStyle(Color.textTertiary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
@@ -67,14 +99,14 @@ struct MessageRow: View {
             if showThinking {
                 Text(thinking)
                     .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
+                    .foregroundStyle(Color.textTertiary)
                     .textSelection(.enabled)
                     .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 10)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(Color.assistantBubble.opacity(0.7))
+        .background(Color.white.opacity(0.02))
         .clipShape(
             .rect(
                 topLeadingRadius: 16,
@@ -82,6 +114,15 @@ struct MessageRow: View {
                 bottomTrailingRadius: 0,
                 topTrailingRadius: 16
             )
+        )
+        .overlay(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 16,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 16
+            )
+            .stroke(Color.border, lineWidth: 0.5)
         )
     }
 }

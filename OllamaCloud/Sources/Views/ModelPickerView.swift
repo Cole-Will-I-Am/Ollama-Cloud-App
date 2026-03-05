@@ -16,49 +16,82 @@ struct ModelPickerView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
+                Color.bgPrimary.ignoresSafeArea()
+
                 if isLoading {
-                    ProgressView("Loading models...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ProgressView()
+                        .tint(Color.accent)
                 } else if let error {
-                    ContentUnavailableView {
-                        Label("Failed to Load", systemImage: "exclamationmark.triangle")
-                    } description: {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 36, weight: .ultraLight))
+                            .foregroundStyle(Color.danger)
                         Text(error)
-                    } actions: {
+                            .font(.subheadline)
+                            .foregroundStyle(Color.textSecondary)
+                            .multilineTextAlignment(.center)
                         Button("Retry") { fetchModels() }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color.accent)
                     }
+                    .padding()
                 } else if models.isEmpty {
-                    ContentUnavailableView(
-                        "No Models",
-                        systemImage: "cpu",
-                        description: Text("No models found in your Ollama Cloud account.")
-                    )
+                    VStack(spacing: 12) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 36, weight: .ultraLight))
+                            .foregroundStyle(Color.textTertiary)
+                        Text("No models found")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.textTertiary)
+                    }
                 } else {
                     List(filteredModels) { model in
                         Button {
                             onSelect(model)
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(model.displayName)
-                                    .font(.body)
-                                    .foregroundStyle(Color.textPrimary)
-                                Text(model.name)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.textSecondary)
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.surfaceElevated)
+                                        .frame(width: 36, height: 36)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Color.border, lineWidth: 0.5)
+                                        )
+                                    Image(systemName: "cube")
+                                        .font(.system(size: 14, weight: .light))
+                                        .foregroundStyle(Color.accent)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.displayName)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(Color.textPrimary)
+                                    Text(model.name)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.textTertiary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.textTertiary)
                             }
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 4)
                         }
+                        .listRowBackground(Color.clear)
                     }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     .searchable(text: $searchText, prompt: "Search models")
                 }
             }
-            .background(Color.bgPrimary)
             .navigationTitle("Select Model")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(Color.textSecondary)
                 }
             }
         }
