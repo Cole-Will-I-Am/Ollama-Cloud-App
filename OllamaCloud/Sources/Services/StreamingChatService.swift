@@ -45,7 +45,16 @@ class StreamingChatService: ObservableObject {
             temperature: conversation.temperature,
             top_p: conversation.topP,
             top_k: conversation.topK,
-            num_predict: conversation.numPredict
+            min_p: conversation.minP > 0 ? conversation.minP : nil,
+            typical_p: conversation.typicalP < 1.0 ? conversation.typicalP : nil,
+            repeat_penalty: conversation.repeatPenalty != 1.1 ? conversation.repeatPenalty : nil,
+            repeat_last_n: conversation.repeatLastN != 64 ? conversation.repeatLastN : nil,
+            presence_penalty: conversation.presencePenalty != 0 ? conversation.presencePenalty : nil,
+            frequency_penalty: conversation.frequencyPenalty != 0 ? conversation.frequencyPenalty : nil,
+            num_predict: conversation.numPredict,
+            seed: conversation.seed != 0 ? conversation.seed : nil,
+            num_batch: conversation.numBatch != 512 ? conversation.numBatch : nil,
+            num_thread: conversation.numThread != 0 ? conversation.numThread : nil
         )
 
         let model = conversation.modelName
