@@ -3,6 +3,7 @@
 xcuserdata/
 DerivedData/
 build/
+dist/
 .build/
 *.pbxuser
 *.mode1v3

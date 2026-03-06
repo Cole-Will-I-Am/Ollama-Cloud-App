@@ -358,6 +358,8 @@ See [`backend/README.md`](backend/README.md) for full production deployment conf
 
 ## Getting Started
 
+[Download macOS (Direct)](https://github.com/Cole-Cant-Code/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg)
+
 ### Requirements
 
 - **iOS 17.0+** or **macOS 14.0+** (Sonoma)
@@ -392,6 +394,18 @@ open "$(ls -td ~/Library/Developer/Xcode/DerivedData/OllamaCloud*/Build/Products
 ```
 
 Or open `OllamaCloud.xcodeproj` in Xcode and select the `OllamaCloudMac` scheme.
+
+### Direct macOS Distribution (Outside App Store)
+
+If you want to ship a direct-download Mac app (website/download link), use the signing + notarization pipeline documented here:
+
+- [`docs/MACOS_DIRECT_DISTRIBUTION.md`](docs/MACOS_DIRECT_DISTRIBUTION.md)
+
+The included script handles build, Developer ID signing, Apple notarization, stapling, and packaging into `.zip`/`.dmg`.
+
+For one-click downloads, upload `SEER-macos.dmg` to each GitHub Release so this stable link always works:
+
+- [Download latest macOS build](https://github.com/Cole-Cant-Code/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg)
 
 ---
 
