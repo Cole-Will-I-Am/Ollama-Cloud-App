@@ -18,6 +18,9 @@ SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Pla
 | **Scheme** | `OllamaCloudMac` | `OllamaCloud` |
 | **Min version** | macOS 14.0 | iOS 17.0 |
 | **Code execution** | Python, JavaScript, Shell | JavaScript only |
+| **Keyboard shortcuts** | Cmd+N, Cmd+Enter, Cmd+K, Cmd+1/2/3, etc. | Standard iOS |
+| **Drag & drop** | Drop files into chat as code blocks | Not available |
+| **Export** | Save conversation as Markdown | Not available |
 | **Haptics** | `NSHapticFeedbackManager` | `UIImpactFeedbackGenerator` |
 | **Clipboard** | `NSPasteboard` | `UIPasteboard` |
 | **Sheet sizing** | Fixed-frame windows | Presentation detents |
@@ -50,15 +53,32 @@ SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Pla
 
 The macOS app has additional capabilities that take advantage of the desktop environment.
 
+### Keyboard Shortcuts & Menu Commands
+
+| Shortcut | Action | Code |
+|---|---|---|
+| `Cmd+N` | New Chat | [`OllamaCloudApp.swift:49`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L49) |
+| `Cmd+Enter` | Send Message | [`OllamaCloudApp.swift:70`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L70) |
+| `Cmd+K` | Quick Model Switch | [`OllamaCloudApp.swift:75`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L75) |
+| `Cmd+,` | Settings | [`OllamaCloudApp.swift:62`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L62) |
+| `Cmd+Shift+E` | Export Conversation as Markdown | [`OllamaCloudApp.swift:55`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L55) |
+| `Cmd+Shift+W` | Close Chat (deselect conversation) | [`OllamaCloudApp.swift:82`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L82) |
+| `Cmd+1/2/3` | Jump to conversation by position | [`OllamaCloudApp.swift:89`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L89) |
+
+Commands are routed through a notification-based command bus: [`AppCommands.swift`](OllamaCloud/Sources/Utils/AppCommands.swift)
+
+### Desktop Features
+
 | Feature | Description | Code |
 |---|---|---|
 | **Full code execution** | Run Python, JavaScript, and Shell via `Process` with stdin/stdout piping and timeout | [`CodeExecutionService.swift:73`](OllamaCloud/Sources/Services/CodeExecutionService.swift#L73) |
+| **Drag & drop files** | Drop `.swift`, `.py`, `.js`, `.json`, `.md`, `.txt`, etc. into chat as fenced code blocks (100KB limit) | [`ChatView.swift:1318`](OllamaCloud/Sources/Views/ChatView.swift#L1318) |
+| **Export to Markdown** | Save conversation as `.md` via `NSSavePanel` with collapsed thinking blocks | [`ChatView.swift:1421`](OllamaCloud/Sources/Views/ChatView.swift#L1421) |
 | **SEER dock name** | App displays as "SEER" in the dock via `PRODUCT_NAME` | [`project.yml:68`](project.yml#L68) |
 | **Sidebar emblem** | SeerEmblem header at top of conversation list | [`ConversationListView.swift:39`](OllamaCloud/Sources/Views/ConversationListView.swift#L39) |
 | **Sidebar New Chat button** | Persistent `+ NEW CHAT` capsule at bottom of sidebar | [`ConversationListView.swift:121`](OllamaCloud/Sources/Views/ConversationListView.swift#L121) |
 | **Detail empty state** | SeerEmblem + New Chat button when no conversation selected | [`RootView.swift:52`](OllamaCloud/Sources/App/RootView.swift#L52) |
 | **Native sheet sizing** | Fixed-frame sheets via `macSheetFixedSize()` helper | [`SheetSizing.swift`](OllamaCloud/Sources/Utils/SheetSizing.swift) |
-| **DONE button styling** | Bordered button style with readable foreground | [`ParametersView.swift:272`](OllamaCloud/Sources/Views/ParametersView.swift#L272) |
 | **Window constraints** | Min 800x500, default 1100x700 | [`OllamaCloudApp.swift:39`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L39) |
 | **macOS haptics** | `NSHapticFeedbackManager` integration | [`Theme.swift`](OllamaCloud/Sources/Utils/Theme.swift) |
 
@@ -149,7 +169,7 @@ Code blocks include a **Run** button for supported languages. Output is ephemera
 | **JavaScript** | `/usr/bin/env node` via `Process` | `JavaScriptCore` (no Node APIs) |
 | **Shell** | `/bin/bash` via `Process` | Not available |
 | **Timeout** | 10 seconds | None (JSC is synchronous) |
-| **Interactive input** | Detected and rejected pre-flight | N/A |
+| **Interactive input** | Detected and rejected pre-flight | Detected and rejected pre-flight |
 
 Interactive patterns (`input()`, `prompt()`, shell `read`) are detected before execution and return a friendly message instead of hanging or crashing. If detection is bypassed, runtime EOF errors are normalized to the same message.
 
