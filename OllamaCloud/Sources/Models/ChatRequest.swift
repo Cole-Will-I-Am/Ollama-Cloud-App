@@ -6,13 +6,15 @@ struct ChatRequest: Encodable {
     let stream: Bool
     let think: Bool
     let options: ChatOptions?
+    let tools: [ChatTool]?
 
-    init(model: String, messages: [ChatRequestMessage], stream: Bool = true, think: Bool = true, options: ChatOptions? = nil) {
+    init(model: String, messages: [ChatRequestMessage], stream: Bool = true, think: Bool = true, options: ChatOptions? = nil, tools: [ChatTool]? = nil) {
         self.model = model
         self.messages = messages
         self.stream = stream
         self.think = think
         self.options = options
+        self.tools = tools
     }
 }
 
@@ -20,11 +22,67 @@ struct ChatRequestMessage: Encodable {
     let role: String
     let content: String
     let images: [String]?
+    let tool_name: String?
 
-    init(role: String, content: String, images: [String]? = nil) {
+    init(role: String, content: String, images: [String]? = nil, tool_name: String? = nil) {
         self.role = role
         self.content = content
         self.images = images
+        self.tool_name = tool_name
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        try container.encode(content, forKey: .content)
+        try container.encodeIfPresent(images, forKey: .images)
+        try container.encodeIfPresent(tool_name, forKey: .tool_name)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case role, content, images, tool_name
+    }
+}
+
+// MARK: - Tool Types (Ollama format)
+
+struct ChatTool: Encodable {
+    let type: String
+    let function: ChatToolFunction
+
+    init(function: ChatToolFunction) {
+        self.type = "function"
+        self.function = function
+    }
+}
+
+struct ChatToolFunction: Encodable {
+    let name: String
+    let description: String
+    let parameters: ChatToolParameters
+}
+
+struct ChatToolParameters: Encodable {
+    let type: String
+    let required: [String]?
+    let properties: [String: ChatToolProperty]
+
+    init(required: [String]? = nil, properties: [String: ChatToolProperty] = [:]) {
+        self.type = "object"
+        self.required = required
+        self.properties = properties
+    }
+}
+
+struct ChatToolProperty: Encodable {
+    let type: String
+    let description: String
+    let `enum`: [String]?
+
+    init(type: String, description: String, enum enumValues: [String]? = nil) {
+        self.type = type
+        self.description = description
+        self.enum = enumValues
     }
 }
 

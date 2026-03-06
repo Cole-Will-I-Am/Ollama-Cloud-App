@@ -59,6 +59,13 @@ struct SettingsView: View {
                         .padding(16)
                     }
 
+                    // MCP Servers (macOS only)
+                    #if os(macOS)
+                    section("MCP SERVERS") {
+                        MCPServerStatusView()
+                    }
+                    #endif
+
                     // About
                     section("ABOUT") {
                         VStack(spacing: 0) {

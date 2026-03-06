@@ -22,31 +22,45 @@ struct MessageRow: View {
     private static let freshAssistantWindow: TimeInterval = 4.0
     private static let assistantMarkdownDebounceNanoseconds: UInt64 = 160_000_000
 
+    private var isToolCallMessage: Bool {
+        normalizedRole == "tool_call"
+    }
+
+    private var isToolResultMessage: Bool {
+        normalizedRole == "tool"
+    }
+
     var body: some View {
-        HStack(alignment: .bottom) {
-            if isUserMessage { Spacer(minLength: 48) }
+        if isToolCallMessage {
+            ToolCallBubble(toolCallsJSON: message.toolCallsJSON)
+        } else if isToolResultMessage {
+            ToolResultBubble(toolName: message.toolName, content: message.content)
+        } else {
+            HStack(alignment: .bottom) {
+                if isUserMessage { Spacer(minLength: 48) }
 
-            VStack(alignment: isUserMessage ? .trailing : .leading, spacing: 0) {
-                if showsThinkingSection, let thinking = message.thinkingContent, !thinking.isEmpty {
-                    thinkingSection(thinking)
-                }
+                VStack(alignment: isUserMessage ? .trailing : .leading, spacing: 0) {
+                    if showsThinkingSection, let thinking = message.thinkingContent, !thinking.isEmpty {
+                        thinkingSection(thinking)
+                    }
 
-                if isUserMessage {
-                    userBubble
-                } else {
-                    assistantBubble
-                    if let outputTokenCount = message.outputTokenCount, outputTokenCount > 0 {
-                        tokenFooter(outputTokenCount)
+                    if isUserMessage {
+                        userBubble
+                    } else {
+                        assistantBubble
+                        if let outputTokenCount = message.outputTokenCount, outputTokenCount > 0 {
+                            tokenFooter(outputTokenCount)
+                        }
                     }
                 }
-            }
-            #if os(macOS)
-            .frame(maxWidth: 820, alignment: isUserMessage ? .trailing : .leading)
-            #endif
+                #if os(macOS)
+                .frame(maxWidth: 820, alignment: isUserMessage ? .trailing : .leading)
+                #endif
 
-            if !isUserMessage { Spacer(minLength: 48) }
+                if !isUserMessage { Spacer(minLength: 48) }
+            }
+            .frame(maxWidth: .infinity, alignment: isUserMessage ? .trailing : .leading)
         }
-        .frame(maxWidth: .infinity, alignment: isUserMessage ? .trailing : .leading)
     }
 
     private var userBubble: some View {

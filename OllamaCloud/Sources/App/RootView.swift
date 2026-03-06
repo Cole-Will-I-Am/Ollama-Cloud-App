@@ -22,6 +22,9 @@ struct RootView: View {
 
 struct MainAppView: View {
     @Environment(\.modelContext) private var modelContext
+    #if os(macOS)
+    @EnvironmentObject private var mcpManager: MCPClientManager
+    #endif
     private let accountScopeKey: String
     @Query private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
@@ -117,6 +120,9 @@ struct MainAppView: View {
         }
         #if os(macOS)
         .background(Color.bgPrimary.ignoresSafeArea())
+        .task {
+            await mcpManager.loadAndConnect()
+        }
         #endif
         .sheet(isPresented: $showSettings) {
             SettingsView()

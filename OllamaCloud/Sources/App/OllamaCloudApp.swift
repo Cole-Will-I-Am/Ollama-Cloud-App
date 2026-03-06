@@ -29,11 +29,17 @@ private enum AppModelContainer {
 @main
 struct OllamaCloudApp: App {
     @StateObject private var networkMonitor = NetworkMonitor()
+    #if os(macOS)
+    @StateObject private var mcpManager = MCPClientManager()
+    #endif
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(networkMonitor)
+                #if os(macOS)
+                .environmentObject(mcpManager)
+                #endif
                 .preferredColorScheme(.dark)
                 .tint(Color.accent)
                 #if os(macOS)

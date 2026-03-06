@@ -4,12 +4,14 @@ import SwiftData
 @Model
 final class Message {
     var id: UUID
-    var role: String  // "user", "assistant", "system"
+    var role: String  // "user", "assistant", "system", "tool_call", "tool"
     var content: String
     var thinkingContent: String?
     var attachmentRequestContent: String?
     var imageBase64sJSON: String?
     var outputTokenCount: Int?
+    var toolCallsJSON: String?   // Serialized [{name, arguments}] for role == "tool_call"
+    var toolName: String?        // Tool name for role == "tool" result messages
     var createdAt: Date
     var conversation: Conversation?
 
@@ -20,6 +22,8 @@ final class Message {
         attachmentRequestContent: String? = nil,
         imageBase64sJSON: String? = nil,
         outputTokenCount: Int? = nil,
+        toolCallsJSON: String? = nil,
+        toolName: String? = nil,
         conversation: Conversation? = nil
     ) {
         self.id = UUID()
@@ -29,6 +33,8 @@ final class Message {
         self.attachmentRequestContent = attachmentRequestContent
         self.imageBase64sJSON = imageBase64sJSON
         self.outputTokenCount = outputTokenCount
+        self.toolCallsJSON = toolCallsJSON
+        self.toolName = toolName
         self.createdAt = Date()
         self.conversation = conversation
     }

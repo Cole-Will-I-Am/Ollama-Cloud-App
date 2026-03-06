@@ -347,7 +347,8 @@ actor OllamaAPIClient {
         model: String,
         messages: [ChatRequestMessage],
         think: Bool = true,
-        options: ChatOptions? = nil
+        options: ChatOptions? = nil,
+        tools: [ChatTool]? = nil
     ) async throws -> (URLSession.AsyncBytes, URLResponse) {
         guard let key = apiKey else { throw OllamaAPIError.unauthorized }
         guard let url = makeURL(path: "/api/chat") else {
@@ -359,7 +360,8 @@ actor OllamaAPIClient {
             messages: messages,
             stream: true,
             think: think,
-            options: options
+            options: options,
+            tools: tools
         )
 
         var request = URLRequest(url: url)

@@ -12,6 +12,9 @@ import AppKit
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var network: NetworkMonitor
+    #if os(macOS)
+    @EnvironmentObject private var mcpManager: MCPClientManager
+    #endif
     @Bindable var conversation: Conversation
     @StateObject private var streaming = StreamingChatService()
     @State private var input = ""
@@ -375,7 +378,10 @@ struct ChatView: View {
                                 }
 
                                 if streaming.isStreaming {
-                                    if hasVisibleStreamingPayload {
+                                    if streaming.isExecutingTool {
+                                        ToolExecutionIndicator(status: streaming.toolCallStatus)
+                                            .id("toolExec")
+                                    } else if hasVisibleStreamingPayload {
                                         VStack(alignment: .leading, spacing: 6) {
                                             streamingBubble
                                             streamingStats
@@ -1176,11 +1182,19 @@ struct ChatView: View {
         Haptic.impact()
 
         Task {
+            var tools: [ChatTool]? = nil
+            var manager: AnyObject? = nil
+            #if os(macOS)
+            tools = mcpManager.ollamaTools()
+            manager = mcpManager
+            #endif
             await streaming.sendMessage(
                 content: userText,
                 requestContent: requestContent,
                 imageBase64s: images,
                 attachmentSummary: attachmentSummary,
+                tools: tools,
+                mcpManager: manager,
                 conversation: conversation,
                 modelContext: modelContext
             )
@@ -1284,11 +1298,19 @@ struct ChatView: View {
 
         Haptic.impact()
         Task {
+            var tools: [ChatTool]? = nil
+            var manager: AnyObject? = nil
+            #if os(macOS)
+            tools = mcpManager.ollamaTools()
+            manager = mcpManager
+            #endif
             await streaming.sendMessage(
                 content: text,
                 requestContent: requestContent,
                 imageBase64s: imageBase64s,
                 attachmentSummary: attachmentSummary,
+                tools: tools,
+                mcpManager: manager,
                 conversation: conversation,
                 modelContext: modelContext
             )
@@ -1300,7 +1322,13 @@ struct ChatView: View {
 
         Haptic.impact()
         Task {
-            await streaming.retryLast(conversation: conversation, modelContext: modelContext)
+            var tools: [ChatTool]? = nil
+            var manager: AnyObject? = nil
+            #if os(macOS)
+            tools = mcpManager.ollamaTools()
+            manager = mcpManager
+            #endif
+            await streaming.retryLast(tools: tools, mcpManager: manager, conversation: conversation, modelContext: modelContext)
         }
     }
 

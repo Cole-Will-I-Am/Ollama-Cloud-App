@@ -18,6 +18,9 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     from: 2.4.1
+  MCP:
+    url: https://github.com/modelcontextprotocol/swift-sdk
+    from: 0.11.0
 
 targets:
   OllamaCloud:
@@ -63,6 +66,7 @@ targets:
       path: OllamaCloud/OllamaCloudMac.entitlements
     dependencies:
       - package: MarkdownUI
+      - package: MCP
     settings:
       base:
         PRODUCT_NAME: SEER

@@ -16,6 +16,10 @@ class StreamingChatService: ObservableObject {
     @Published var notice: String?
     @Published var recoveryAction: RecoveryAction?
 
+    // Tool execution state
+    @Published var isExecutingTool = false
+    @Published var toolCallStatus: String?
+
     // Streaming metrics
     @Published var tokenCount: Int = 0
     @Published var tokensPerSecond: Double = 0
@@ -55,6 +59,7 @@ class StreamingChatService: ObservableObject {
         let finalEvalCount: Int?
         let sawTokens: Bool
         let metrics: StreamMetricsSnapshot
+        let toolCalls: [ChunkToolCall]
     }
 
     private struct StreamRunFailure: Error {
@@ -69,6 +74,8 @@ class StreamingChatService: ObservableObject {
         imageBase64s: [String] = [],
         attachmentSummary: String? = nil,
         persistUserMessage: Bool = true,
+        tools: [ChatTool]? = nil,
+        mcpManager: AnyObject? = nil,
         conversation: Conversation,
         modelContext: ModelContext
     ) async {
@@ -202,6 +209,8 @@ class StreamingChatService: ObservableObject {
         // Start streaming
         isStreaming = true
         isThinking = false
+        isExecutingTool = false
+        toolCallStatus = nil
         streamingContent = ""
         streamingThinking = ""
         receivedAnyTokens = false
@@ -213,13 +222,14 @@ class StreamingChatService: ObservableObject {
             var streamResult: StreamRunResult?
             var streamFailure: StreamRunFailure?
 
-            func executeStreamAttempt() async -> Result<StreamRunResult, StreamRunFailure> {
+            func executeStreamAttempt(messages: [ChatRequestMessage], currentTools: [ChatTool]?) async -> Result<StreamRunResult, StreamRunFailure> {
                 do {
                     let result = try await Self.performStreamOffMain(
                         model: model,
-                        messages: requestMessages,
+                        messages: messages,
                         options: options,
                         think: thinkingEnabled,
+                        tools: currentTools,
                         idleTimeoutNanoseconds: Self.idleTimeout,
                         uiFlushIntervalNanoseconds: Self.uiFlushIntervalNanoseconds
                     ) { [weak self] update in
@@ -246,7 +256,10 @@ class StreamingChatService: ObservableObject {
                 }
             }
 
-            switch await executeStreamAttempt() {
+            var currentMessages = requestMessages
+            let currentTools = tools
+
+            switch await executeStreamAttempt(messages: currentMessages, currentTools: currentTools) {
             case .success(let result):
                 streamResult = result
             case .failure(let failure):
@@ -256,7 +269,7 @@ class StreamingChatService: ObservableObject {
                 if !failure.sawTokens, apiError?.isTransient == true, !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     if !Task.isCancelled {
-                        switch await executeStreamAttempt() {
+                        switch await executeStreamAttempt(messages: currentMessages, currentTools: currentTools) {
                         case .success(let result):
                             streamResult = result
                         case .failure(let retryFailure):
@@ -269,6 +282,110 @@ class StreamingChatService: ObservableObject {
                     streamFailure = failure
                 }
             }
+
+            // Tool call loop (macOS only)
+            #if os(macOS)
+            if let result = streamResult, !result.toolCalls.isEmpty, let manager = mcpManager as? MCPClientManager {
+                var rounds = 0
+                let maxRounds = 10
+                var latestResult = result
+
+                toolRoundLoop: while !latestResult.toolCalls.isEmpty && rounds < maxRounds && !Task.isCancelled {
+                    rounds += 1
+
+                    // Persist tool_call message
+                    let toolCallData = latestResult.toolCalls.map { call -> [String: Any] in
+                        let argsAny = call.function.arguments.mapValues(\.anyValue)
+                        return ["name": call.function.name, "arguments": argsAny]
+                    }
+                    let toolCallJSON = (try? JSONSerialization.data(withJSONObject: toolCallData))
+                        .flatMap { String(data: $0, encoding: .utf8) }
+
+                    let toolCallMessage = Message(
+                        role: "tool_call",
+                        content: latestResult.content,
+                        toolCallsJSON: toolCallJSON,
+                        conversation: conversation
+                    )
+                    modelContext.insert(toolCallMessage)
+
+                    // Execute each tool call
+                    for call in latestResult.toolCalls {
+                        let toolName = call.function.name
+
+                        self.isExecutingTool = true
+                        self.toolCallStatus = "Calling \(toolName)..."
+
+                        let serverName = manager.serverForTool(named: toolName)
+                        let (resultText, isError): (String, Bool)
+                        if let serverName {
+                            (resultText, isError) = await manager.callTool(
+                                serverName: serverName,
+                                toolName: toolName,
+                                arguments: call.function.arguments
+                            )
+                        } else {
+                            (resultText, isError) = ("Unknown tool: \(toolName)", true)
+                        }
+                        _ = isError // Error state is conveyed through the result text to the model
+
+                        let toolResultMessage = Message(
+                            role: "tool",
+                            content: resultText,
+                            toolName: toolName,
+                            conversation: conversation
+                        )
+                        modelContext.insert(toolResultMessage)
+                    }
+
+                    self.isExecutingTool = false
+                    self.toolCallStatus = nil
+
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        self.error = "Failed to save tool output"
+                        break toolRoundLoop
+                    }
+
+                    // Rebuild outbound messages and re-stream
+                    currentMessages = Self.buildOutboundMessages(
+                        conversationMessages: conversation.messages,
+                        systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
+                            baseSystemPrompt: conversation.systemPrompt,
+                            selectedModelName: conversation.modelName
+                        ),
+                        scaffoldSystemPrompt: nil
+                    )
+
+                    // Reset streaming state for next round
+                    streamingContent = ""
+                    streamingThinking = ""
+                    tokenCount = 0
+                    tokensPerSecond = 0
+
+                    switch await executeStreamAttempt(messages: currentMessages, currentTools: currentTools) {
+                    case .success(let nextResult):
+                        latestResult = nextResult
+                        streamResult = nextResult
+                    case .failure(let failure):
+                        streamFailure = failure
+                        break toolRoundLoop
+                    }
+                }
+
+                if rounds >= maxRounds && !latestResult.toolCalls.isEmpty {
+                    let errorMsg = Message(
+                        role: "tool",
+                        content: "Maximum tool call rounds (\(maxRounds)) reached. Stopping.",
+                        toolName: "system",
+                        conversation: conversation
+                    )
+                    modelContext.insert(errorMsg)
+                    try? modelContext.save()
+                }
+            }
+            #endif
 
             if let streamResult {
                 finalEvalCount = streamResult.finalEvalCount
@@ -331,6 +448,8 @@ class StreamingChatService: ObservableObject {
             streamingThinking = ""
             isStreaming = false
             isThinking = false
+            isExecutingTool = false
+            toolCallStatus = nil
             if self.error == nil {
                 recoveryAction = nil
             }
@@ -382,6 +501,9 @@ class StreamingChatService: ObservableObject {
 
         let sorted = conversationMessages.sorted { $0.createdAt < $1.createdAt }
         for msg in sorted {
+            // Skip tool_call messages — they're intermediate markers, not part of Ollama's protocol
+            if msg.role == "tool_call" { continue }
+
             let outboundContent: String
             if msg.role == "user",
                let attachmentRequestContent = msg.attachmentRequestContent,
@@ -395,7 +517,8 @@ class StreamingChatService: ObservableObject {
                 ChatRequestMessage(
                     role: msg.role,
                     content: outboundContent,
-                    images: decodedImages(for: msg)
+                    images: decodedImages(for: msg),
+                    tool_name: msg.toolName
                 )
             )
         }
@@ -518,6 +641,7 @@ class StreamingChatService: ObservableObject {
         messages: [ChatRequestMessage],
         options: ChatOptions,
         think: Bool,
+        tools: [ChatTool]? = nil,
         idleTimeoutNanoseconds: UInt64,
         uiFlushIntervalNanoseconds: UInt64,
         onFlush: @Sendable (StreamFlushUpdate) async -> Void
@@ -527,7 +651,8 @@ class StreamingChatService: ObservableObject {
             model: model,
             messages: messages,
             think: think,
-            options: options
+            options: options,
+            tools: tools
         )
 
         let lineIterator = AsyncLineIterator(bytes.lines.makeAsyncIterator())
@@ -544,6 +669,7 @@ class StreamingChatService: ObservableObject {
         var sawTokens = false
         var finalEvalCount: Int?
         var thinkingActive = false
+        var accumulatedToolCalls: [ChunkToolCall] = []
 
         var lastFlushTime: Date?
         var flushCount = 0
@@ -608,6 +734,10 @@ class StreamingChatService: ObservableObject {
                     await flushPending()
                 }
 
+                if let toolCalls = chunk.message?.tool_calls, !toolCalls.isEmpty {
+                    accumulatedToolCalls.append(contentsOf: toolCalls)
+                }
+
                 if let token = chunk.message?.content, !token.isEmpty {
                     sawTokens = true
                     thinkingActive = false
@@ -653,7 +783,8 @@ class StreamingChatService: ObservableObject {
                 tokensPerSecond: tokensPerSecond,
                 finalEvalCount: finalEvalCount,
                 sawTokens: sawTokens,
-                metrics: metrics
+                metrics: metrics,
+                toolCalls: accumulatedToolCalls
             )
         } catch {
             await flushPending(force: true)
@@ -688,7 +819,7 @@ class StreamingChatService: ObservableObject {
         lastSentRequestContent != nil
     }
 
-    func retryLast(conversation: Conversation, modelContext: ModelContext) async {
+    func retryLast(tools: [ChatTool]? = nil, mcpManager: AnyObject? = nil, conversation: Conversation, modelContext: ModelContext) async {
         guard let lastSentRequestContent else { return }
 
         await sendMessage(
@@ -697,6 +828,8 @@ class StreamingChatService: ObservableObject {
             imageBase64s: lastSentImageBase64s,
             attachmentSummary: lastSentAttachmentSummary,
             persistUserMessage: false,
+            tools: tools,
+            mcpManager: mcpManager,
             conversation: conversation,
             modelContext: modelContext
         )
