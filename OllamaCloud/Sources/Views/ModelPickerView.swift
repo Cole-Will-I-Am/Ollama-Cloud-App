@@ -15,6 +15,9 @@ struct ModelPickerView: View {
     @State private var fetchTask: Task<Void, Never>?
     @State private var favoriteModelNames: Set<String> = []
     @State private var hideNonFavoriteModels = false
+    #if os(macOS)
+    @State private var hoveredModelName: String?
+    #endif
 
     init(
         onSelect: @escaping (OllamaModel) -> Void,
@@ -182,6 +185,9 @@ struct ModelPickerView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                #if os(macOS)
+                                .macPointingCursor()
+                                #endif
                             }
                             .padding(.horizontal, 18)
                             .padding(.top, 8)
@@ -189,14 +195,16 @@ struct ModelPickerView: View {
                             if !favoriteModels.isEmpty {
                                 sectionHeader("FAVORITES")
                                 ForEach(favoriteModels) { model in
-                                    modelRow(model)
+                                    modelRow(model, isFavorite: true)
+                                        .id("favorite-\(model.id)")
                                 }
                             }
 
                             if !hideNonFavoriteModels && !nonFavoriteModels.isEmpty {
                                 sectionHeader(favoriteModels.isEmpty ? "MODELS" : "ALL MODELS")
                                 ForEach(nonFavoriteModels) { model in
-                                    modelRow(model)
+                                    modelRow(model, isFavorite: false)
+                                        .id("other-\(model.id)")
                                 }
                             }
                         }
@@ -208,6 +216,8 @@ struct ModelPickerView: View {
             .navigationTitle("Models")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #else
+            .background(Color.bgPrimary.ignoresSafeArea())
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -220,6 +230,10 @@ struct ModelPickerView: View {
                             .tracking(2)
                             .foregroundStyle(Color.textSecondary)
                     }
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    .macPointingCursor()
+                    #endif
                 }
             }
         }
@@ -245,7 +259,7 @@ struct ModelPickerView: View {
     }
 
     @ViewBuilder
-    private func modelRow(_ model: OllamaModel) -> some View {
+    private func modelRow(_ model: OllamaModel, isFavorite: Bool) -> some View {
         HStack(spacing: 10) {
             Button {
                 Haptic.impact()
@@ -300,30 +314,56 @@ struct ModelPickerView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            #if os(macOS)
+            .macPointingCursor()
+            #endif
 
             Button {
-                toggleFavorite(model)
+                withAnimation(.snappy(duration: 0.15)) {
+                    toggleFavorite(model)
+                }
             } label: {
-                Image(systemName: favoriteModelNames.contains(model.name) ? "star.fill" : "star")
+                Image(systemName: isFavorite ? "star.fill" : "star")
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(favoriteModelNames.contains(model.name) ? Color.accent : Color.textTertiary)
+                    .foregroundStyle(isFavorite ? Color.accent : Color.textTertiary)
                     .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(favoriteModelNames.contains(model.name) ? "Remove favorite" : "Add favorite")
+            #if os(macOS)
+            .macPointingCursor()
+            #endif
+            .accessibilityLabel(isFavorite ? "Remove favorite" : "Add favorite")
             .accessibilityHint("Pins this model for faster selection")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.surface.opacity(0.35))
+                .fill(modelRowFill(for: model))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.border, lineWidth: 0.5)
         )
         .padding(.horizontal, 12)
+        #if os(macOS)
+        .onHover { hovering in
+            if hovering {
+                hoveredModelName = model.name
+            } else if hoveredModelName == model.name {
+                hoveredModelName = nil
+            }
+        }
+        #endif
+    }
+
+    private func modelRowFill(for model: OllamaModel) -> Color {
+        #if os(macOS)
+        if hoveredModelName == model.name {
+            return Color.surface.opacity(0.65)
+        }
+        #endif
+        return Color.surface.opacity(0.35)
     }
 
     private func accountScopeKey() -> String {
@@ -337,7 +377,7 @@ struct ModelPickerView: View {
             favoriteModelNames = Set(existingFavorites)
         } else if AppConfig.seerModelEnabled {
             favoriteModelNames = [AppConfig.seerModelName]
-            persistFavorites()
+            persistFavorites(favoriteModelNames)
         } else {
             favoriteModelNames = []
         }
@@ -380,8 +420,9 @@ struct ModelPickerView: View {
         seerFavoriteSeededScopesJSON = json
     }
 
-    private func persistFavorites() {
-        let encoded = Array(favoriteModelNames).sorted()
+    private func persistFavorites(_ favorites: Set<String>? = nil) {
+        let effectiveFavorites = favorites ?? favoriteModelNames
+        let encoded = Array(effectiveFavorites).sorted()
         var map = decodeFavoritesByAccount()
         map[accountScopeKey()] = encoded
 
@@ -409,19 +450,23 @@ struct ModelPickerView: View {
         var seededMap = decodeSeerFavoriteSeededScopes()
         if seededMap[scope] == true { return }
 
-        favoriteModelNames.insert(AppConfig.seerModelName)
-        persistFavorites()
+        var updatedFavorites = favoriteModelNames
+        updatedFavorites.insert(AppConfig.seerModelName)
+        favoriteModelNames = updatedFavorites
+        persistFavorites(updatedFavorites)
         seededMap[scope] = true
         persistSeerFavoriteSeededScopes(seededMap)
     }
 
     private func toggleFavorite(_ model: OllamaModel) {
-        if favoriteModelNames.contains(model.name) {
-            favoriteModelNames.remove(model.name)
+        var updatedFavorites = favoriteModelNames
+        if updatedFavorites.contains(model.name) {
+            updatedFavorites.remove(model.name)
         } else {
-            favoriteModelNames.insert(model.name)
+            updatedFavorites.insert(model.name)
         }
-        persistFavorites()
+        favoriteModelNames = updatedFavorites
+        persistFavorites(updatedFavorites)
         Haptic.selection()
     }
 

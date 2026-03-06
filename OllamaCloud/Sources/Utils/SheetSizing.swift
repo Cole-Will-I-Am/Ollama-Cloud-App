@@ -3,6 +3,9 @@ import SwiftUI
 enum SeerSheetSize {
     static let modelPicker = CGSize(width: 420, height: 520)
     static let parameters = CGSize(width: 520, height: 640)
+    static let scaffoldLibrary = CGSize(width: 620, height: 680)
+    static let scaffoldTemplatePicker = CGSize(width: 500, height: 560)
+    static let scaffoldBuilder = CGSize(width: 760, height: 780)
 }
 
 extension View {

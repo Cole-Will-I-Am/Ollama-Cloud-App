@@ -10,8 +10,10 @@ struct ScaffoldTemplatePickerView: View {
             List {
                 ForEach(ReasoningScaffoldTemplate.allCases) { template in
                     Button {
-                        onSelect(template)
                         dismiss()
+                        DispatchQueue.main.async {
+                            onSelect(template)
+                        }
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(template.rawValue)
@@ -24,6 +26,9 @@ struct ScaffoldTemplatePickerView: View {
                         .padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
+                    #if os(macOS)
+                    .macPointingCursor()
+                    #endif
                     .listRowBackground(Color.clear)
                 }
             }

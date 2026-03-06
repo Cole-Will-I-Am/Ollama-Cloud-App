@@ -13,7 +13,6 @@ struct ScaffoldLibraryView: View {
     @State private var searchText = ""
     @State private var showingTemplatePicker = false
     @State private var builderSheet: BuilderSheet?
-    @State private var selectedTemplate: ReasoningScaffoldTemplate?
     @State private var pendingDelete: ReasoningScaffold?
     @State private var persistenceError: String?
 
@@ -85,15 +84,14 @@ struct ScaffoldLibraryView: View {
                         .foregroundStyle(Color.textSecondary)
                 }
             }
-            .sheet(isPresented: $showingTemplatePicker, onDismiss: {
-                if let t = selectedTemplate {
-                    builderSheet = BuilderSheet(scaffold: nil, template: t)
-                    selectedTemplate = nil
-                }
-            }) {
+            .sheet(isPresented: $showingTemplatePicker) {
                 ScaffoldTemplatePickerView { template in
-                    selectedTemplate = template
+                    openBuilder(with: template)
                 }
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.scaffoldTemplatePicker)
             }
             .sheet(item: $builderSheet) { sheet in
                 ScaffoldBuilderView(
@@ -101,6 +99,10 @@ struct ScaffoldLibraryView: View {
                     scaffold: sheet.scaffold,
                     template: sheet.template
                 )
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.scaffoldBuilder)
             }
             .confirmationDialog(
                 "Delete scaffold?",
@@ -145,7 +147,6 @@ struct ScaffoldLibraryView: View {
                     builderSheet = BuilderSheet(scaffold: nil, template: nil)
                 }
                 actionCapsule(title: "TEMPLATES") {
-                    selectedTemplate = nil
                     showingTemplatePicker = true
                 }
             }
@@ -160,7 +161,6 @@ struct ScaffoldLibraryView: View {
                 builderSheet = BuilderSheet(scaffold: nil, template: nil)
             }
             actionCapsule(title: "TEMPLATES") {
-                selectedTemplate = nil
                 showingTemplatePicker = true
             }
         }
@@ -180,6 +180,16 @@ struct ScaffoldLibraryView: View {
                         .fill(Color.accentSoft)
                         .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
                 )
+        }
+        #if os(macOS)
+        .buttonStyle(.plain)
+        .macPointingCursor()
+        #endif
+    }
+
+    private func openBuilder(with template: ReasoningScaffoldTemplate) {
+        DispatchQueue.main.async {
+            builderSheet = BuilderSheet(scaffold: nil, template: template)
         }
     }
 

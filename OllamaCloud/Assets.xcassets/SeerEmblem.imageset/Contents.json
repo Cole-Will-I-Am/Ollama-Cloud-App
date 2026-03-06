@@ -7,8 +7,31 @@
           "value" : "light"
         }
       ],
+      "filename" : "seer_emblem_light_1x.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "seer_emblem_dark_1x.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "light"
+        }
+      ],
       "filename" : "seer_emblem_light.png",
-      "idiom" : "universal"
+      "idiom" : "universal",
+      "scale" : "2x"
     },
     {
       "appearances" : [
@@ -18,7 +41,8 @@
         }
       ],
       "filename" : "seer_emblem_dark.png",
-      "idiom" : "universal"
+      "idiom" : "universal",
+      "scale" : "2x"
     }
   ],
   "info" : {

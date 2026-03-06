@@ -100,20 +100,48 @@ extension LinearGradient {
 // MARK: - Font
 
 extension Font {
+    private static func adjustedAppWeight(_ weight: Font.Weight) -> Font.Weight {
+        #if os(macOS)
+        if weight == .thin || weight == .ultraLight { return .light }
+        if weight == .light { return .regular }
+        return weight
+        #else
+        return weight
+        #endif
+    }
+
+    private static func adjustedMonospacedWeight(_ weight: Font.Weight) -> Font.Weight {
+        #if os(macOS)
+        if weight == .ultraLight || weight == .thin { return .regular }
+        if weight == .light { return .regular }
+        return weight
+        #else
+        return weight
+        #endif
+    }
+
     /// Primary app font — clean sans-serif (SF Pro)
     static func app(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .default)
+        .system(size: size, weight: adjustedAppWeight(weight), design: .default)
     }
 
     /// Wide-tracked label font — for buttons, badges, small UI labels.
     /// Expanded width with light weight for that "CONTACT" / "BETA" aesthetic.
     static func appLabel(_ size: CGFloat, weight: Font.Weight = .light) -> Font {
-        .system(size: size, weight: weight, design: .default).width(.expanded)
+        .system(size: size, weight: adjustedAppWeight(weight), design: .default).width(.expanded)
     }
 
     /// Display font — for large titles / hero text. Thin, slightly tracked.
     static func appDisplay(_ size: CGFloat, weight: Font.Weight = .thin) -> Font {
-        .system(size: size, weight: weight, design: .default).width(.expanded)
+        .system(size: size, weight: adjustedAppWeight(weight), design: .default).width(.expanded)
+    }
+
+    static func appMono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        #if os(macOS)
+        return .system(size: size, weight: adjustedMonospacedWeight(weight), design: .monospaced)
+        #else
+        return .app(size, weight: weight).monospaced()
+        #endif
     }
 }
 
@@ -146,7 +174,74 @@ extension View {
     func titleTracking() -> some View {
         self.tracking(1.2)
     }
+
+    @ViewBuilder
+    func macHoverSurface(_ isHovered: Bool, radius: CGFloat = 12, fill: Color = Color.white.opacity(0.04)) -> some View {
+        #if os(macOS)
+        self.background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(isHovered ? fill : Color.clear)
+        )
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func macPointingCursor(_ isHovered: Bool) -> some View {
+        #if os(macOS)
+        self
+            .onChange(of: isHovered) { _, hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .onDisappear {
+                if isHovered {
+                    NSCursor.pop()
+                }
+            }
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func macPointingCursor() -> some View {
+        #if os(macOS)
+        self.modifier(MacPointingCursorModifier())
+        #else
+        self
+        #endif
+    }
 }
+
+#if os(macOS)
+private struct MacPointingCursorModifier: ViewModifier {
+    @State private var isHovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                if hovering && !isHovering {
+                    NSCursor.pointingHand.push()
+                    isHovering = true
+                } else if !hovering && isHovering {
+                    NSCursor.pop()
+                    isHovering = false
+                }
+            }
+            .onDisappear {
+                if isHovering {
+                    NSCursor.pop()
+                    isHovering = false
+                }
+            }
+    }
+}
+#endif
 
 // MARK: - View Modifiers
 

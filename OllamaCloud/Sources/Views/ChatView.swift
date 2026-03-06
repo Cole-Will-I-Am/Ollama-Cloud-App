@@ -40,6 +40,7 @@ struct ChatView: View {
     @State private var pendingHistoryAction: PendingHistoryAction?
     #if os(macOS)
     @State private var isFileDropTargeted = false
+    @State private var isHoveringNewBadge = false
     #endif
 
     private struct PendingImageAttachment: Identifiable, Equatable {
@@ -95,24 +96,29 @@ struct ChatView: View {
             inputBar
         }
         .background(Color.bgPrimary)
+        #if os(macOS)
+        .navigationTitle("SEER")
+        #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
             ToolbarItem(placement: .principal) {
-                if !conversation.modelName.isEmpty {
-                    Text(conversation.modelName.uppercased())
-                        .font(.appLabel(10))
-                        .luxuryTracking()
-                        .foregroundStyle(Color.accent)
-                }
+                toolbarPrincipal
             }
             ToolbarItem(placement: .seerTrailing) {
                 Button { showParameters = true } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 15, weight: .ultraLight))
                         .foregroundStyle(Color.textSecondary)
+                        #if os(macOS)
+                        .frame(minWidth: 26, minHeight: 26)
+                        #endif
                 }
+                #if os(macOS)
+                .buttonStyle(.plain)
+                .macPointingCursor()
+                #endif
             }
             #if os(macOS)
             ToolbarItem(placement: .seerTrailing) {
@@ -122,7 +128,10 @@ struct ChatView: View {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 15, weight: .ultraLight))
                         .foregroundStyle(Color.textSecondary)
+                        .frame(minWidth: 26, minHeight: 26)
                 }
+                .buttonStyle(.plain)
+                .macPointingCursor()
             }
             #endif
         }
@@ -144,11 +153,16 @@ struct ChatView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
+                #else
+                .presentationBackground(Color.bgPrimary)
                 #endif
                 .macSheetFixedSize(SeerSheetSize.modelPicker)
             }
             .sheet(isPresented: $showParameters) {
                 ParametersView(conversation: conversation)
+                    #if os(macOS)
+                    .presentationBackground(Color.bgPrimary)
+                    #endif
                     .macSheetFixedSize(SeerSheetSize.parameters)
             }
             .sheet(isPresented: $showScaffoldLibrary) {
@@ -159,6 +173,10 @@ struct ChatView: View {
                     },
                     dismissOnAttach: true
                 )
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.scaffoldLibrary)
             }
             .onChange(of: streaming.error) { _, newError in
                 if newError != nil {
@@ -315,8 +333,10 @@ struct ChatView: View {
                         )
                         .padding(10)
                         .allowsHitTesting(false)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.16), value: isFileDropTargeted)
             .onDrop(
                 of: [UTType.fileURL.identifier],
                 isTargeted: $isFileDropTargeted,
@@ -468,6 +488,12 @@ struct ChatView: View {
                                 )
                                 .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                             }
+                            #if os(macOS)
+                            .buttonStyle(.plain)
+                            .macHoverSurface(isHoveringNewBadge, radius: 24, fill: Color.white.opacity(0.06))
+                            .macPointingCursor(isHoveringNewBadge)
+                            .onHover { isHoveringNewBadge = $0 }
+                            #endif
                             .padding(.bottom, 8)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
@@ -621,13 +647,24 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .multilineTextAlignment(.leading)
                         .textSelection(.enabled)
+                        #if os(macOS)
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
+                        #endif
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .assistantMaterialBubble(shape: contentShape)
                     }
             }
+            #if os(macOS)
+            .frame(maxWidth: 820, alignment: .leading)
+            #endif
             Spacer(minLength: 48)
         }
+        #if os(macOS)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        #endif
     }
 
     // MARK: - Streaming Stats
@@ -818,6 +855,9 @@ struct ChatView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    #if os(macOS)
+                    .macPointingCursor()
+                    #endif
                     .disabled(streaming.isStreaming)
                     .accessibilityLabel("Add attachment")
                     .accessibilityHint("Attach photos or text files to your next message")
@@ -837,6 +877,9 @@ struct ChatView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        #if os(macOS)
+                        .macPointingCursor()
+                        #endif
                         .disabled(streaming.isStreaming)
                         .accessibilityLabel("Reasoning scaffold")
                         .accessibilityHint("Choose or change the reasoning scaffold for this chat")
@@ -847,6 +890,9 @@ struct ChatView: View {
                         .lineLimit(1...6)
                         .foregroundStyle(Color.textPrimary)
                         .focused($isInputFocused)
+                        #if os(macOS)
+                        .textFieldStyle(.plain)
+                        #endif
                         .padding(.horizontal, 18)
                         .padding(.vertical, 13)
                         .background(
@@ -872,6 +918,10 @@ struct ChatView: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .background(Circle().fill(Color.danger))
                         }
+                        #if os(macOS)
+                        .buttonStyle(.plain)
+                        .macPointingCursor()
+                        #endif
                         .accessibilityLabel("Stop generation")
                     } else {
                         Button(action: send) {
@@ -884,6 +934,10 @@ struct ChatView: View {
                                 )
                         }
                         .disabled(!canSend)
+                        #if os(macOS)
+                        .buttonStyle(.plain)
+                        .macPointingCursor()
+                        #endif
                         .accessibilityLabel("Send message")
                     }
                 }
@@ -892,6 +946,36 @@ struct ChatView: View {
             .padding(.vertical, 10)
             .background(Color.bgPrimary)
         }
+    }
+
+    @ViewBuilder
+    private var toolbarPrincipal: some View {
+        #if os(macOS)
+        HStack(spacing: 8) {
+            Text("SEER")
+                .font(.appLabel(10))
+                .labelTracking()
+                .foregroundStyle(Color.textSecondary)
+            if !conversation.modelName.isEmpty {
+                Text(conversation.modelName.uppercased())
+                    .font(.appLabel(9))
+                    .luxuryTracking()
+                    .foregroundStyle(Color.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.accentSoft))
+                    .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+                    .lineLimit(1)
+            }
+        }
+        #else
+        if !conversation.modelName.isEmpty {
+            Text(conversation.modelName.uppercased())
+                .font(.appLabel(10))
+                .luxuryTracking()
+                .foregroundStyle(Color.accent)
+        }
+        #endif
     }
 
     // MARK: - Helpers

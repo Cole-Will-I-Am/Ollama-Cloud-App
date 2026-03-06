@@ -88,6 +88,8 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #else
+            .background(Color.bgPrimary.ignoresSafeArea())
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -95,8 +97,15 @@ struct SettingsView: View {
                         Text("DONE")
                             .font(.appLabel(12))
                             .tracking(2)
+                            #if os(iOS)
                             .foregroundStyle(Color.accent)
+                            #else
+                            .foregroundStyle(Color.textPrimary)
+                            #endif
                     }
+                    #if os(macOS)
+                    .buttonStyle(.bordered)
+                    #endif
                 }
             }
             .confirmationDialog(

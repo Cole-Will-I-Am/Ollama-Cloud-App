@@ -56,6 +56,9 @@ struct MainAppView: View {
     var body: some View {
         NavigationSplitView {
             ConversationListView(selection: $selectedConversation)
+                #if os(macOS)
+                .navigationSplitViewColumnWidth(min: 270, ideal: 310, max: 360)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .seerTrailing) {
                         Button {
@@ -65,6 +68,10 @@ struct MainAppView: View {
                                 .font(.system(size: 16, weight: .ultraLight))
                                 .foregroundStyle(Color.textSecondary)
                         }
+                        #if os(macOS)
+                        .buttonStyle(.plain)
+                        .macPointingCursor()
+                        #endif
                     }
                 }
         } detail: {
@@ -77,6 +84,7 @@ struct MainAppView: View {
                         #if os(macOS)
                         Image("SeerEmblem")
                             .resizable()
+                            .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .frame(height: 48)
                         #else
@@ -100,14 +108,21 @@ struct MainAppView: View {
                                 .background(Color.accentSoft, in: Capsule())
                         }
                         .buttonStyle(.plain)
+                        .macPointingCursor()
                         .padding(.top, 4)
                         #endif
                     }
                 }
             }
         }
+        #if os(macOS)
+        .background(Color.bgPrimary.ignoresSafeArea())
+        #endif
         .sheet(isPresented: $showSettings) {
             SettingsView()
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
         }
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.openSettings)) { _ in
             showSettings = true
@@ -143,6 +158,7 @@ struct MainAppView: View {
                 pendingConversation = nil
                 showModelPicker = false
             })
+            .presentationBackground(Color.bgPrimary)
             .macSheetFixedSize(SeerSheetSize.modelPicker)
         }
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.newChat)) { _ in

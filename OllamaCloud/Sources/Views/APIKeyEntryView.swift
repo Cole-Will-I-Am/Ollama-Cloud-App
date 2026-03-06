@@ -35,6 +35,9 @@ struct APIKeyEntryView: View {
                 // Emblem
                 Image("SeerEmblem")
                     .resizable()
+                    #if os(macOS)
+                    .interpolation(.high)
+                    #endif
                     .aspectRatio(contentMode: .fit)
                     .frame(height: 64)
                     .padding(.bottom, 16)
@@ -42,6 +45,9 @@ struct APIKeyEntryView: View {
                 // Logo
                 Image("SeerLogo")
                     .resizable()
+                    #if os(macOS)
+                    .interpolation(.high)
+                    #endif
                     .aspectRatio(contentMode: .fit)
                     .frame(height: 32)
                     .padding(.bottom, 12)
@@ -57,6 +63,9 @@ struct APIKeyEntryView: View {
                     SecureField("", text: $apiKey, prompt: Text("Paste Ollama API Key").foregroundStyle(Color.textTertiary))
                         .font(.app(15))
                         .foregroundStyle(Color.textPrimary)
+                        #if os(macOS)
+                        .textFieldStyle(.plain)
+                        #endif
                         .padding(.horizontal, 18)
                         .padding(.vertical, 16)
                         .background(
@@ -104,6 +113,9 @@ struct APIKeyEntryView: View {
                         .foregroundStyle(Color.textSecondary)
                     }
                     .buttonStyle(.plain)
+                    #if os(macOS)
+                    .macPointingCursor()
+                    #endif
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)
 
@@ -139,6 +151,10 @@ struct APIKeyEntryView: View {
                         .foregroundStyle(.white)
                     }
                     .disabled(connectButtonDisabled)
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    .macPointingCursor()
+                    #endif
                 }
                 .padding(24)
                 .chromeCard()
@@ -170,6 +186,10 @@ struct APIKeyEntryView: View {
                     }
                     .foregroundStyle(Color.accent.opacity(0.95))
                 }
+                #if os(macOS)
+                .buttonStyle(.plain)
+                .macPointingCursor()
+                #endif
             }
             .padding(.bottom, 24)
         }
@@ -266,10 +286,16 @@ struct APIKeyEntryView: View {
             .navigationTitle("API Key Help")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #else
+            .background(Color.bgPrimary.ignoresSafeArea())
             #endif
         }
+        #if os(iOS)
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .presentationBackground(.ultraThinMaterial)
+        #else
+        .presentationBackground(Color.bgPrimary)
+        #endif
     }
 }

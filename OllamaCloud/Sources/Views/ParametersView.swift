@@ -242,6 +242,16 @@ struct ParametersView: View {
                             .font(.app(14))
                             .foregroundStyle(Color.textPrimary)
                             .scrollContentBackground(.hidden)
+                            #if os(macOS)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.bgSecondary)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(Color.borderLight, lineWidth: 0.5)
+                                    )
+                            )
+                            #endif
                             .frame(minHeight: 120)
                             .padding(16)
                     }
@@ -255,6 +265,8 @@ struct ParametersView: View {
             .navigationTitle("Parameters")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #else
+            .background(Color.bgPrimary.ignoresSafeArea())
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -288,12 +300,20 @@ struct ParametersView: View {
                     },
                     dismissOnAttach: true
                 )
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.scaffoldLibrary)
             }
             .sheet(item: $editingScaffold) { scaffold in
                 ScaffoldBuilderView(
                     accountScopeKey: AccountScope.currentKey(),
                     scaffold: scaffold
                 )
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.scaffoldBuilder)
             }
             .sheet(isPresented: $showModelPicker) {
                 ModelPickerView(onSelect: { model in
@@ -310,6 +330,8 @@ struct ParametersView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
+                #else
+                .presentationBackground(Color.bgPrimary)
                 #endif
                 .macSheetFixedSize(SeerSheetSize.modelPicker)
             }
@@ -423,6 +445,10 @@ struct ParametersView: View {
                     )
             )
         }
+        #if os(macOS)
+        .buttonStyle(.plain)
+        .macPointingCursor()
+        #endif
     }
 
     // MARK: - Helpers
@@ -489,6 +515,9 @@ struct ParametersView: View {
                 )
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macPointingCursor()
+        #endif
     }
 
     private func attachScaffold(_ scaffold: ReasoningScaffold) {
