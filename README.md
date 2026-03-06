@@ -364,13 +364,22 @@ See [`backend/README.md`](backend/README.md) for full production deployment conf
 
 [Download macOS (Direct)](https://github.com/Cole-Cant-Code/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg)
 
+### Choose Your Path
+
+| Goal | Start Here |
+|---|---|
+| Install SEER on macOS right now (no Xcode) | [Download latest macOS build](https://github.com/Cole-Cant-Code/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg) |
+| Build, modify, or contribute to the app | [Build from Source](#build-from-source) |
+
+For direct macOS installs, Xcode is not required.
+
 ### Requirements
 
 - **iOS 17.0+** or **macOS 14.0+** (Sonoma)
 - **Xcode 16+**
 - An [Ollama Cloud](https://ollama.com) API key
 
-### Build from Source
+### Build from Source (Developers)
 
 ```bash
 brew install xcodegen
@@ -381,7 +390,7 @@ open OllamaCloud.xcodeproj
 
 Select the **OllamaCloud** scheme for iOS or **OllamaCloudMac** for macOS, then build and run.
 
-### Run on iOS Simulator
+### Run on iOS Simulator (Developers)
 
 ```bash
 ./scripts/run_ios_sim.sh
@@ -389,7 +398,7 @@ Select the **OllamaCloud** scheme for iOS or **OllamaCloudMac** for macOS, then 
 
 Defaults to iPhone 17 Pro with a clean DerivedData path to avoid stale builds.
 
-### Run on macOS
+### Run on macOS (Developers)
 
 ```bash
 xcodegen generate
