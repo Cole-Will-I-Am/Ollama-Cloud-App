@@ -12,11 +12,16 @@ struct ScaffoldLibraryView: View {
 
     @State private var searchText = ""
     @State private var showingTemplatePicker = false
-    @State private var showingBuilder = false
-    @State private var editingScaffold: ReasoningScaffold?
+    @State private var builderSheet: BuilderSheet?
     @State private var selectedTemplate: ReasoningScaffoldTemplate?
     @State private var pendingDelete: ReasoningScaffold?
     @State private var persistenceError: String?
+
+    private struct BuilderSheet: Identifiable {
+        let id = UUID()
+        let scaffold: ReasoningScaffold?
+        let template: ReasoningScaffoldTemplate?
+    }
 
     init(
         accountScopeKey: String,
@@ -69,7 +74,9 @@ struct ScaffoldLibraryView: View {
                 }
             }
             .navigationTitle("Reasoning Scaffolds")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("CLOSE") { dismiss() }
@@ -78,18 +85,21 @@ struct ScaffoldLibraryView: View {
                         .foregroundStyle(Color.textSecondary)
                 }
             }
-            .sheet(isPresented: $showingTemplatePicker) {
+            .sheet(isPresented: $showingTemplatePicker, onDismiss: {
+                if let t = selectedTemplate {
+                    builderSheet = BuilderSheet(scaffold: nil, template: t)
+                    selectedTemplate = nil
+                }
+            }) {
                 ScaffoldTemplatePickerView { template in
                     selectedTemplate = template
-                    editingScaffold = nil
-                    showingBuilder = true
                 }
             }
-            .sheet(isPresented: $showingBuilder) {
+            .sheet(item: $builderSheet) { sheet in
                 ScaffoldBuilderView(
                     accountScopeKey: accountScopeKey,
-                    scaffold: editingScaffold,
-                    template: selectedTemplate
+                    scaffold: sheet.scaffold,
+                    template: sheet.template
                 )
             }
             .confirmationDialog(
@@ -132,11 +142,10 @@ struct ScaffoldLibraryView: View {
                 .foregroundStyle(Color.textSecondary)
             HStack(spacing: 10) {
                 actionCapsule(title: "NEW") {
-                    selectedTemplate = nil
-                    editingScaffold = nil
-                    showingBuilder = true
+                    builderSheet = BuilderSheet(scaffold: nil, template: nil)
                 }
                 actionCapsule(title: "TEMPLATES") {
+                    selectedTemplate = nil
                     showingTemplatePicker = true
                 }
             }
@@ -148,11 +157,10 @@ struct ScaffoldLibraryView: View {
     private var topActions: some View {
         HStack(spacing: 10) {
             actionCapsule(title: "NEW") {
-                selectedTemplate = nil
-                editingScaffold = nil
-                showingBuilder = true
+                builderSheet = BuilderSheet(scaffold: nil, template: nil)
             }
             actionCapsule(title: "TEMPLATES") {
+                selectedTemplate = nil
                 showingTemplatePicker = true
             }
         }
@@ -218,9 +226,7 @@ struct ScaffoldLibraryView: View {
                 }
                 .disabled(onAttach == nil)
                 Button("Edit") {
-                    selectedTemplate = nil
-                    editingScaffold = scaffold
-                    showingBuilder = true
+                    builderSheet = BuilderSheet(scaffold: scaffold, template: nil)
                 }
                 Button("Duplicate") {
                     duplicate(scaffold)

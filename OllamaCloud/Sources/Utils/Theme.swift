@@ -3,25 +3,39 @@ import MarkdownUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Haptics
 
 enum Haptic {
+    #if os(iOS)
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
-        #if os(iOS)
         UIImpactFeedbackGenerator(style: style).impactOccurred()
-        #endif
     }
 
     static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        #if os(iOS)
         UINotificationFeedbackGenerator().notificationOccurred(type)
-        #endif
     }
+    #elseif os(macOS)
+    enum ImpactStyle { case light, medium, heavy, rigid, soft }
+    enum NotificationType { case success, warning, error }
+
+    static func impact(_ style: ImpactStyle = .light) {
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+    }
+
+    static func notification(_ type: NotificationType) {
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    }
+    #endif
 
     static func selection() {
         #if os(iOS)
         UISelectionFeedbackGenerator().selectionChanged()
+        #elseif os(macOS)
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
         #endif
     }
 }
@@ -101,6 +115,18 @@ extension Font {
     static func appDisplay(_ size: CGFloat, weight: Font.Weight = .thin) -> Font {
         .system(size: size, weight: weight, design: .default).width(.expanded)
     }
+}
+
+// MARK: - Cross-Platform Toolbar Placement
+
+extension ToolbarItemPlacement {
+    #if os(iOS)
+    static var seerLeading: ToolbarItemPlacement { .topBarLeading }
+    static var seerTrailing: ToolbarItemPlacement { .topBarTrailing }
+    #else
+    static var seerLeading: ToolbarItemPlacement { .automatic }
+    static var seerTrailing: ToolbarItemPlacement { .automatic }
+    #endif
 }
 
 // MARK: - Tracking Modifier
@@ -217,167 +243,7 @@ extension View {
     }
 }
 
-// MARK: - Code Block Rendering
-
-private struct SeerCodeBlock: View {
-    private static let autoCollapseLineThreshold = 20
-    private static let manualCollapseLineThreshold = 6
-
-    let language: String?
-    let content: String
-    @State private var isCollapsed: Bool
-
-    init(language: String?, content: String) {
-        self.language = language
-        self.content = content
-        let normalized = content.replacingOccurrences(of: "\t", with: "    ")
-        let lines = max(1, normalized.components(separatedBy: .newlines).count)
-        _isCollapsed = State(initialValue: lines >= Self.autoCollapseLineThreshold)
-    }
-
-    private var normalizedContent: String {
-        content.replacingOccurrences(of: "\t", with: "    ")
-    }
-
-    private var languageLabel: String {
-        guard let language, !language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return "plain text"
-        }
-        return language
-    }
-
-    private var lineNumberText: String {
-        (1...lineCount).map(String.init).joined(separator: "\n")
-    }
-
-    private var lineCount: Int {
-        max(1, normalizedContent.components(separatedBy: .newlines).count)
-    }
-
-    private var canCollapse: Bool {
-        lineCount >= Self.manualCollapseLineThreshold
-    }
-
-    private var collapsedPreviewLine: String {
-        normalizedContent
-            .components(separatedBy: .newlines)
-            .first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .prefix(100)
-            .description ?? ""
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Text(languageLabel)
-                    .font(.appLabel(9))
-                    .foregroundStyle(Color.textSecondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule().fill(Color.white.opacity(0.05))
-                    )
-                Text("\(lineCount)L")
-                    .font(.appLabel(9))
-                    .foregroundStyle(Color.textTertiary)
-                Spacer()
-                if canCollapse {
-                    Button {
-                        withAnimation(.snappy(duration: 0.2)) {
-                            isCollapsed.toggle()
-                        }
-                        Haptic.selection()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .medium))
-                                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                            Text(isCollapsed ? "Expand" : "Collapse")
-                                .font(.appLabel(9))
-                        }
-                        .foregroundStyle(Color.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isCollapsed ? "Expand code block" : "Collapse code block")
-                }
-                Button {
-                    copyCode()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 10, weight: .ultraLight))
-                        Text("Copy")
-                            .font(.appLabel(9))
-                    }
-                    .foregroundStyle(Color.accent)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Copy code")
-                .accessibilityHint("Copies this code block to the clipboard")
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-
-            Rectangle()
-                .fill(Color.border)
-                .frame(height: 0.5)
-
-            if isCollapsed {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Code block collapsed")
-                        .font(.app(11, weight: .medium))
-                        .foregroundStyle(Color.textSecondary)
-                    if !collapsedPreviewLine.isEmpty {
-                        Text(collapsedPreviewLine)
-                            .font(.system(size: 12, weight: .regular, design: .monospaced))
-                            .foregroundStyle(Color.textTertiary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-            } else {
-                ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(lineNumberText)
-                            .font(.system(size: 11, weight: .regular, design: .monospaced))
-                            .foregroundStyle(Color.textTertiary)
-                            .multilineTextAlignment(.trailing)
-                            .padding(.trailing, 2)
-                            .textSelection(.disabled)
-
-                        SeerCodeSyntaxHighlighter.shared
-                            .highlightCode(normalizedContent, language: language)
-                            .font(.system(size: 13, weight: .regular, design: .monospaced))
-                            .lineSpacing(3)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                }
-                .frame(maxHeight: 340)
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.bgPrimary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.border, lineWidth: 0.5)
-                )
-        )
-        .markdownMargin(top: .zero, bottom: .em(0.8))
-    }
-
-    private func copyCode() {
-        #if os(iOS)
-        UIPasteboard.general.string = normalizedContent
-        Haptic.notification(.success)
-        #endif
-    }
-}
+// MARK: - Code Block Rendering (SeerCodeBlock extracted to SeerCodeBlock.swift)
 
 private enum SeerCodeTokenKind {
     case plain
