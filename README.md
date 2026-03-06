@@ -18,6 +18,7 @@ SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Pla
 | **Scheme** | `OllamaCloudMac` | `OllamaCloud` |
 | **Min version** | macOS 14.0 | iOS 17.0 |
 | **Code execution** | Python, JavaScript, Shell | JavaScript only |
+| **MCP tools** | Supported (Claude-style `~/.seer/mcp.json`) | Not available |
 | **Keyboard shortcuts** | Cmd+N, Cmd+Enter, Cmd+K, Cmd+1/2/3, etc. | Standard iOS |
 | **Drag & drop** | Drop files into chat as code blocks | Not available |
 | **Export** | Save conversation as Markdown | Not available |
@@ -71,6 +72,7 @@ Commands are routed through a notification-based command bus: [`AppCommands.swif
 | Feature | Description | Code |
 |---|---|---|
 | **Full code execution** | Run Python, JavaScript, and Shell via `Process` with stdin/stdout piping and timeout | [`CodeExecutionService.swift:73`](OllamaCloud/Sources/Services/CodeExecutionService.swift#L73) |
+| **MCP tool integration** | Starts configured MCP servers, exposes tools to model, executes tool calls, and persists tool call/result bubbles | [`MCPClientManager.swift`](OllamaCloud/Sources/Services/MCPClientManager.swift) |
 | **Drag & drop files** | Drop `.swift`, `.py`, `.js`, `.json`, `.md`, `.txt`, etc. into chat as fenced code blocks (100KB limit) | [`ChatView.swift:1318`](OllamaCloud/Sources/Views/ChatView.swift#L1318) |
 | **Export to Markdown** | Save conversation as `.md` via `NSSavePanel` with collapsed thinking blocks | [`ChatView.swift:1421`](OllamaCloud/Sources/Views/ChatView.swift#L1421) |
 | **SEER dock name** | App displays as "SEER" in the dock via `PRODUCT_NAME` | [`project.yml:68`](project.yml#L68) |
@@ -80,6 +82,42 @@ Commands are routed through a notification-based command bus: [`AppCommands.swif
 | **Native sheet sizing** | Fixed-frame sheets via `macSheetFixedSize()` helper | [`SheetSizing.swift`](OllamaCloud/Sources/Utils/SheetSizing.swift) |
 | **Window constraints** | Min 800x500, default 1100x700 | [`OllamaCloudApp.swift:39`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L39) |
 | **macOS haptics** | `NSHapticFeedbackManager` integration | [`Theme.swift`](OllamaCloud/Sources/Utils/Theme.swift) |
+
+### MCP Tool Calling (macOS Only)
+
+SEER includes native MCP client support on macOS.
+
+- Loads server config from `~/.seer/mcp.json` (Claude Desktop-compatible shape)
+- Spawns servers via stdio transport and aggregates all discovered tools
+- Sends tools with chat requests to Ollama (`/api/chat`)
+- Executes returned `tool_calls`, stores tool-call and tool-result messages, and continues generation
+- Shows MCP server status + restart controls in **Settings > MCP SERVERS**
+- Shows tool call/result bubbles inline in chat
+- Applies guardrails: per-call timeout (30s) and max tool-call rounds (10) to prevent runaway loops
+
+Example `~/.seer/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you"],
+      "env": {}
+    }
+  }
+}
+```
+
+Implementation entry points:
+
+- [`MCPConfig.swift`](OllamaCloud/Sources/Models/MCPConfig.swift)
+- [`MCPClientManager.swift`](OllamaCloud/Sources/Services/MCPClientManager.swift)
+- [`StreamingChatService.swift`](OllamaCloud/Sources/Services/StreamingChatService.swift)
+- [`MCPServerStatusView.swift`](OllamaCloud/Sources/Views/MCPServerStatusView.swift)
+- [`ToolCallBubble.swift`](OllamaCloud/Sources/Views/ToolCallBubble.swift)
+
+The iOS target intentionally has no MCP runtime behavior; MCP code is gated with `#if os(macOS)` and the MCP package dependency is attached only to the macOS target in [`project.yml`](project.yml).
 
 ---
 
@@ -148,6 +186,7 @@ The app ships with a first-class `SEER` model profile for onboarding and product
 - Uses a dedicated system profile prompt for app/codebase help
 - Tuned for concise responses and lower verbosity
 - Sends requests with `think=false` to avoid long reasoning dumps in normal SEER usage
+- Includes explicit iOS-vs-macOS capability guidance (including MCP availability) and prerequisite-check behavior for uncertain environment-dependent features
 
 Environment overrides (Xcode scheme or process env):
 
