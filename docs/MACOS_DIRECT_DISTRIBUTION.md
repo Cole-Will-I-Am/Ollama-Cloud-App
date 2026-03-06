@@ -1,5 +1,9 @@
 # macOS Direct Distribution (Outside App Store)
 
+For the canonical multi-platform release process (iOS + macOS versioning, tags, labels, and sequencing), see:
+
+- `docs/RELEASE_WORKFLOW.md`
+
 This is the same distribution model used by many desktop apps downloaded from vendor websites:
 
 1. Build Release app

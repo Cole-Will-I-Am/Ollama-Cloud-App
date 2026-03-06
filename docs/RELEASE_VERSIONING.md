@@ -1,5 +1,9 @@
 # Release Versioning and Platform Tracking
 
+For the full end-to-end process (including GitHub release naming, direct-download artifacts, and App Store sequencing), use:
+
+- `docs/RELEASE_WORKFLOW.md`
+
 This repo ships two Apple platform apps from one shared codebase:
 
 - iOS app: `com.colecantcode.ollamacloud`

@@ -482,7 +482,14 @@ Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for d
 
 SEER ships iOS and macOS apps from one repository, but each platform is submitted and reviewed independently in App Store Connect.
 
-For clean GitHub history (platform-specific tags, build numbering, and release naming), see [`docs/RELEASE_VERSIONING.md`](docs/RELEASE_VERSIONING.md).
+Canonical workflow (versioning, tags, labeling, direct-download, and App Store sequencing):
+
+- [`docs/RELEASE_WORKFLOW.md`](docs/RELEASE_WORKFLOW.md)
+
+Supporting references:
+
+- [`docs/RELEASE_VERSIONING.md`](docs/RELEASE_VERSIONING.md)
+- [`docs/MACOS_DIRECT_DISTRIBUTION.md`](docs/MACOS_DIRECT_DISTRIBUTION.md)
 
 ---
 
