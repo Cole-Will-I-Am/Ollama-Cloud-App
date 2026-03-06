@@ -3,6 +3,14 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var network: NetworkMonitor
+    #if os(macOS)
+    @EnvironmentObject private var mcpManager: MCPClientManager
+    @AppStorage("mcpEnabled") private var mcpEnabled = false
+    @State private var installedMCPServers: Set<String> = []
+    @State private var installingMCPServerID: String?
+    @State private var mcpLibraryMessage: String?
+    @State private var mcpLibraryError: String?
+    #endif
     @AppStorage("hasAPIKey") private var hasAPIKey = false
     @State private var showRemoveConfirmation = false
 
@@ -62,7 +70,7 @@ struct SettingsView: View {
                     // MCP Servers (macOS only)
                     #if os(macOS)
                     section("MCP SERVERS") {
-                        MCPServerStatusView()
+                        mcpSettingsContent
                     }
                     #endif
 
@@ -150,6 +158,199 @@ struct SettingsView: View {
         let build = (info?["CFBundleVersion"] as? String) ?? ""
         return build.isEmpty ? version : "\(version) (\(build))"
     }
+
+    #if os(macOS)
+    private var mcpSettingsContent: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("MCP ENABLED")
+                        .font(.appLabel(10))
+                        .foregroundStyle(Color.textTertiary)
+                        .labelTracking()
+                    Text(mcpEnabled ? "On" : "Off")
+                        .font(.app(13, weight: .medium))
+                        .foregroundStyle(mcpEnabled ? Color.success : Color.textSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: $mcpEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+            .padding(16)
+
+            Rectangle()
+                .fill(Color.border)
+                .frame(height: 0.5)
+                .padding(.leading, 16)
+
+            if mcpEnabled {
+                MCPServerStatusView()
+            } else {
+                VStack(spacing: 6) {
+                    Text("MCP is disabled")
+                        .font(.app(13, weight: .light))
+                        .foregroundStyle(Color.textSecondary)
+                    Text("Turn on to load servers from ~/.seer/mcp.json")
+                        .font(.appMono(11, weight: .regular))
+                        .foregroundStyle(Color.textTertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+            }
+
+            Rectangle()
+                .fill(Color.border)
+                .frame(height: 0.5)
+                .padding(.leading, 16)
+
+            mcpLibraryContent
+        }
+        .onAppear {
+            refreshInstalledMCPServers()
+        }
+        .onChange(of: mcpEnabled) { _, enabled in
+            Task {
+                if enabled {
+                    await mcpManager.loadAndConnect()
+                } else {
+                    await mcpManager.shutdown()
+                }
+            }
+        }
+    }
+
+    private var mcpLibraryContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("MCP LIBRARY")
+                    .font(.appLabel(10))
+                    .foregroundStyle(Color.textTertiary)
+                    .labelTracking()
+                Spacer()
+                Text("\(MCPLibraryRegistry.servers.count) options")
+                    .font(.app(11))
+                    .foregroundStyle(Color.textTertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            ForEach(Array(MCPLibraryRegistry.servers.enumerated()), id: \.element.id) { index, server in
+                mcpLibraryRow(server: server)
+                if index < MCPLibraryRegistry.servers.count - 1 {
+                    Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
+                }
+            }
+
+            if let message = mcpLibraryMessage {
+                Text(message)
+                    .font(.app(11))
+                    .foregroundStyle(Color.success)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+            }
+
+            if let error = mcpLibraryError {
+                Text(error)
+                    .font(.app(11))
+                    .foregroundStyle(Color.danger)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+            }
+
+            Text("Installs add entries to ~/.seer/mcp.json. Set keys/credentials in that file where required.")
+                .font(.app(10))
+                .foregroundStyle(Color.textTertiary)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
+        }
+    }
+
+    private func mcpLibraryRow(server: MCPLibraryServer) -> some View {
+        let isInstalled = installedMCPServers.contains(server.id)
+        let isInstalling = installingMCPServerID == server.id
+
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.accent.opacity(0.12))
+                    .frame(width: 28, height: 28)
+                Image(systemName: server.icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.accent)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(server.displayName)
+                    .font(.app(13, weight: .medium))
+                    .foregroundStyle(Color.textPrimary)
+                Text(server.description)
+                    .font(.app(11))
+                    .foregroundStyle(Color.textTertiary)
+            }
+
+            Spacer()
+
+            Button {
+                installLibraryServer(server)
+            } label: {
+                if isInstalling {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.textPrimary)
+                        .frame(width: 64)
+                } else {
+                    Text(isInstalled ? "INSTALLED" : "INSTALL")
+                        .font(.appLabel(10))
+                        .tracking(1.2)
+                        .foregroundStyle(isInstalled ? Color.textTertiary : Color.textPrimary)
+                        .frame(minWidth: 64)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(isInstalled ? Color.bgSecondary : Color.accent.opacity(0.22))
+                        )
+                }
+            }
+            .buttonStyle(.plain)
+            .macPointingCursor()
+            .disabled(isInstalled || isInstalling || installingMCPServerID != nil)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func refreshInstalledMCPServers() {
+        installedMCPServers = MCPConfigStore.installedServerNames()
+    }
+
+    private func installLibraryServer(_ server: MCPLibraryServer) {
+        guard installingMCPServerID == nil else { return }
+
+        installingMCPServerID = server.id
+        defer { installingMCPServerID = nil }
+
+        do {
+            try MCPConfigStore.installLibraryServer(server)
+            mcpLibraryError = nil
+            mcpLibraryMessage = "Added '\(server.id)' to ~/.seer/mcp.json."
+            refreshInstalledMCPServers()
+
+            if mcpEnabled {
+                Task {
+                    await mcpManager.shutdown()
+                    await mcpManager.loadAndConnect()
+                }
+            }
+        } catch {
+            mcpLibraryMessage = nil
+            mcpLibraryError = error.localizedDescription
+        }
+    }
+    #endif
 
     private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {

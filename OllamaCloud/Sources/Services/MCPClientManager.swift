@@ -40,6 +40,7 @@ enum MCPServerState: Sendable {
 @MainActor
 class MCPClientManager: ObservableObject {
     @Published var servers: [String: MCPServerState] = [:]
+    @Published var connectingStartedAt: [String: Date] = [:]
     @Published var allTools: [AggregatedTool] = []
     @Published var isLoaded = false
 
@@ -47,9 +48,15 @@ class MCPClientManager: ObservableObject {
     private var processes: [String: Process] = [:]
     private var serverTools: [String: [Tool]] = [:]
     private var toolToServer: [String: String] = [:]
+    private var connectionTasks: [String: Task<Void, Never>] = [:]
+    private var serverGenerations: [String: Int] = [:]
     private var config: MCPConfig?
 
     private static let toolCallTimeout: TimeInterval = 30
+    private static let connectionTimeout: TimeInterval = 90
+    private static let verboseServerLogs = ProcessInfo.processInfo.environment["SEER_MCP_STDERR_LOG"] == "1"
+    private static let stderrLogWindow: TimeInterval = 10
+    private static let stderrLogBurst = 5
 
     // MARK: - Lifecycle
 
@@ -57,45 +64,101 @@ class MCPClientManager: ObservableObject {
         guard !isLoaded else { return }
         isLoaded = true
 
-        guard let config = MCPConfigLoader.load() else {
-            logger.info("No MCP config found at \(MCPConfigLoader.configURL.path)")
-            return
+        // Load built-in servers (respecting toggles)
+        for builtIn in BuiltInMCPRegistry.servers {
+            guard BuiltInMCPRegistry.isEnabled(builtIn) else {
+                _ = bumpGeneration(for: builtIn.id)
+                servers[builtIn.id] = .disconnected
+                continue
+            }
+            servers[builtIn.id] = .connecting
+            let generation = bumpGeneration(for: builtIn.id)
+            startConnection(name: builtIn.id, config: builtIn.toServerConfig(), generation: generation)
         }
-        self.config = config
 
-        for (name, serverConfig) in config.mcpServers {
-            servers[name] = .connecting
-            await connectServer(name: name, config: serverConfig)
+        // Load custom servers from ~/.seer/mcp.json
+        if let config = MCPConfigLoader.load() {
+            self.config = config
+            let builtInIDs = Set(BuiltInMCPRegistry.servers.map(\.id))
+            for (name, serverConfig) in config.mcpServers where !builtInIDs.contains(name) {
+                servers[name] = .connecting
+                let generation = bumpGeneration(for: name)
+                startConnection(name: name, config: serverConfig, generation: generation)
+            }
         }
     }
 
     func shutdown() async {
-        for (name, _) in clients {
+        let activeNames = Set(clients.keys)
+            .union(processes.keys)
+            .union(connectionTasks.keys)
+            .union(connectingStartedAt.keys)
+        for name in activeNames {
+            _ = bumpGeneration(for: name)
             await disconnectServer(name: name)
         }
         clients.removeAll()
         processes.removeAll()
         serverTools.removeAll()
         toolToServer.removeAll()
+        connectionTasks.values.forEach { $0.cancel() }
+        connectionTasks.removeAll()
+        servers.removeAll()
+        connectingStartedAt.removeAll()
         allTools.removeAll()
+        isLoaded = false
     }
 
     func restartServer(name: String) async {
+        let generation = bumpGeneration(for: name)
         await disconnectServer(name: name)
-        guard let serverConfig = config?.mcpServers[name] else { return }
-        servers[name] = .connecting
-        await connectServer(name: name, config: serverConfig)
+
+        // Check built-in first, then custom config
+        if let builtIn = BuiltInMCPRegistry.servers.first(where: { $0.id == name }) {
+            servers[name] = .connecting
+            startConnection(name: name, config: builtIn.toServerConfig(), generation: generation)
+        } else if let serverConfig = config?.mcpServers[name] {
+            servers[name] = .connecting
+            startConnection(name: name, config: serverConfig, generation: generation)
+        }
+    }
+
+    /// Toggle a built-in server on or off. Connects or disconnects immediately.
+    func toggleBuiltInServer(_ server: BuiltInMCPServer, enabled: Bool) async {
+        BuiltInMCPRegistry.setEnabled(server, enabled: enabled)
+        if enabled {
+            let generation = bumpGeneration(for: server.id)
+            servers[server.id] = .connecting
+            startConnection(name: server.id, config: server.toServerConfig(), generation: generation)
+        } else {
+            _ = bumpGeneration(for: server.id)
+            await disconnectServer(name: server.id)
+        }
     }
 
     // MARK: - Server Connection
 
-    private func connectServer(name: String, config: MCPServerConfig) async {
+    private func startConnection(name: String, config: MCPServerConfig, generation: Int) {
+        connectionTasks[name]?.cancel()
+        connectionTasks[name] = Task { [weak self] in
+            await self?.connectServer(name: name, config: config, generation: generation)
+        }
+    }
+
+    private func connectServer(name: String, config: MCPServerConfig, generation: Int) async {
+        guard isCurrent(generation, for: name) else { return }
         let resolvedCommand = resolveCommand(config.command)
         guard let resolvedCommand else {
-            servers[name] = .error("Command not found: \(config.command)")
-            logger.error("MCP server '\(name)': command not found: \(config.command)")
+            if isCurrent(generation, for: name) {
+                servers[name] = .error("Command not found: \(config.command)")
+                connectingStartedAt.removeValue(forKey: name)
+                logger.error("MCP server '\(name)': command not found: \(config.command)")
+                connectionTasks.removeValue(forKey: name)
+            }
             return
         }
+
+        guard !Task.isCancelled, isCurrent(generation, for: name) else { return }
 
         let process = Process()
         let stdinPipe = Pipe()
@@ -118,8 +181,12 @@ class MCPClientManager: ObservableObject {
         do {
             try process.run()
         } catch {
-            servers[name] = .error("Failed to launch: \(error.localizedDescription)")
-            logger.error("MCP server '\(name)': launch failed: \(error.localizedDescription)")
+            if isCurrent(generation, for: name) {
+                servers[name] = .error("Failed to launch: \(error.localizedDescription)")
+                connectingStartedAt.removeValue(forKey: name)
+                logger.error("MCP server '\(name)': launch failed: \(error.localizedDescription)")
+                connectionTasks.removeValue(forKey: name)
+            }
             return
         }
 
@@ -129,12 +196,38 @@ class MCPClientManager: ObservableObject {
         let serverName = name
         Task.detached(priority: .utility) {
             let handle = stderrPipe.fileHandleForReading
+            var windowStart = Date()
+            var emitted = 0
+            var suppressed = 0
             while true {
                 let data = handle.availableData
                 if data.isEmpty { break }
-                if let line = String(data: data, encoding: .utf8) {
-                    logger.debug("MCP stderr [\(serverName)]: \(line)")
+
+                // Keep draining regardless, but only emit logs when explicitly enabled.
+                guard Self.verboseServerLogs else { continue }
+
+                if Date().timeIntervalSince(windowStart) >= Self.stderrLogWindow {
+                    if suppressed > 0 {
+                        logger.debug("MCP stderr [\(serverName)]: suppressed \(suppressed) log chunks in last \(Int(Self.stderrLogWindow))s")
+                    }
+                    windowStart = Date()
+                    emitted = 0
+                    suppressed = 0
                 }
+
+                if emitted < Self.stderrLogBurst {
+                    if let line = String(data: data, encoding: .utf8)?
+                        .trimmingCharacters(in: .newlines),
+                       !line.isEmpty {
+                        logger.debug("MCP stderr [\(serverName)]: \(line)")
+                        emitted += 1
+                    }
+                } else {
+                    suppressed += 1
+                }
+            }
+            if Self.verboseServerLogs, suppressed > 0 {
+                logger.debug("MCP stderr [\(serverName)]: suppressed \(suppressed) additional log chunks")
             }
         }
 
@@ -145,24 +238,49 @@ class MCPClientManager: ObservableObject {
         let transport = StdioTransport(input: inputFD, output: outputFD)
 
         let client = Client(name: "SEER", version: "1.0")
+        connectingStartedAt[name] = Date()
 
         do {
-            try await client.connect(transport: transport)
-            let (tools, _) = try await client.listTools()
+            let (tools, _): ([Tool], String?) = try await withTimeout(seconds: Self.connectionTimeout) {
+                try await client.connect(transport: transport)
+                return try await client.listTools()
+            }
+            guard !Task.isCancelled, isCurrent(generation, for: name) else {
+                await client.disconnect()
+                if process.isRunning { process.terminate() }
+                processes.removeValue(forKey: name)
+                return
+            }
             clients[name] = client
             serverTools[name] = tools
             servers[name] = .connected(toolCount: tools.count)
+            connectingStartedAt.removeValue(forKey: name)
+            connectionTasks.removeValue(forKey: name)
             rebuildAggregatedTools()
             logger.info("MCP server '\(name)': connected with \(tools.count) tools")
         } catch {
-            servers[name] = .error(error.localizedDescription)
-            logger.error("MCP server '\(name)': connection failed: \(error.localizedDescription)")
+            guard isCurrent(generation, for: name) else {
+                if process.isRunning { process.terminate() }
+                processes.removeValue(forKey: name)
+                return
+            }
+            connectingStartedAt.removeValue(forKey: name)
+            let message = error is TimeoutError
+                ? "Connection timed out (\(Int(Self.connectionTimeout))s)"
+                : error.localizedDescription
+            servers[name] = .error(message)
+            logger.error("MCP server '\(name)': connection failed: \(message)")
             process.terminate()
             processes.removeValue(forKey: name)
+            connectionTasks.removeValue(forKey: name)
         }
     }
 
     private func disconnectServer(name: String) async {
+        if let task = connectionTasks[name] {
+            task.cancel()
+            connectionTasks.removeValue(forKey: name)
+        }
         if let client = clients[name] {
             await client.disconnect()
             clients.removeValue(forKey: name)
@@ -172,6 +290,7 @@ class MCPClientManager: ObservableObject {
             processes.removeValue(forKey: name)
         }
         serverTools.removeValue(forKey: name)
+        connectingStartedAt.removeValue(forKey: name)
         servers[name] = .disconnected
         rebuildAggregatedTools()
     }
@@ -327,6 +446,16 @@ class MCPClientManager: ObservableObject {
             result.insert(dir, at: 0)
         }
         return result.joined(separator: ":")
+    }
+
+    private func bumpGeneration(for name: String) -> Int {
+        let next = (serverGenerations[name] ?? 0) + 1
+        serverGenerations[name] = next
+        return next
+    }
+
+    private func isCurrent(_ generation: Int, for name: String) -> Bool {
+        serverGenerations[name] == generation
     }
 }
 
