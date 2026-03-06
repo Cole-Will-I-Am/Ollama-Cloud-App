@@ -4,98 +4,154 @@
 </p>
 
 <p align="center">
-  SEER is a native iOS and macOS client for Ollama Cloud with streaming chat, model controls, and reasoning scaffolds.
+  <b>A native AI chat client for iPhone and Mac — built for people who want more from their models.</b>
+</p>
+
+<p align="center">
+  Streaming conversations &nbsp;·&nbsp; Reasoning scaffolds &nbsp;·&nbsp; Inline code execution &nbsp;·&nbsp; MCP tool calling &nbsp;·&nbsp; One codebase, two platforms
 </p>
 
 ---
 
-## Platform Overview
+## Why SEER
 
-SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Platform-specific behavior is gated behind `#if os(macOS)` / `#if os(iOS)` — the two targets never diverge in business logic, only in UI and system capabilities.
+Most AI chat apps give you a text box and a send button. SEER gives you control over *how* the model thinks — not just what you ask it.
 
-| | **macOS** | **iOS** |
-|---|---|---|
-| **Scheme** | `OllamaCloudMac` | `OllamaCloud` |
-| **Min version** | macOS 14.0 | iOS 17.0 |
-| **Code execution** | Python, JavaScript, Shell | JavaScript only |
-| **MCP tools** | Supported (Claude-style `~/.seer/mcp.json`) | Not available |
-| **Keyboard shortcuts** | Cmd+N, Cmd+Enter, Cmd+K, Cmd+1/2/3, etc. | Standard iOS |
-| **Drag & drop** | Drop files into chat as code blocks | Not available |
-| **Export** | Save conversation as Markdown | Not available |
-| **Haptics** | `NSHapticFeedbackManager` | `UIImpactFeedbackGenerator` |
-| **Clipboard** | `NSPasteboard` | `UIPasteboard` |
-| **Sheet sizing** | Fixed-frame windows | Presentation detents |
+**Reasoning Scaffolds** let you attach structured guidance to any conversation so the model follows a proven thinking pattern every time. No prompt engineering required. Pick a template, attach it, and your responses get sharper — whether you're debugging code, making a business decision, or reviewing a pull request.
+
+**Run code in the conversation.** When the model writes a Python script, a shell command, or a JavaScript snippet, tap Run and see the output right there in the chat. No copy-pasting to a terminal. On iOS, JavaScript runs natively — no external tools needed.
+
+**MCP tool calling on Mac** means models can reach beyond the chat window. Connect filesystem access, web search, GitHub, databases, browser automation, and more — all through the open Model Context Protocol standard. SEER manages server lifecycles, routes tool calls, and displays results inline.
+
+**One shared codebase, two truly native apps.** SEER is built entirely in SwiftUI and SwiftData. No Electron. No web views. No compromise. It feels like it belongs on your device because it does.
 
 ---
 
-## Features (Both Platforms)
+## At a Glance
 
-- Stream chat completions from Ollama Cloud API
-- Collapsible thinking/reasoning display for supported models
-- Live streaming stats during generation (thinking chars, chars, chunks, throughput)
-- Conversation management with pin/unpin and delete actions
-- Per-conversation model selection and parameter tuning (temperature, top-p, top-k, penalties, etc.)
-- Built-in `SEER` virtual model profile pinned by default for fast concise guidance
-- Reasoning Scaffold library with templates, guided builder, search, attach/swap/clear
-- Composer scaffold button + active scaffold chip for one-tap control
-- Runtime scaffold injection ahead of system prompt for deterministic context shaping
-- Long-press chat actions: Copy, Edit Prompt, Regenerate
-- Rich code blocks: syntax highlighting, line numbers, copy, auto/manual collapse
-- Inline code execution with Run button and Input panel for stdin values — output displayed inline below the code block
-- Account-scoped persistence for chats, scaffolds, and favorites
+<table>
+<tr>
+<td width="50%">
+
+**For Everyone**
+- Stream responses from 100+ cloud models via Ollama
+- Rich Markdown rendering with syntax-highlighted code blocks
+- Collapsible thinking/reasoning sections for supported models
+- Pin, search, and organize conversations
+- Dark-mode-first OLED-optimized interface
 - Keychain-secured API key storage
-- Network monitoring with offline detection, retry logic, and certificate pinning
-- Dark-mode-first UI with wide-tracked typography
+- Offline detection with automatic retry
+
+</td>
+<td width="50%">
+
+**For Power Users**
+- Reasoning Scaffolds — reusable thinking frameworks
+- Per-conversation parameter tuning (temperature, top-p, top-k, penalties, seeds, and more)
+- Inline code execution with input panel for stdin values
+- MCP tool integration with built-in and custom servers (macOS)
+- Drag-and-drop files into chat as code blocks (macOS)
+- Export conversations to Markdown (macOS)
+- Full keyboard-driven workflow (macOS)
+
+</td>
+</tr>
+</table>
 
 ---
 
-## macOS Features
+## What Makes SEER Different
 
-The macOS app has additional capabilities that take advantage of the desktop environment.
+### Reasoning Scaffolds — shape how the model thinks
 
-### Keyboard Shortcuts & Menu Commands
+Other chat apps let you set a system prompt. SEER goes further with **Reasoning Scaffolds** — structured context blocks that guide the model's thinking pattern, not just its persona.
 
-| Shortcut | Action | Code |
+A scaffold defines role, perspective, tone, ordered reasoning steps, output format, constraints, and guardrails. When attached to a conversation, it's injected *ahead* of the system prompt in a deterministic merge order, giving you repeatable, higher-quality reasoning without rewriting prompts for every chat.
+
+Build your own in a guided form with live preview, or start from one of seven built-in templates:
+
+| Template | Use Case | What It Drives |
 |---|---|---|
-| `Cmd+N` | New Chat | [`OllamaCloudApp.swift:49`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L49) |
-| `Cmd+Enter` | Send Message | [`OllamaCloudApp.swift:70`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L70) |
-| `Cmd+K` | Quick Model Switch | [`OllamaCloudApp.swift:75`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L75) |
-| `Cmd+,` | Settings | [`OllamaCloudApp.swift:62`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L62) |
-| `Cmd+Shift+E` | Export Conversation as Markdown | [`OllamaCloudApp.swift:55`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L55) |
-| `Cmd+Shift+W` | Close Chat (deselect conversation) | [`OllamaCloudApp.swift:82`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L82) |
-| `Cmd+1/2/3` | Jump to conversation by position | [`OllamaCloudApp.swift:89`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L89) |
+| **Mantic** | Structural reasoning and hidden constraint analysis | Multi-layer thinking, tension/alignment detection, actionable next move |
+| **Code Expert / Reviewer** | Engineering reviews and technical QA | Severity-first findings, concrete fixes, testing gaps |
+| **Tutor** | Teaching and explanations | Progressive explanation depth with understanding checks |
+| **Technical Debugger** | Bug hunts and incident response | Repro-first diagnosis, lowest-risk fix path |
+| **Decision Coach** | Tradeoff decisions | Criteria-based comparison with clear recommendation |
+| **Creative Strategist** | Frontend UI/UX direction | Distinct design concepts with implementation guidance |
+| **Marketing / Sales Expert** | Go-to-market and revenue motions | ICP clarity, messaging, funnel strategy, sales actions |
 
-Commands are routed through a notification-based command bus: [`AppCommands.swift`](OllamaCloud/Sources/Utils/AppCommands.swift)
+Scaffolds are saved to your library, editable any time, and live-linked across every conversation that uses them — update once, every chat benefits.
 
-### Desktop Features
+```mermaid
+flowchart LR
+  A["Open Chat"] --> B["Tap Scaffold Button"]
+  B --> C["Pick Template or Existing Scaffold"]
+  C --> D["Attach To Conversation"]
+  D --> E["Send Message"]
+  E --> F["Model Receives: Scaffold First, Then System Prompt"]
+  F --> G["Higher Consistency + Better Reasoning Shape"]
+```
 
-| Feature | Description | Code |
+**Why this matters in practice:**
+- Stop micromanaging prompts for every message
+- Get consistent response quality across long conversations
+- Reuse proven workflows (debugging, planning, GTM, design review) instantly
+- Onboard team members who aren't prompt engineers — just pick a scaffold
+
+---
+
+### Inline Code Execution — run it right in the chat
+
+When a model generates a code block in a supported language, SEER adds a **Run** button directly on the block. Tap it and see stdout, stderr, and exit codes rendered inline — no context switching to a terminal or IDE.
+
+| | macOS | iOS |
 |---|---|---|
-| **Full code execution** | Run Python, JavaScript, and Shell via `Process` with stdin/stdout piping and timeout | [`CodeExecutionService.swift:73`](OllamaCloud/Sources/Services/CodeExecutionService.swift#L73) |
-| **MCP tool integration** | Starts configured MCP servers, exposes tools to model, executes tool calls, and persists tool call/result bubbles | [`MCPClientManager.swift`](OllamaCloud/Sources/Services/MCPClientManager.swift) |
-| **Drag & drop files** | Drop `.swift`, `.py`, `.js`, `.json`, `.md`, `.txt`, etc. into chat as fenced code blocks (100KB limit) | [`ChatView.swift:1318`](OllamaCloud/Sources/Views/ChatView.swift#L1318) |
-| **Export to Markdown** | Save conversation as `.md` via `NSSavePanel` with collapsed thinking blocks | [`ChatView.swift:1421`](OllamaCloud/Sources/Views/ChatView.swift#L1421) |
-| **SEER dock name** | App displays as "SEER" in the dock via `PRODUCT_NAME` | [`project.yml:68`](project.yml#L68) |
-| **Sidebar emblem** | SeerEmblem header at top of conversation list | [`ConversationListView.swift:39`](OllamaCloud/Sources/Views/ConversationListView.swift#L39) |
-| **Sidebar New Chat button** | Persistent `+ NEW CHAT` capsule at bottom of sidebar | [`ConversationListView.swift:121`](OllamaCloud/Sources/Views/ConversationListView.swift#L121) |
-| **Detail empty state** | SeerEmblem + New Chat button when no conversation selected | [`RootView.swift:52`](OllamaCloud/Sources/App/RootView.swift#L52) |
-| **Native sheet sizing** | Fixed-frame sheets via `macSheetFixedSize()` helper | [`SheetSizing.swift`](OllamaCloud/Sources/Utils/SheetSizing.swift) |
-| **Window constraints** | Min 800x500, default 1100x700 | [`OllamaCloudApp.swift:39`](OllamaCloud/Sources/App/OllamaCloudApp.swift#L39) |
-| **macOS haptics** | `NSHapticFeedbackManager` integration | [`Theme.swift`](OllamaCloud/Sources/Utils/Theme.swift) |
+| **Python** | Native via `/usr/bin/python3` | — |
+| **JavaScript** | Node.js (auto-detected) with JavaScriptCore fallback | JavaScriptCore (built-in, no install required) |
+| **Shell** | Native via `/bin/bash` | — |
+| **Timeout** | 10 seconds per run | Synchronous (no timeout needed) |
+| **Stdin Input** | Input panel (one value per line) | Input panel (one value per line) |
+| **Sandbox** | Ephemeral temp workspace, cleaned after each run | Isolated JavaScriptCore context |
 
-### MCP Tool Calling (macOS Only)
+**Input Panel:** Code that uses `input()`, `prompt()`, or `readLine()` can receive predefined values through a toggle panel on the code block. Values are consumed line-by-line, and the app shows a clear error if the program requests more input than provided.
 
-SEER includes native MCP client support on macOS.
+**Smart JavaScript routing on macOS:** SEER resolves Node.js from Homebrew, nvm, fnm, and volta paths. Code using browser-style `prompt()` is automatically routed to JavaScriptCore even when Node is available, so it just works. If Node isn't installed, compatible code still runs via JavaScriptCore with guidance shown for Node-specific APIs.
 
-- Loads server config from `~/.seer/mcp.json` (Claude Desktop-compatible shape)
-- Spawns servers via stdio transport and aggregates all discovered tools
-- Sends tools with chat requests to Ollama (`/api/chat`)
-- Executes returned `tool_calls`, stores tool-call and tool-result messages, and continues generation
-- Shows MCP server status + restart controls in **Settings > MCP SERVERS**
-- Shows tool call/result bubbles inline in chat
-- Applies guardrails: per-call timeout (30s) and max tool-call rounds (10) to prevent runaway loops
+---
 
-Example `~/.seer/mcp.json`:
+### MCP Tool Calling — give your models real capabilities (macOS)
+
+SEER includes a native [Model Context Protocol](https://modelcontextprotocol.io) client that lets models call external tools during a conversation. Ask a model to read a file, search the web, query a database, or automate a browser — and it can actually do it.
+
+**How it works:**
+1. Configure MCP servers in `~/.seer/mcp.json` (same format as Claude Desktop)
+2. SEER spawns servers via stdio transport and discovers their tools
+3. Tools are sent alongside chat requests to Ollama
+4. When the model returns a tool call, SEER executes it and feeds the result back
+5. Tool call and result bubbles appear inline in the conversation
+
+**Safety guardrails** are built in: 30-second timeout per tool call, maximum 10 tool-call rounds per turn to prevent runaway loops.
+
+**Built-in servers** (toggle on/off in Settings):
+
+| Server | What It Does |
+|---|---|
+| **Filesystem** | Read, write, and search files on your machine |
+| **Desktop Commander** | Run shell commands, manage processes, system control |
+| **Mantic** | Advanced scaffold reasoning engine |
+
+**Installable from the MCP Library** (one-tap install in Settings):
+
+| Server | What It Does |
+|---|---|
+| **Memory** | Persistent note-taking and retrieval |
+| **Sequential Thinking** | Structured multi-step reasoning tools |
+| **GitHub** | Repository and issue operations via GitHub API |
+| **Brave Search** | Web search with Brave API |
+| **Postgres** | Query and inspect PostgreSQL databases |
+| **Puppeteer** | Browser automation and page interaction |
+
+**Custom servers:** Add any MCP-compatible server to `~/.seer/mcp.json`:
 
 ```json
 {
@@ -109,167 +165,181 @@ Example `~/.seer/mcp.json`:
 }
 ```
 
-Implementation entry points:
+Server status, restart controls, and tool counts are visible in **Settings > MCP Servers**.
 
-- [`MCPConfig.swift`](OllamaCloud/Sources/Models/MCPConfig.swift)
-- [`MCPClientManager.swift`](OllamaCloud/Sources/Services/MCPClientManager.swift)
-- [`StreamingChatService.swift`](OllamaCloud/Sources/Services/StreamingChatService.swift)
-- [`MCPServerStatusView.swift`](OllamaCloud/Sources/Views/MCPServerStatusView.swift)
-- [`ToolCallBubble.swift`](OllamaCloud/Sources/Views/ToolCallBubble.swift)
+---
 
-The iOS target intentionally has no MCP runtime behavior; MCP code is gated with `#if os(macOS)` and the MCP package dependency is attached only to the macOS target in [`project.yml`](project.yml).
+### SEER Assistant — your built-in guide
+
+Every installation ships with a **SEER** model profile pinned to your favorites. It's designed to help you get the most out of the app.
+
+- Always available in the model picker, even before your first API call
+- Backed by `qwen3.5:397b-cloud` — a fast, capable cloud model
+- Tuned for concise, direct responses (temperature 0.15, capped at 512 tokens)
+- Knows every feature, every screen, every platform difference in the app
+- Thinking mode is disabled to keep answers fast and focused
+- Distinguishes iOS vs macOS behavior and calls out platform-specific prerequisites
+
+SEER isn't a gimmick — it's a practical onboarding companion that understands the product deeply.
+
+---
+
+## Platform Overview
+
+SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Platform-specific behavior is gated behind `#if os(macOS)` / `#if os(iOS)` — the two targets never diverge in business logic, only in UI and system capabilities.
+
+| | **macOS** | **iOS** |
+|---|---|---|
+| **Min version** | macOS 14.0 (Sonoma) | iOS 17.0 |
+| **Streaming chat** | Yes | Yes |
+| **Reasoning scaffolds** | Yes | Yes |
+| **Model parameters** | Yes | Yes |
+| **Image attachments** | Yes | Yes |
+| **File attachments** | Yes (+ drag & drop) | Yes (file picker) |
+| **Code execution** | Python, JavaScript, Shell | JavaScript |
+| **MCP tools** | Yes (`~/.seer/mcp.json`) | — |
+| **Thinking / reasoning display** | Yes | Yes |
+| **Keyboard shortcuts** | Cmd+N, Cmd+Enter, Cmd+K, Cmd+1/2/3, and more | Standard iOS |
+| **Export to Markdown** | Yes | — |
+| **Haptics** | `NSHapticFeedbackManager` | `UIImpactFeedbackGenerator` |
+
+---
+
+## Core Features
+
+### Streaming Chat
+
+SEER connects to Ollama Cloud's API and streams responses token-by-token with live performance metrics. During generation you see:
+
+- **Token count** — how many tokens have been generated so far
+- **Tokens per second** — real-time throughput measurement
+- **Thinking indicator** — when models with extended reasoning are working through a problem
+
+Streaming is optimized with a 40ms UI flush interval and debounced Markdown rendering, keeping the interface smooth even on long responses.
+
+### Thinking & Reasoning Display
+
+Models that support extended thinking (chain-of-thought) get special treatment. The model's internal reasoning appears in a collapsible section above the response — you can expand it to see how the model arrived at its answer, or collapse it to focus on the result.
+
+Three thinking modes are available per conversation:
+- **Auto** — enabled by default for all models (except SEER)
+- **On** — force extended reasoning
+- **Off** — disable thinking for faster, shorter responses
+
+### Conversation Management
+
+- **Pin** important conversations to the top of your list
+- **Search** across all your conversations
+- **Delete** conversations you no longer need
+- **Per-conversation settings** — each chat remembers its own model, parameters, scaffold, and system prompt
+- **Automatic titling** — conversations get named based on their content
+- **Account-scoped storage** — different API keys maintain completely separate conversation histories
+
+### Model Selection & Parameters
+
+Browse and search available models from Ollama Cloud. Favorite the ones you use most, and hide everything else for a clean picker.
+
+Every conversation supports independent parameter tuning:
+
+| Parameter | Range | What It Controls |
+|---|---|---|
+| Temperature | 0.0 – 2.0 | Randomness / creativity |
+| Top-P | 0.0 – 1.0 | Nucleus sampling threshold |
+| Top-K | 1 – 200 | Categorical cutoff |
+| Min-P | 0.0 – 1.0 | Minimum probability filter |
+| Typical-P | 0.0 – 1.0 | Typical completion threshold |
+| Repeat Penalty | 0.0 – 3.0 | Discourages repetition |
+| Presence Penalty | -2.0 – 2.0 | Penalizes token reuse |
+| Frequency Penalty | -2.0 – 2.0 | Penalizes frequent tokens |
+| Max Tokens | 1 – 32768 | Output length cap |
+| Seed | Any integer | Reproducible outputs |
+
+Three quick-pick presets get you started fast: **Creative** (high temperature, high diversity), **Balanced** (moderate settings), and **Precise** (low temperature, focused output).
+
+### Rich Code Blocks
+
+Code in responses is rendered with full syntax highlighting, line numbers, and language detection. Blocks longer than 20 lines auto-collapse to keep the conversation readable. Every code block includes a **Copy** button, and supported languages get the **Run** button for inline execution.
+
+### Message Actions
+
+Long-press (or right-click on Mac) any message for quick actions:
+- **Copy** — copy the full message content
+- **Edit Prompt** — modify a sent message and regenerate the response
+- **Regenerate** — get a fresh response to the same prompt
+
+### Image & File Attachments
+
+Attach images for vision-capable models using the native photo picker (iOS) or drag-and-drop (macOS). Attach text files (`.swift`, `.py`, `.js`, `.json`, `.md`, `.txt`, and more) and they're inserted as fenced code blocks in your message — up to 100KB per file.
+
+---
+
+## macOS Features
+
+The macOS app takes full advantage of the desktop environment with capabilities that go beyond the shared feature set.
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+N` | New Chat |
+| `Cmd+Enter` | Send Message |
+| `Cmd+K` | Quick Model Switch |
+| `Cmd+,` | Settings |
+| `Cmd+Shift+E` | Export Conversation as Markdown |
+| `Cmd+Shift+W` | Close Chat |
+| `Cmd+1` / `Cmd+2` / `Cmd+3` | Jump to conversation by position |
+
+### Desktop Capabilities
+
+- **Full code execution** — Python, JavaScript, and Shell run natively via system processes with stdin/stdout piping and 10-second timeout
+- **MCP tool integration** — connect models to external tools via the Model Context Protocol (see [MCP section](#mcp-tool-calling--give-your-models-real-capabilities-macos) above)
+- **Drag & drop files** — drop source code, configs, and text files directly into chat
+- **Export to Markdown** — save any conversation as a `.md` file with properly collapsed thinking blocks
+- **Native window management** — minimum 800×500, default 1100×700, with proper sidebar + detail layout
+- **macOS haptics** — subtle haptic feedback throughout the interface
 
 ---
 
 ## iOS Features
 
-| Feature | Description | Code |
-|---|---|---|
-| **JavaScript execution** | Run JS via JavaScriptCore with console.log capture | [`CodeExecutionService.swift:219`](OllamaCloud/Sources/Services/CodeExecutionService.swift#L219) |
-| **Presentation detents** | Sheets use `.medium` / `.large` detents with drag indicator | [`ChatView.swift:114`](OllamaCloud/Sources/Views/ChatView.swift#L114) |
-| **Toolbar placement** | `.topBarLeading` / `.topBarTrailing` for native iOS nav | [`Theme.swift`](OllamaCloud/Sources/Utils/Theme.swift) |
-| **iOS haptics** | `UIImpactFeedbackGenerator` / `UINotificationFeedbackGenerator` | [`Theme.swift`](OllamaCloud/Sources/Utils/Theme.swift) |
-| **Clipboard** | `UIPasteboard` for copy actions | [`SeerCodeBlock.swift:328`](OllamaCloud/Sources/Views/SeerCodeBlock.swift#L328) |
+SEER on iOS is a fully featured mobile client — not a stripped-down companion app.
+
+- **JavaScript execution** — run JS code blocks natively via JavaScriptCore, no installs needed
+- **Native iOS navigation** — proper toolbar placement, presentation detents, and drag indicators on sheets
+- **iOS haptics** — `UIImpactFeedbackGenerator` and `UINotificationFeedbackGenerator` for tactile feedback
+- **Photo picker** — attach images from your library for vision-capable models
+- **File importer** — attach text files directly from the Files app
+- **Full scaffold support** — same Reasoning Scaffold library and builder as macOS
+- **Full parameter control** — same model tuning capabilities as macOS
+
+Everything that runs on macOS — streaming, scaffolds, model parameters, thinking display, conversation management, favorites, search — runs on iOS too. The only differences are capabilities that require desktop-level system access (MCP servers, Python/Shell execution, drag-and-drop, export).
 
 ---
 
-## Reasoning Scaffolds
+## Security & Privacy
 
-Reasoning Scaffolds are structured context blocks that guide *how* the model thinks, not just *what* it says.
-
-- Build reusable scaffolds in a guided form with live preview
-- Attach one scaffold per chat from the composer or parameters
-- Swap or clear instantly without breaking conversation flow
-- Merge order is deterministic: `Scaffold system block` -> `System prompt` -> `Chat history` -> `User message`
-- Edits are live-linked across chats using that scaffold
-
-### Built-In Templates
-
-| Template | Best For | What It Pushes |
-|---|---|---|
-| `Mantic` | Structural reasoning and hidden constraint analysis | Multi-layer thinking, tension/alignment detection, clear next move |
-| `Code Expert/Reviewer` | Engineering reviews and technical QA | Severity-first findings, concrete fixes, testing gaps |
-| `Tutor` | Teaching and explanations | Progressive explanation and understanding checks |
-| `Technical Debugger` | Bug hunts and incidents | Repro-first diagnosis and lowest-risk fix path |
-| `Decision Coach` | Tradeoff decisions | Criteria-based comparison and recommendation |
-| `Creative Strategist` | Frontend UI/UX direction | Distinct design concepts plus implementation guidance |
-| `Marketing/Sales Expert` | Go-to-market and revenue motions | ICP clarity, offer/message, funnel and sales actions |
-
-### Scaffold UX Flow
-
-```mermaid
-flowchart LR
-  A["Open Chat"] --> B["Tap Scaffold Button"]
-  B --> C["Pick Template or Existing Scaffold"]
-  C --> D["Attach To Conversation"]
-  D --> E["Send Message"]
-  E --> F["Model Receives: Scaffold First, Then System Prompt"]
-  F --> G["Higher Consistency + Better Reasoning Shape"]
-```
-
-### Why It Feels Better In Practice
-
-- Less prompt micromanagement for every single message
-- Better response consistency across longer chats
-- Faster reuse of proven workflows (debugging, planning, GTM, UI/UX)
-- Easier onboarding for users who are not prompt engineers
+- **Keychain storage** — your API key is stored in the system Keychain with device-locked accessibility, never in plain text or UserDefaults
+- **Account isolation** — conversations, scaffolds, and favorites are scoped by a SHA-256 fingerprint of your API key and host. Different accounts never see each other's data
+- **Ephemeral code execution** — code runs in a scoped temp workspace that's cleaned up after every execution. No persistent side effects
+- **Network monitoring** — real-time connectivity detection with offline banners and automatic retry logic
+- **MCP guardrails** — tool calls are individually time-limited (30s) and round-capped (10 per turn) to prevent runaway execution
+- **No telemetry to third parties** — SEER does not phone home. Your conversations stay on your device and go to the API endpoint you configure
 
 ---
-
-## Built-In SEER Assistant Profile
-
-The app ships with a first-class `SEER` model profile for onboarding and product guidance.
-
-- Preloaded into the model list even when not returned by `/api/tags`
-- Seeded as a default favorite per account scope (users can unpin any time)
-- Backed by cloud model `qwen3.5:397b-cloud` by default
-- Uses a dedicated system profile prompt for app/codebase help
-- Tuned for concise responses and lower verbosity
-- Sends requests with `think=false` to avoid long reasoning dumps in normal SEER usage
-- Includes explicit iOS-vs-macOS capability guidance (including MCP availability) and prerequisite-check behavior for uncertain environment-dependent features
-
-Environment overrides (Xcode scheme or process env):
-
-- `SEER_MODEL_ENABLED` (`true`/`false`)
-- `OLLAMA_SEER_MODEL_NAME` (alias shown in app, default `SEER`)
-- `OLLAMA_SEER_BACKING_MODEL` (runtime model name, default `qwen3.5:397b-cloud`)
-- Legacy aliases also supported: `SEER_ALIAS_NAME`, `SEER_UPSTREAM_MODEL`
-
----
-
-## Inline Code Execution
-
-Code blocks include a **Run** button for supported languages. Output is ephemeral and displayed inline.
-
-| | macOS | iOS |
-|---|---|---|
-| **Python** | `/usr/bin/python3` via `Process` | Not available |
-| **JavaScript** | Node.js via `Process` (auto-detected) with JavaScriptCore fallback | `JavaScriptCore` (no Node APIs) |
-| **Shell** | `/bin/bash` via `Process` | Not available |
-| **Timeout** | 10 seconds | None (JSC is synchronous) |
-| **Stdin input** | Supported via Input panel | Supported via Input panel |
-| **Sandbox** | Ephemeral temp workspace (scoped HOME/TMPDIR, cleaned after run) | JavaScriptCore context |
-
-### Input Panel
-
-Code blocks that use `input()`, `prompt()`, or `readLine()` can receive values through the **Input panel** — a toggle panel on the code block with one value per line. The execution engine:
-- Passes input values as stdin to the process (macOS) or injects them into the JSCore context (iOS)
-- Normalizes line endings (`\r\n`/`\r` → `\n`) to prevent EOF issues
-- Shows a clear "more input needed" error if the program requests more values than provided
-
-### JavaScript Runtime (macOS)
-
-The macOS JavaScript runtime has smart fallback behavior:
-- Resolves Node.js from common paths (`/opt/homebrew/bin/node`, `/usr/local/bin/node`) and shell lookup (nvm, fnm, volta)
-- `prompt()`-style code is routed to JavaScriptCore even when Node is installed (avoids `prompt is not defined`)
-- If Node is missing, falls back to JavaScriptCore for compatible code and shows install guidance for Node-specific APIs
-
-See: [`CodeExecutionService.swift`](OllamaCloud/Sources/Services/CodeExecutionService.swift) | [`SeerCodeBlock.swift`](OllamaCloud/Sources/Views/SeerCodeBlock.swift)
-
----
-
-## Requirements
-
-- iOS 17.0+ / macOS 14.0+
-- Xcode 16+
-- An [Ollama Cloud](https://ollama.com) API key
-
-## Build
-
-```
-brew install xcodegen
-cd /path/to/repo
-xcodegen generate
-open OllamaCloud.xcodeproj
-```
-
-## Run iOS Simulator
-
-Always use this script to avoid installing stale builds from multiple DerivedData folders:
-
-```
-./scripts/run_ios_sim.sh
-```
-
-Defaults:
-- Device: `iPhone 17 Pro`
-- Derived data: `/tmp/OllamaCloud-DerivedData`
-
-## Run macOS
-
-```
-xcodegen generate
-xcodebuild build -scheme OllamaCloudMac -destination 'platform=macOS,arch=arm64' -quiet
-open "$(ls -td ~/Library/Developer/Xcode/DerivedData/OllamaCloud*/Build/Products/Debug/SEER.app | head -1)"
-```
-
-Or open `OllamaCloud.xcodeproj` in Xcode and select the `OllamaCloudMac` scheme.
 
 ## Optional Backend Relay
 
-This repo includes a lightweight relay backend in `backend/` for rate limiting, model policy, and observability while keeping the same app UX.
+This repo includes a production-grade relay backend in `backend/` for teams and deployments that need centralized control.
 
-```
+- **Auth modes** — none (dev), static bearer token, or JWT (HS256)
+- **Rate limiting** — distributed via Redis, with in-memory fallback for local development
+- **Upstream resilience** — retry, timeout, and circuit breaker for Ollama Cloud requests
+- **SEER model routing** — expose the SEER virtual model at the backend level with server-side system prompt injection
+- **Observability** — request ID propagation, structured JSON logs, admin metrics endpoint
+- **Security headers** — CORS allowlist, security headers, and graceful shutdown
+- **Health checks** — readiness and liveness endpoints for container orchestration
+
+```bash
 cd backend
 cp .env.example .env
 set -a && source .env && set +a
@@ -277,12 +347,104 @@ npm install
 npm run start
 ```
 
-To point the app to the relay in development, set one or both environment variables in your Xcode scheme:
+Point the app to your relay by setting environment variables in your Xcode scheme:
 
-- `OLLAMA_API_BASE_URL` (example: `http://localhost:8787`)
-- `OLLAMA_BACKEND_BEARER_TOKEN` (only if backend auth is enabled)
+- `OLLAMA_API_BASE_URL` — e.g. `http://localhost:8787`
+- `OLLAMA_BACKEND_BEARER_TOKEN` — if backend auth is enabled
 
-See `backend/README.md` for production deployment configuration.
+See [`backend/README.md`](backend/README.md) for full production deployment configuration.
+
+---
+
+## Getting Started
+
+### Requirements
+
+- **iOS 17.0+** or **macOS 14.0+** (Sonoma)
+- **Xcode 16+**
+- An [Ollama Cloud](https://ollama.com) API key
+
+### Build from Source
+
+```bash
+brew install xcodegen
+cd /path/to/repo
+xcodegen generate
+open OllamaCloud.xcodeproj
+```
+
+Select the **OllamaCloud** scheme for iOS or **OllamaCloudMac** for macOS, then build and run.
+
+### Run on iOS Simulator
+
+```bash
+./scripts/run_ios_sim.sh
+```
+
+Defaults to iPhone 17 Pro with a clean DerivedData path to avoid stale builds.
+
+### Run on macOS
+
+```bash
+xcodegen generate
+xcodebuild build -scheme OllamaCloudMac -destination 'platform=macOS,arch=arm64' -quiet
+open "$(ls -td ~/Library/Developer/Xcode/DerivedData/OllamaCloud*/Build/Products/Debug/SEER.app | head -1)"
+```
+
+Or open `OllamaCloud.xcodeproj` in Xcode and select the `OllamaCloudMac` scheme.
+
+---
+
+## Configuration
+
+### Environment Variables
+
+These can be set in your Xcode scheme or as process environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `OLLAMA_API_BASE_URL` | `https://ollama.com` | API endpoint for Ollama Cloud (or your relay) |
+| `OLLAMA_BACKEND_BEARER_TOKEN` | — | Bearer token for authenticated backend relay |
+| `SEER_MODEL_ENABLED` | `true` | Enable or disable the built-in SEER model profile |
+| `OLLAMA_SEER_MODEL_NAME` | `SEER` | Display name for the SEER model in the picker |
+| `OLLAMA_SEER_BACKING_MODEL` | `qwen3.5:397b-cloud` | Cloud model that powers SEER responses |
+
+### MCP Configuration (macOS)
+
+Create `~/.seer/mcp.json` to add custom MCP servers. The format is compatible with Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "your-server": {
+      "command": "npx",
+      "args": ["-y", "your-mcp-package"],
+      "env": {}
+    }
+  }
+}
+```
+
+Built-in and library servers can be toggled and installed directly from **Settings > MCP Servers** in the app.
+
+---
+
+## Architecture
+
+SEER is built entirely in **SwiftUI** with **SwiftData** for persistence and **MarkdownUI** for rich content rendering. The codebase is organized for clarity:
+
+```
+OllamaCloud/Sources/
+├── App/            # App entry point, root navigation, commands
+├── Models/         # SwiftData models (Conversation, Message, Scaffold, MCP config)
+├── Services/       # Streaming chat, code execution, MCP client, SEER profile
+├── Utils/          # Theme, haptics, app config, telemetry, helpers
+└── Views/          # All UI — chat, composer, model picker, scaffolds, settings
+```
+
+Both iOS and macOS targets share this source tree. Platform-specific behavior is handled with `#if os(iOS)` / `#if os(macOS)` — the two apps never diverge in business logic, only in UI and system-level capabilities.
+
+---
 
 ## License
 
