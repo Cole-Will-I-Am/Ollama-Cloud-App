@@ -42,6 +42,66 @@ struct OllamaCloudApp: App {
         }
         #if os(macOS)
         .defaultSize(width: 1100, height: 700)
+        .commands {
+            SidebarCommands()
+
+            CommandGroup(after: .newItem) {
+                Button("New Chat") {
+                    AppCommand.post(AppCommand.newChat)
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
+
+            CommandGroup(after: .saveItem) {
+                Button("Export Conversation…") {
+                    AppCommand.post(AppCommand.exportConversation)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    AppCommand.post(AppCommand.openSettings)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
+            CommandMenu("Chat") {
+                Button("Send Message") {
+                    AppCommand.post(AppCommand.sendMessage)
+                }
+                .keyboardShortcut(.return, modifiers: .command)
+
+                Button("Quick Model Switch") {
+                    AppCommand.post(AppCommand.quickModelSwitch)
+                }
+                .keyboardShortcut("k", modifiers: .command)
+
+                Divider()
+
+                Button("Close Chat") {
+                    AppCommand.post(AppCommand.closeChat)
+                }
+                .keyboardShortcut("w", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Conversation 1") {
+                    AppCommand.postSelectConversation(index: 0)
+                }
+                .keyboardShortcut("1", modifiers: .command)
+
+                Button("Conversation 2") {
+                    AppCommand.postSelectConversation(index: 1)
+                }
+                .keyboardShortcut("2", modifiers: .command)
+
+                Button("Conversation 3") {
+                    AppCommand.postSelectConversation(index: 2)
+                }
+                .keyboardShortcut("3", modifiers: .command)
+            }
+        }
         #endif
         .modelContainer(AppModelContainer.shared)
     }

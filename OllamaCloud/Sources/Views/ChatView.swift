@@ -35,8 +35,12 @@ struct ChatView: View {
     @State private var pendingFileAttachments: [PendingFileAttachment] = []
     @State private var attachmentError: String?
     @State private var scaffoldPersistenceError: String?
+    @State private var exportError: String?
     @State private var showVisionModelWarning = false
     @State private var pendingHistoryAction: PendingHistoryAction?
+    #if os(macOS)
+    @State private var isFileDropTargeted = false
+    #endif
 
     private struct PendingImageAttachment: Identifiable, Equatable {
         let id = UUID()
@@ -69,8 +73,19 @@ struct ChatView: View {
 
     var body: some View {
         let messages = sortedMessages
+        let root = chatRoot(messages: messages)
+        let withCommandHandlers = applyCommandHandlers(to: root)
+        return applyMacDropSupport(to: withCommandHandlers)
+    }
+
+    private func chatRoot(messages: [Message]) -> some View {
+        let base = baseChatLayout(messages: messages)
+        let presented = applyPresentationModifiers(to: base)
+        return applyDialogAndAlertModifiers(to: presented)
+    }
+
+    private func baseChatLayout(messages: [Message]) -> some View {
         VStack(spacing: 0) {
-            // Offline banner
             if !network.isConnected {
                 offlineBanner
             }
@@ -99,144 +114,217 @@ struct ChatView: View {
                         .foregroundStyle(Color.textSecondary)
                 }
             }
-        }
-        .sheet(isPresented: $showModelPicker) {
-            ModelPickerView(onSelect: { model in
-                conversation.modelName = model.name
-                do {
-                    try modelContext.save()
-                    showModelPicker = false
-                } catch {
-                    streaming.error = "Failed to save selected model."
+            #if os(macOS)
+            ToolbarItem(placement: .seerTrailing) {
+                Button {
+                    exportConversationMarkdown()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .ultraLight))
+                        .foregroundStyle(Color.textSecondary)
                 }
-            })
-            #if os(iOS)
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(.ultraThinMaterial)
+            }
             #endif
-            .macSheetFixedSize(SeerSheetSize.modelPicker)
         }
-        .sheet(isPresented: $showParameters) {
-            ParametersView(conversation: conversation)
-                .macSheetFixedSize(SeerSheetSize.parameters)
-        }
-        .sheet(isPresented: $showScaffoldLibrary) {
-            ScaffoldLibraryView(
-                accountScopeKey: AccountScope.currentKey(),
-                onAttach: { scaffold in
-                    attachScaffold(scaffold)
-                },
-                dismissOnAttach: true
-            )
-        }
-        .onChange(of: streaming.error) { _, newError in
-            if newError != nil {
-                Haptic.notification(.error)
+    }
+
+    private func applyPresentationModifiers<Content: View>(to view: Content) -> some View {
+        view
+            .sheet(isPresented: $showModelPicker) {
+                ModelPickerView(onSelect: { model in
+                    conversation.modelName = model.name
+                    do {
+                        try modelContext.save()
+                        showModelPicker = false
+                    } catch {
+                        streaming.error = "Failed to save selected model."
+                    }
+                })
+                #if os(iOS)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.modelPicker)
             }
-        }
-        .onAppear {
-            refreshActiveScaffoldNameFromStore()
-            if conversation.messages.isEmpty && !conversation.modelName.isEmpty {
-                isInputFocused = true
+            .sheet(isPresented: $showParameters) {
+                ParametersView(conversation: conversation)
+                    .macSheetFixedSize(SeerSheetSize.parameters)
             }
-        }
-        .onChange(of: conversation.activeScaffoldID) { _, _ in
-            refreshActiveScaffoldNameFromStore()
-        }
-        .onChange(of: conversation.modelName) { _, newValue in
-            if !newValue.isEmpty && conversation.messages.isEmpty {
-                isInputFocused = true
+            .sheet(isPresented: $showScaffoldLibrary) {
+                ScaffoldLibraryView(
+                    accountScopeKey: AccountScope.currentKey(),
+                    onAttach: { scaffold in
+                        attachScaffold(scaffold)
+                    },
+                    dismissOnAttach: true
+                )
             }
-        }
-        .confirmationDialog(
-            "Attach",
-            isPresented: $showAttachmentOptions,
-            titleVisibility: .visible
-        ) {
-            Button("Photo Library") {
-                showPhotoPicker = true
-            }
-            Button("Files") {
-                showFileImporter = true
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .photosPicker(
-            isPresented: $showPhotoPicker,
-            selection: $selectedPhotoItems,
-            maxSelectionCount: 5,
-            matching: .images
-        )
-        .onChange(of: selectedPhotoItems) { _, newItems in
-            guard !newItems.isEmpty else { return }
-            Task {
-                await importSelectedPhotos(newItems)
-                await MainActor.run {
-                    selectedPhotoItems = []
+            .onChange(of: streaming.error) { _, newError in
+                if newError != nil {
+                    Haptic.notification(.error)
                 }
             }
-        }
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [
-                .plainText, .utf8PlainText, .text, .sourceCode,
-                .json, .xml, .commaSeparatedText
-            ],
-            allowsMultipleSelection: true
-        ) { result in
-            switch result {
-            case .success(let urls):
-                Task { await importFiles(urls) }
-            case .failure(let error):
-                attachmentError = error.localizedDescription
+            .onAppear {
+                refreshActiveScaffoldNameFromStore()
+                if conversation.messages.isEmpty && !conversation.modelName.isEmpty {
+                    isInputFocused = true
+                }
             }
-        }
-        .alert("Attachment Error", isPresented: Binding(
-            get: { attachmentError != nil },
-            set: { _ in attachmentError = nil }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(attachmentError ?? "Unable to load attachment.")
-        }
-        .alert("Scaffold Error", isPresented: Binding(
-            get: { scaffoldPersistenceError != nil },
-            set: { _ in scaffoldPersistenceError = nil }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(scaffoldPersistenceError ?? "Unable to update reasoning scaffold.")
-        }
-        .alert("Vision Model Recommended", isPresented: $showVisionModelWarning) {
-            Button("Choose Model") {
-                showModelPicker = true
+            .onChange(of: conversation.activeScaffoldID) { _, _ in
+                refreshActiveScaffoldNameFromStore()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The selected model may not support image input. Choose a vision-capable model or remove image attachments.")
-        }
-        .confirmationDialog(
-            pendingHistoryActionTitle,
-            isPresented: Binding(
-                get: { pendingHistoryAction != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingHistoryAction = nil
+            .onChange(of: conversation.modelName) { _, newValue in
+                if !newValue.isEmpty && conversation.messages.isEmpty {
+                    isInputFocused = true
+                }
+            }
+    }
+
+    private func applyDialogAndAlertModifiers<Content: View>(to view: Content) -> some View {
+        view
+            .confirmationDialog(
+                "Attach",
+                isPresented: $showAttachmentOptions,
+                titleVisibility: .visible
+            ) {
+                Button("Photo Library") {
+                    showPhotoPicker = true
+                }
+                Button("Files") {
+                    showFileImporter = true
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .photosPicker(
+                isPresented: $showPhotoPicker,
+                selection: $selectedPhotoItems,
+                maxSelectionCount: 5,
+                matching: .images
+            )
+            .onChange(of: selectedPhotoItems) { _, newItems in
+                guard !newItems.isEmpty else { return }
+                Task {
+                    await importSelectedPhotos(newItems)
+                    await MainActor.run {
+                        selectedPhotoItems = []
                     }
                 }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(pendingHistoryActionConfirmLabel, role: .destructive) {
-                performPendingHistoryAction()
             }
-            Button("Cancel", role: .cancel) {
-                pendingHistoryAction = nil
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [
+                    .plainText, .utf8PlainText, .text, .sourceCode,
+                    .json, .xml, .commaSeparatedText
+                ],
+                allowsMultipleSelection: true
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    Task { await importFiles(urls) }
+                case .failure(let error):
+                    attachmentError = error.localizedDescription
+                }
             }
-        } message: {
-            Text(pendingHistoryActionMessage)
-        }
+            .alert("Attachment Error", isPresented: Binding(
+                get: { attachmentError != nil },
+                set: { _ in attachmentError = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(attachmentError ?? "Unable to load attachment.")
+            }
+            .alert("Scaffold Error", isPresented: Binding(
+                get: { scaffoldPersistenceError != nil },
+                set: { _ in scaffoldPersistenceError = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(scaffoldPersistenceError ?? "Unable to update reasoning scaffold.")
+            }
+            .alert("Export Error", isPresented: Binding(
+                get: { exportError != nil },
+                set: { _ in exportError = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(exportError ?? "Unable to export conversation.")
+            }
+            .alert("Vision Model Recommended", isPresented: $showVisionModelWarning) {
+                Button("Choose Model") {
+                    showModelPicker = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The selected model may not support image input. Choose a vision-capable model or remove image attachments.")
+            }
+            .confirmationDialog(
+                pendingHistoryActionTitle,
+                isPresented: Binding(
+                    get: { pendingHistoryAction != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            pendingHistoryAction = nil
+                        }
+                    }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button(pendingHistoryActionConfirmLabel, role: .destructive) {
+                    performPendingHistoryAction()
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingHistoryAction = nil
+                }
+            } message: {
+                Text(pendingHistoryActionMessage)
+            }
+    }
+
+    @ViewBuilder
+    private func applyCommandHandlers<Content: View>(to view: Content) -> some View {
+        view
+            .onReceive(NotificationCenter.default.publisher(for: AppCommand.sendMessage)) { _ in
+                #if os(macOS)
+                send()
+                #endif
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AppCommand.quickModelSwitch)) { _ in
+                #if os(macOS)
+                showModelPicker = true
+                #endif
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AppCommand.exportConversation)) { _ in
+                #if os(macOS)
+                exportConversationMarkdown()
+                #endif
+            }
+    }
+
+    @ViewBuilder
+    private func applyMacDropSupport<Content: View>(to view: Content) -> some View {
+        #if os(macOS)
+        view
+            .overlay {
+                if isFileDropTargeted {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.accent.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.accentSoft.opacity(0.35))
+                        )
+                        .padding(10)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onDrop(
+                of: [UTType.fileURL.identifier],
+                isTargeted: $isFileDropTargeted,
+                perform: handleDroppedFiles
+            )
+        #else
+        view
+        #endif
     }
 
     @ViewBuilder
@@ -1225,6 +1313,171 @@ struct ChatView: View {
         }
         return "\(file.name) · \(file.content.count) chars"
     }
+
+    #if os(macOS)
+    private static let dropAllowedExtensions: Set<String> = [
+        "swift", "py", "js", "ts", "json", "yaml", "yml",
+        "md", "txt", "log", "csv", "sh", "html", "css"
+    ]
+    private static let maxDroppedFileBytes = 100 * 1024
+
+    private func handleDroppedFiles(providers: [NSItemProvider]) -> Bool {
+        let fileProviders = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        }
+        guard !fileProviders.isEmpty else { return false }
+
+        for provider in fileProviders {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+                if let error {
+                    Task { @MainActor in
+                        attachmentError = "Failed to load dropped file: \(error.localizedDescription)"
+                    }
+                    return
+                }
+
+                guard let url = droppedFileURL(from: item) else {
+                    Task { @MainActor in
+                        attachmentError = "Dropped item is not a valid file URL."
+                    }
+                    return
+                }
+
+                Task {
+                    await appendDroppedFileToInput(from: url)
+                }
+            }
+        }
+
+        return true
+    }
+
+    private func droppedFileURL(from item: NSSecureCoding?) -> URL? {
+        if let url = item as? URL {
+            return url
+        }
+
+        if let data = item as? Data,
+           let string = String(data: data, encoding: .utf8) {
+            return URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        if let string = item as? String {
+            return URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        return nil
+    }
+
+    private func appendDroppedFileToInput(from url: URL) async {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess { url.stopAccessingSecurityScopedResource() }
+        }
+
+        let ext = url.pathExtension.lowercased()
+        guard Self.dropAllowedExtensions.contains(ext) else {
+            await MainActor.run {
+                attachmentError = "Unsupported dropped file type: .\(ext)"
+            }
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            guard data.count <= Self.maxDroppedFileBytes else {
+                await MainActor.run {
+                    attachmentError = "\(url.lastPathComponent) exceeds 100KB and was not added."
+                }
+                return
+            }
+
+            guard let decoded = decodeTextFile(data: data) else {
+                await MainActor.run {
+                    attachmentError = "Unsupported file encoding for \(url.lastPathComponent)."
+                }
+                return
+            }
+
+            let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+
+            let block = "```\(url.lastPathComponent)\n\(trimmed)\n```"
+            await MainActor.run {
+                if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    input = block
+                } else {
+                    input += "\n\n" + block
+                }
+                isInputFocused = true
+            }
+        } catch {
+            await MainActor.run {
+                attachmentError = "Failed to read \(url.lastPathComponent)."
+            }
+        }
+    }
+
+    private func exportConversationMarkdown() {
+        Task { @MainActor in
+            do {
+                let panel = NSSavePanel()
+                panel.canCreateDirectories = true
+                panel.nameFieldStringValue = defaultExportFilename
+                if let markdownType = UTType(filenameExtension: "md") {
+                    panel.allowedContentTypes = [markdownType]
+                } else {
+                    panel.allowedContentTypes = [.plainText]
+                }
+
+                let response = panel.runModal()
+                guard response == .OK, let destinationURL = panel.url else { return }
+
+                try markdownExportContent.write(to: destinationURL, atomically: true, encoding: .utf8)
+                Haptic.notification(.success)
+            } catch {
+                exportError = error.localizedDescription
+                Haptic.notification(.error)
+            }
+        }
+    }
+
+    private var defaultExportFilename: String {
+        let raw = conversation.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = raw.isEmpty ? "Conversation" : raw
+        let sanitized = base
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "\n", with: " ")
+        return "\(sanitized).md"
+    }
+
+    private var markdownExportContent: String {
+        var content = "# \(conversation.title)\n"
+        content += "**Model:** \(conversation.modelName.isEmpty ? "None" : conversation.modelName)\n\n"
+
+        for message in sortedMessages {
+            let roleLabel: String
+            switch message.role.lowercased() {
+            case "user":
+                roleLabel = "User"
+            case "assistant":
+                roleLabel = "Assistant"
+            default:
+                roleLabel = message.role.capitalized
+            }
+
+            content += "## \(roleLabel)\n\(message.content)\n\n"
+
+            let thinking = message.thinkingContent?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !thinking.isEmpty {
+                content += "<details><summary>Thinking</summary>\n\(thinking)\n</details>\n\n"
+            }
+        }
+
+        return content
+    }
+    #endif
 
     private func makeAttachmentSummary() -> String? {
         guard hasPendingAttachments else { return nil }

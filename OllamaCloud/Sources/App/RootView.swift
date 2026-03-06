@@ -22,11 +22,36 @@ struct RootView: View {
 
 struct MainAppView: View {
     @Environment(\.modelContext) private var modelContext
+    private let accountScopeKey: String
+    @Query private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
     @State private var showSettings = false
     @State private var persistenceError: String?
     @State private var showModelPicker = false
     @State private var pendingConversation: Conversation?
+
+    init(accountScopeKey: String = AccountScope.currentKey()) {
+        self.accountScopeKey = accountScopeKey
+        _conversations = Query(
+            filter: #Predicate<Conversation> { conversation in
+                conversation.accountScopeKey == accountScopeKey
+                || conversation.accountScopeKey == ""
+            },
+            sort: \Conversation.updatedAt,
+            order: .reverse
+        )
+    }
+
+    private var sortedConversations: [Conversation] {
+        conversations.sorted {
+            let lhsPinned = $0.isPinned == true
+            let rhsPinned = $1.isPinned == true
+            if lhsPinned != rhsPinned {
+                return lhsPinned && !rhsPinned
+            }
+            return $0.updatedAt > $1.updatedAt
+        }
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -84,6 +109,9 @@ struct MainAppView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .onReceive(NotificationCenter.default.publisher(for: AppCommand.openSettings)) { _ in
+            showSettings = true
+        }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
             set: { _ in persistenceError = nil }
@@ -117,11 +145,22 @@ struct MainAppView: View {
             })
             .macSheetFixedSize(SeerSheetSize.modelPicker)
         }
+        .onReceive(NotificationCenter.default.publisher(for: AppCommand.newChat)) { _ in
+            newConversationFromDetail()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AppCommand.closeChat)) { _ in
+            selectedConversation = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AppCommand.selectConversationIndex)) { notification in
+            guard let index = AppCommand.conversationIndex(from: notification) else { return }
+            selectConversation(at: index)
+        }
         #endif
     }
 
     #if os(macOS)
     private func newConversationFromDetail() {
+        guard !showModelPicker else { return }
         let conversation = Conversation(accountScopeKey: AccountScope.currentKey())
         modelContext.insert(conversation)
         do {
@@ -133,6 +172,11 @@ struct MainAppView: View {
         }
         pendingConversation = conversation
         showModelPicker = true
+    }
+
+    private func selectConversation(at index: Int) {
+        guard index >= 0, index < sortedConversations.count else { return }
+        selectedConversation = sortedConversations[index]
     }
 
     private func deletePendingConversationIfEmpty() {
