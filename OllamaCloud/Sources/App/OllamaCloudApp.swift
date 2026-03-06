@@ -36,7 +36,13 @@ struct OllamaCloudApp: App {
                 .environmentObject(networkMonitor)
                 .preferredColorScheme(.dark)
                 .tint(Color.accent)
+                #if os(macOS)
+                .frame(minWidth: 800, minHeight: 500)
+                #endif
         }
+        #if os(macOS)
+        .defaultSize(width: 1100, height: 700)
+        #endif
         .modelContainer(AppModelContainer.shared)
     }
 }

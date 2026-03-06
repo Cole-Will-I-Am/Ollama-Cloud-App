@@ -105,7 +105,7 @@ struct ConversationListView: View {
             clearSelectionIfOutOfScope()
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .seerLeading) {
                 Button {
                     newConversation()
                 } label: {

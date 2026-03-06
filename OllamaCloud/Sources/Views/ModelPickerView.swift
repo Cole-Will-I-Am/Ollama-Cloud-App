@@ -206,7 +206,9 @@ struct ModelPickerView: View {
                 }
             }
             .navigationTitle("Models")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {

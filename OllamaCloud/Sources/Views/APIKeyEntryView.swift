@@ -67,7 +67,9 @@ struct APIKeyEntryView: View {
                                         .stroke(Color.borderLight, lineWidth: 0.5)
                                 )
                         )
+                        #if os(iOS)
                         .textInputAutocapitalization(.never)
+                        #endif
                         .autocorrectionDisabled()
                         .accessibilityLabel("API key")
                         .accessibilityHint("Paste your Ollama Cloud API key")
@@ -262,7 +264,9 @@ struct APIKeyEntryView: View {
             }
             .background(Color.bgPrimary)
             .navigationTitle("API Key Help")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)

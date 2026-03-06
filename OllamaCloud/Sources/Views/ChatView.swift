@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -77,7 +80,9 @@ struct ChatView: View {
             inputBar
         }
         .background(Color.bgPrimary)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .principal) {
                 if !conversation.modelName.isEmpty {
@@ -87,7 +92,7 @@ struct ChatView: View {
                         .foregroundStyle(Color.accent)
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .seerTrailing) {
                 Button { showParameters = true } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 15, weight: .ultraLight))
@@ -1369,6 +1374,14 @@ struct ChatView: View {
         guard let image = UIImage(data: data) else { return data }
         let resized = resizeImageIfNeeded(image, maxDimension: 1600)
         return resized.jpegData(compressionQuality: 0.82) ?? data
+        #elseif os(macOS)
+        guard let image = NSImage(data: data) else { return data }
+        let resized = resizeImageIfNeeded(image, maxDimension: 1600)
+        guard let tiff = resized.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.82])
+        else { return data }
+        return jpeg
         #else
         return data
         #endif
@@ -1386,6 +1399,22 @@ struct ChatView: View {
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: target))
         }
+    }
+    #elseif os(macOS)
+    private func resizeImageIfNeeded(_ image: NSImage, maxDimension: CGFloat) -> NSImage {
+        let size = image.size
+        let largest = max(size.width, size.height)
+        guard largest > maxDimension else { return image }
+
+        let scale = maxDimension / largest
+        let target = CGSize(width: size.width * scale, height: size.height * scale)
+        let resized = NSImage(size: target)
+        resized.lockFocus()
+        image.draw(in: CGRect(origin: .zero, size: target),
+                   from: CGRect(origin: .zero, size: size),
+                   operation: .copy, fraction: 1.0)
+        resized.unlockFocus()
+        return resized
     }
     #endif
 }

@@ -31,7 +31,9 @@ struct ScaffoldTemplatePickerView: View {
             .scrollContentBackground(.hidden)
             .background(Color.bgPrimary)
             .navigationTitle("Templates")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("CANCEL") { dismiss() }

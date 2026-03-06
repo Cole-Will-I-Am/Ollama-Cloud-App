@@ -149,7 +149,9 @@ struct ScaffoldBuilderView: View {
             }
             .background(Color.bgPrimary)
             .navigationTitle(scaffold == nil ? "New Scaffold" : "Edit Scaffold")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("CANCEL") { dismiss() }

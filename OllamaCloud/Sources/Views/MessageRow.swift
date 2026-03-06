@@ -3,6 +3,9 @@ import MarkdownUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct MessageRow: View {
     let message: Message
@@ -215,8 +218,11 @@ struct MessageRow: View {
     private func copyToClipboard(_ text: String) {
         #if os(iOS)
         UIPasteboard.general.string = text
-        Haptic.notification(.success)
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
         #endif
+        Haptic.notification(.success)
     }
 
     private func tokenFooter(_ tokenCount: Int) -> some View {

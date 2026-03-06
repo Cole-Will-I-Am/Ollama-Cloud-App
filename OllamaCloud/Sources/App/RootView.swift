@@ -27,7 +27,7 @@ struct MainAppView: View {
         NavigationSplitView {
             ConversationListView(selection: $selectedConversation)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .seerTrailing) {
                         Button {
                             showSettings = true
                         } label: {
