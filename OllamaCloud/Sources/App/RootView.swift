@@ -24,6 +24,7 @@ struct MainAppView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedConversation: Conversation?
     @State private var showSettings = false
+    @State private var persistenceError: String?
     @State private var showModelPicker = false
     @State private var pendingConversation: Conversation?
 
@@ -48,10 +49,16 @@ struct MainAppView: View {
                 ZStack {
                     Color.bgPrimary.ignoresSafeArea()
                     VStack(spacing: 14) {
+                        #if os(macOS)
                         Image("SeerEmblem")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(height: 48)
+                        #else
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 36, weight: .ultraLight))
+                            .foregroundStyle(Color.textTertiary)
+                        #endif
                         Text("Select a conversation")
                             .font(.app(14, weight: .light))
                             .foregroundStyle(Color.textTertiary)
@@ -77,6 +84,14 @@ struct MainAppView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .alert("Storage Error", isPresented: Binding(
+            get: { persistenceError != nil },
+            set: { _ in persistenceError = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(persistenceError ?? "An unknown storage error occurred.")
+        }
         #if os(macOS)
         .sheet(isPresented: $showModelPicker, onDismiss: {
             deletePendingConversationIfEmpty()
@@ -85,7 +100,12 @@ struct MainAppView: View {
             ModelPickerView(onSelect: { model in
                 if let conv = pendingConversation {
                     conv.modelName = model.name
-                    try? modelContext.save()
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        persistenceError = "Failed to save model selection."
+                        return
+                    }
                     selectedConversation = conv
                 }
                 pendingConversation = nil
@@ -104,7 +124,13 @@ struct MainAppView: View {
     private func newConversationFromDetail() {
         let conversation = Conversation(accountScopeKey: AccountScope.currentKey())
         modelContext.insert(conversation)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to save new conversation."
+            modelContext.delete(conversation)
+            return
+        }
         pendingConversation = conversation
         showModelPicker = true
     }
@@ -118,7 +144,11 @@ struct MainAppView: View {
             selectedConversation = nil
         }
         modelContext.delete(pendingConversation)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to remove empty chat."
+        }
     }
     #endif
 }
