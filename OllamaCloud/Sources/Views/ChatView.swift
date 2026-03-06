@@ -110,12 +110,16 @@ struct ChatView: View {
                     streaming.error = "Failed to save selected model."
                 }
             })
+            #if os(iOS)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationBackground(.ultraThinMaterial)
+            #endif
+            .macSheetFixedSize(SeerSheetSize.modelPicker)
         }
         .sheet(isPresented: $showParameters) {
             ParametersView(conversation: conversation)
+                .macSheetFixedSize(SeerSheetSize.parameters)
         }
         .sheet(isPresented: $showScaffoldLibrary) {
             ScaffoldLibraryView(

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct RootView: View {
     @AppStorage("hasAPIKey") private var hasAPIKey = false
@@ -20,8 +21,11 @@ struct RootView: View {
 }
 
 struct MainAppView: View {
+    @Environment(\.modelContext) private var modelContext
     @State private var selectedConversation: Conversation?
     @State private var showSettings = false
+    @State private var showModelPicker = false
+    @State private var pendingConversation: Conversation?
 
     var body: some View {
         NavigationSplitView {
@@ -43,13 +47,29 @@ struct MainAppView: View {
             } else {
                 ZStack {
                     Color.bgPrimary.ignoresSafeArea()
-                    VStack(spacing: 10) {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 36, weight: .ultraLight))
-                            .foregroundStyle(Color.textTertiary)
+                    VStack(spacing: 14) {
+                        Image("SeerEmblem")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 48)
                         Text("Select a conversation")
                             .font(.app(14, weight: .light))
                             .foregroundStyle(Color.textTertiary)
+                        #if os(macOS)
+                        Button {
+                            newConversationFromDetail()
+                        } label: {
+                            Text("+ NEW CHAT")
+                                .font(.appLabel(11))
+                                .luxuryTracking()
+                                .foregroundStyle(Color.accent)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.accentSoft, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+                        #endif
                     }
                 }
             }
@@ -57,5 +77,48 @@ struct MainAppView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        #if os(macOS)
+        .sheet(isPresented: $showModelPicker, onDismiss: {
+            deletePendingConversationIfEmpty()
+            pendingConversation = nil
+        }) {
+            ModelPickerView(onSelect: { model in
+                if let conv = pendingConversation {
+                    conv.modelName = model.name
+                    try? modelContext.save()
+                    selectedConversation = conv
+                }
+                pendingConversation = nil
+                showModelPicker = false
+            }, onCancel: {
+                deletePendingConversationIfEmpty()
+                pendingConversation = nil
+                showModelPicker = false
+            })
+            .macSheetFixedSize(SeerSheetSize.modelPicker)
+        }
+        #endif
     }
+
+    #if os(macOS)
+    private func newConversationFromDetail() {
+        let conversation = Conversation(accountScopeKey: AccountScope.currentKey())
+        modelContext.insert(conversation)
+        try? modelContext.save()
+        pendingConversation = conversation
+        showModelPicker = true
+    }
+
+    private func deletePendingConversationIfEmpty() {
+        guard let pendingConversation else { return }
+        let hasModel = !pendingConversation.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasMessages = !pendingConversation.messages.isEmpty
+        guard !hasModel && !hasMessages else { return }
+        if selectedConversation?.id == pendingConversation.id {
+            selectedConversation = nil
+        }
+        modelContext.delete(pendingConversation)
+        try? modelContext.save()
+    }
+    #endif
 }

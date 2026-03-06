@@ -228,6 +228,7 @@ struct ModelPickerView: View {
             fetchModels()
         }
         .onDisappear { fetchTask?.cancel() }
+        .macSheetFixedSize(SeerSheetSize.modelPicker)
     }
 
     @ViewBuilder

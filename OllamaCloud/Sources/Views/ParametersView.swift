@@ -269,8 +269,15 @@ struct ParametersView: View {
                         Text("DONE")
                             .font(.appLabel(12))
                             .tracking(2)
+                            #if os(iOS)
                             .foregroundStyle(Color.accent)
+                            #else
+                            .foregroundStyle(Color.textPrimary)
+                            #endif
                     }
+                    #if os(macOS)
+                    .buttonStyle(.bordered)
+                    #endif
                 }
             }
             .sheet(isPresented: $showScaffoldLibrary) {
@@ -299,9 +306,12 @@ struct ParametersView: View {
                         errorMessage = "Failed to save selected model."
                     }
                 })
+                #if os(iOS)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.modelPicker)
             }
             .alert("Storage Error", isPresented: Binding(
                 get: { errorMessage != nil },
@@ -323,6 +333,7 @@ struct ParametersView: View {
                 refreshActiveScaffoldNameFromStore()
             }
         }
+        .macSheetFixedSize(SeerSheetSize.parameters)
     }
 
     // MARK: - Preset Bar

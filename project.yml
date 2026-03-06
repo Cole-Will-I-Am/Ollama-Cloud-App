@@ -65,6 +65,7 @@ targets:
       - package: MarkdownUI
     settings:
       base:
+        PRODUCT_NAME: SEER
         PRODUCT_BUNDLE_IDENTIFIER: com.colecantcode.ollamacloud.mac
         PRODUCT_MODULE_NAME: OllamaCloud
         INFOPLIST_KEY_CFBundleDisplayName: SEER

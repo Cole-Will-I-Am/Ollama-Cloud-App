@@ -36,6 +36,25 @@ struct ConversationListView: View {
 
     var body: some View {
         List(selection: $selection) {
+            #if os(macOS)
+            if !conversations.isEmpty {
+                Section {
+                    EmptyView()
+                } header: {
+                    HStack {
+                        Spacer()
+                        Image("SeerEmblem")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 20)
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .padding(.vertical, 4)
+                }
+            }
+            #endif
             ForEach(sortedConversations) { conversation in
                 NavigationLink(value: conversation) {
                     HStack(spacing: 14) {
@@ -99,6 +118,25 @@ struct ConversationListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.bgPrimary)
+        #if os(macOS)
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                newConversation()
+            } label: {
+                Text("+ NEW CHAT")
+                    .font(.appLabel(11))
+                    .luxuryTracking()
+                    .foregroundStyle(Color.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.accentSoft, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.bgPrimary)
+        }
+        #endif
         .navigationTitle("Chats")
         .onAppear {
             backfillLegacyConversationScopes()
@@ -137,6 +175,7 @@ struct ConversationListView: View {
                 pendingConversation = nil
                 showModelPicker = false
             })
+            .macSheetFixedSize(SeerSheetSize.modelPicker)
         }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
