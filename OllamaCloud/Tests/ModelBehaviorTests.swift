@@ -62,4 +62,20 @@ final class ModelBehaviorTests: XCTestCase {
             )
         )
     }
+
+    func testSeerMergedPromptIncludesPlatformCapabilityGuidance() throws {
+        try XCTSkipIf(!AppConfig.seerModelEnabled, "SEER profile disabled in this environment")
+
+        let prompt = SeerAssistantProfile.mergedSystemPrompt(
+            baseSystemPrompt: "",
+            selectedModelName: AppConfig.seerModelName
+        )
+
+        XCTAssertTrue(prompt.contains("For feature questions, always distinguish iOS vs macOS behavior."))
+        XCTAssertTrue(prompt.contains("Platform capability baseline:"))
+        XCTAssertTrue(prompt.contains("macOS only: MCP tools/servers"))
+        XCTAssertTrue(prompt.contains("iOS limitations vs macOS: no MCP tools"))
+        XCTAssertTrue(prompt.contains("When a feature is unavailable on one platform"))
+        XCTAssertTrue(prompt.contains("environment-dependent behavior"))
+    }
 }
