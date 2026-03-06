@@ -349,7 +349,9 @@ enum CodeExecutionService {
                 var __seerInputQueue = \(inputJSON);
                 var __seerGlobal = (typeof globalThis !== "undefined") ? globalThis : this;
                 function __seerTakeInput() {
-                  if (!Array.isArray(__seerInputQueue) || __seerInputQueue.length === 0) { return null; }
+                  if (!Array.isArray(__seerInputQueue) || __seerInputQueue.length === 0) {
+                    throw new Error("Program requested more input than provided. Add one value per line in the Input panel and run again.");
+                  }
                   return String(__seerInputQueue.shift());
                 }
                 __seerGlobal.prompt = __seerGlobal.prompt || function(_message) { return __seerTakeInput(); };
