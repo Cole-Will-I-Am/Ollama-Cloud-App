@@ -58,6 +58,7 @@ enum CodeExecutionService {
     Interactive input is not supported in inline Run.
     Use fixed sample values instead of reading from stdin/prompt.
     """
+    private static let maxInlineOutputCharacters = 12_000
 
     static func execute(code: String, language: ExecutableLanguage, timeout: TimeInterval = 10) async -> CodeExecutionResult {
         #if os(macOS)
@@ -226,6 +227,15 @@ enum CodeExecutionService {
             )
         }
 
+        if requiresInteractiveInput(code: code, language: language) {
+            return CodeExecutionResult(
+                stdout: "",
+                stderr: interactiveInputUnsupportedMessage,
+                exitCode: 2,
+                timedOut: false
+            )
+        }
+
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let ctx = JSContext()!
@@ -255,14 +265,23 @@ enum CodeExecutionService {
                     }
                 }
 
+                let stdout = truncateInlineOutput(consoleOutput.joined(separator: "\n"))
+                let stderr = truncateInlineOutput(errorOutput)
+
                 continuation.resume(returning: CodeExecutionResult(
-                    stdout: consoleOutput.joined(separator: "\n"),
-                    stderr: errorOutput,
-                    exitCode: errorOutput.isEmpty ? 0 : 1,
+                    stdout: stdout,
+                    stderr: stderr,
+                    exitCode: stderr.isEmpty ? 0 : 1,
                     timedOut: false
                 ))
             }
         }
     }
     #endif
+
+    private static func truncateInlineOutput(_ text: String) -> String {
+        guard text.count > maxInlineOutputCharacters else { return text }
+        let end = text.index(text.startIndex, offsetBy: maxInlineOutputCharacters)
+        return "\(text[..<end])\n\n[output truncated at \(maxInlineOutputCharacters) characters]"
+    }
 }
