@@ -11,6 +11,10 @@
   Streaming conversations &nbsp;·&nbsp; Reasoning scaffolds &nbsp;·&nbsp; Inline code execution &nbsp;·&nbsp; MCP tool calling &nbsp;·&nbsp; One codebase, two platforms
 </p>
 
+<p align="center">
+  <a href="https://github.com/Cole-Cant-Code/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg"><b>Download macOS (Direct)</b></a>
+</p>
+
 ---
 
 ## Why SEER
