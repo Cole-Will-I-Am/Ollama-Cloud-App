@@ -95,7 +95,7 @@ struct MainAppView: View {
                             .font(.system(size: 36, weight: .ultraLight))
                             .foregroundStyle(Color.textTertiary)
                         #endif
-                        Text("Select a conversation")
+                        Text("Let's Party.")
                             .font(.app(14, weight: .light))
                             .foregroundStyle(Color.textTertiary)
                         #if os(macOS)
