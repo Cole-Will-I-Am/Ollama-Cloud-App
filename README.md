@@ -446,6 +446,28 @@ Both iOS and macOS targets share this source tree. Platform-specific behavior is
 
 ---
 
+## Open Source + Commercial Direction
+
+SEER uses a pragmatic model:
+
+- **Core app is open source** under Apache-2.0 to maximize adoption and community contributions
+- **Brand remains protected** (`SEER` name and logos are reserved; see [`TRADEMARKS.md`](TRADEMARKS.md))
+- **Commercialization happens above the core** through optional paid offerings (for example managed sync, team collaboration, premium MCP packs, hosted services, and priority support)
+
+This keeps the app accessible for builders while preserving room for sustainable monetization.
+
+---
+
+## Contributing
+
+Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for development workflow, PR expectations, and CLA policy notes.
+
+---
+
 ## License
 
-All rights reserved. No license granted at this time.
+Licensed under the Apache License, Version 2.0.
+
+- Full license text: [`LICENSE`](LICENSE)
+- Attribution notice: [`NOTICE`](NOTICE)
+- Trademark policy: [`TRADEMARKS.md`](TRADEMARKS.md)
