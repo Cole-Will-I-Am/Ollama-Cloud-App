@@ -16,6 +16,8 @@ struct SeerCodeBlock: View {
     @State private var isCollapsed: Bool
     @State private var isExecuting = false
     @State private var executionResult: CodeExecutionResult?
+    @State private var showsInputPanel = false
+    @State private var inputValues = ""
 
     init(language: String?, content: String) {
         self.language = language
@@ -66,6 +68,19 @@ struct SeerCodeBlock: View {
         return lang.isAvailableOnCurrentPlatform
     }
 
+    private var hasInputValues: Bool {
+        !inputValues.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var inputValueLineCount: Int {
+        let normalized = inputValues
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .newlines)
+        guard !normalized.isEmpty else { return 0 }
+        return normalized.split(separator: "\n", omittingEmptySubsequences: false).count
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerBar
@@ -75,6 +90,10 @@ struct SeerCodeBlock: View {
                 collapsedContent
             } else {
                 expandedContent
+            }
+
+            if canExecute && showsInputPanel {
+                inputPanel
             }
 
             if let result = executionResult {
@@ -89,6 +108,9 @@ struct SeerCodeBlock: View {
                         .stroke(Color.border, lineWidth: 0.5)
                 )
         )
+        #if os(macOS)
+        .animation(.snappy(duration: 0.2), value: isCollapsed)
+        #endif
         .markdownMargin(top: .zero, bottom: .em(0.8))
     }
 
@@ -114,6 +136,7 @@ struct SeerCodeBlock: View {
             }
 
             if canExecute {
+                inputButton
                 runButton
             }
 
@@ -138,6 +161,9 @@ struct SeerCodeBlock: View {
             .foregroundStyle(Color.textSecondary)
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macPointingCursor()
+        #endif
         .accessibilityLabel(isCollapsed ? "Expand code block" : "Collapse code block")
     }
 
@@ -162,8 +188,41 @@ struct SeerCodeBlock: View {
             .foregroundStyle(Color.success)
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macPointingCursor()
+        #endif
         .disabled(isExecuting)
         .accessibilityLabel("Run code")
+    }
+
+    private var inputButton: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.2)) {
+                showsInputPanel.toggle()
+            }
+            Haptic.selection()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "rectangle.and.pencil.and.ellipsis")
+                    .font(.system(size: 9, weight: .medium))
+                Text("Input")
+                    .font(.appLabel(9))
+                if hasInputValues {
+                    Text("\(inputValueLineCount)")
+                        .font(.appLabel(8))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.accent.opacity(0.95)))
+                }
+            }
+            .foregroundStyle(hasInputValues ? Color.accent : Color.textSecondary)
+        }
+        .buttonStyle(.plain)
+        #if os(macOS)
+        .macPointingCursor()
+        #endif
+        .accessibilityLabel(showsInputPanel ? "Hide input values" : "Show input values")
     }
 
     private var copyButton: some View {
@@ -179,6 +238,9 @@ struct SeerCodeBlock: View {
             .foregroundStyle(Color.accent)
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macPointingCursor()
+        #endif
         .accessibilityLabel("Copy code")
         .accessibilityHint("Copies this code block to the clipboard")
     }
@@ -193,6 +255,9 @@ struct SeerCodeBlock: View {
             if !collapsedPreviewLine.isEmpty {
                 Text(collapsedPreviewLine)
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    #if os(macOS)
+                    .font(.appMono(12))
+                    #endif
                     .foregroundStyle(Color.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -207,6 +272,9 @@ struct SeerCodeBlock: View {
             HStack(alignment: .top, spacing: 12) {
                 Text(lineNumberText)
                     .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    #if os(macOS)
+                    .font(.appMono(11))
+                    #endif
                     .foregroundStyle(Color.textTertiary)
                     .multilineTextAlignment(.trailing)
                     .padding(.trailing, 2)
@@ -215,13 +283,73 @@ struct SeerCodeBlock: View {
                 SeerCodeSyntaxHighlighter.shared
                     .highlightCode(normalizedContent, language: language)
                     .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    #if os(macOS)
+                    .font(.appMono(13))
+                    #endif
                     .lineSpacing(3)
                     .textSelection(.enabled)
             }
+            #if os(macOS)
+            .fixedSize(horizontal: true, vertical: false)
+            #endif
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
         }
         .frame(maxHeight: 340)
+    }
+
+    private var inputPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Rectangle().fill(Color.border).frame(height: 0.5)
+
+            HStack(spacing: 8) {
+                Label("Input values", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    .font(.appLabel(9))
+                    .foregroundStyle(Color.textSecondary)
+
+                Spacer()
+
+                if hasInputValues {
+                    Button {
+                        inputValues = ""
+                        Haptic.selection()
+                    } label: {
+                        Text("Clear")
+                            .font(.appLabel(9))
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    #if os(macOS)
+                    .macPointingCursor()
+                    #endif
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+
+            Text("One line per value. Values are consumed in order for stdin/prompt/readLine.")
+                .font(.app(11))
+                .foregroundStyle(Color.textTertiary)
+                .padding(.horizontal, 12)
+
+            TextEditor(text: $inputValues)
+                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                #if os(macOS)
+                .font(.appMono(12))
+                #endif
+                .frame(minHeight: 76, maxHeight: 120)
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.border, lineWidth: 0.5)
+                        )
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+        }
     }
 
     // MARK: - Output Panel
@@ -249,6 +377,9 @@ struct SeerCodeBlock: View {
                         .foregroundStyle(Color.textSecondary)
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .macPointingCursor()
+                #endif
                 .accessibilityLabel("Dismiss output")
             }
             .padding(.horizontal, 12)
@@ -257,6 +388,9 @@ struct SeerCodeBlock: View {
             if !result.stdout.isEmpty {
                 Text(result.stdout)
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    #if os(macOS)
+                    .font(.appMono(12))
+                    #endif
                     .foregroundStyle(Color.textPrimary)
                     .textSelection(.enabled)
                     .padding(.horizontal, 12)
@@ -266,6 +400,9 @@ struct SeerCodeBlock: View {
             if !result.stderr.isEmpty {
                 Text(result.stderr)
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    #if os(macOS)
+                    .font(.appMono(12))
+                    #endif
                     .foregroundStyle(Color.danger)
                     .textSelection(.enabled)
                     .padding(.horizontal, 12)
@@ -288,8 +425,16 @@ struct SeerCodeBlock: View {
             return ("Timed out", "exclamationmark.triangle", Color.danger)
         }
 
-        if isInteractiveInputUnsupportedError(result.stderr) {
-            return ("Interactive input unsupported", "info.circle", Color.textSecondary)
+        if isInputExhaustedError(result.stderr) {
+            return ("More Input Needed", "text.badge.plus", Color.textSecondary)
+        }
+
+        if isNodeInputUnsupportedError(result.stderr) {
+            return ("Input API Unsupported", "info.circle", Color.textSecondary)
+        }
+
+        if isNodeNotInstalledHint(result.stderr) {
+            return ("Node.js Not Found", "shippingbox", Color.textSecondary)
         }
 
         if result.exitCode == 0 {
@@ -299,20 +444,36 @@ struct SeerCodeBlock: View {
         return ("Error (exit \(result.exitCode))", "exclamationmark.triangle", Color.danger)
     }
 
-    private func isInteractiveInputUnsupportedError(_ stderr: String) -> Bool {
-        stderr.lowercased().contains("interactive input is not supported in inline run")
+    private func isInputExhaustedError(_ stderr: String) -> Bool {
+        let lower = stderr.lowercased()
+        return lower.contains("program requested more input than provided")
+            || lower.contains("program needed more input lines than provided")
+    }
+
+    private func isNodeInputUnsupportedError(_ stderr: String) -> Bool {
+        stderr.lowercased().contains("node-style interactive stdin/readline is not supported on ios javascriptcore")
+    }
+
+    private func isNodeNotInstalledHint(_ stderr: String) -> Bool {
+        stderr.contains("Node.js not found") || stderr.contains("Install Node.js to run this code")
     }
 
     // MARK: - Actions
 
     private func runCode() {
         guard let lang = executableLanguage, !isExecuting else { return }
+        let codeSnapshot = normalizedContent
+        let stdinSnapshot = inputValues
         isExecuting = true
         executionResult = nil
         Haptic.impact(.light)
 
         Task {
-            let result = await CodeExecutionService.execute(code: normalizedContent, language: lang)
+            let result = await CodeExecutionService.execute(
+                code: codeSnapshot,
+                language: lang,
+                stdin: stdinSnapshot
+            )
             await MainActor.run {
                 withAnimation(.snappy(duration: 0.2)) {
                     executionResult = result

@@ -24,14 +24,14 @@ struct MessageRow: View {
 
     var body: some View {
         HStack(alignment: .bottom) {
-            if message.role == "user" { Spacer(minLength: 48) }
+            if isUserMessage { Spacer(minLength: 48) }
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: isUserMessage ? .trailing : .leading, spacing: 0) {
                 if showsThinkingSection, let thinking = message.thinkingContent, !thinking.isEmpty {
                     thinkingSection(thinking)
                 }
 
-                if message.role == "user" {
+                if isUserMessage {
                     userBubble
                 } else {
                     assistantBubble
@@ -40,9 +40,13 @@ struct MessageRow: View {
                     }
                 }
             }
+            #if os(macOS)
+            .frame(maxWidth: 820, alignment: isUserMessage ? .trailing : .leading)
+            #endif
 
-            if message.role != "user" { Spacer(minLength: 48) }
+            if !isUserMessage { Spacer(minLength: 48) }
         }
+        .frame(maxWidth: .infinity, alignment: isUserMessage ? .trailing : .leading)
     }
 
     private var userBubble: some View {
@@ -84,10 +88,20 @@ struct MessageRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
                     .textSelection(.enabled)
+                    #if os(macOS)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
+                    #endif
             } else {
                 Markdown(message.content)
                     .markdownTheme(.seerAssistant)
                     .textSelection(.enabled)
+                    #if os(macOS)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
+                    #endif
             }
         }
             .padding(.horizontal, 16)
@@ -114,11 +128,23 @@ struct MessageRow: View {
     }
 
     private var shouldDebounceAssistantMarkdown: Bool {
-        guard message.role == "assistant" else { return false }
+        guard isAssistantMessage else { return false }
         guard chatMessageCount >= Self.longChatThreshold else { return false }
         guard message.content.count >= Self.longAssistantThreshold else { return false }
         let age = Date().timeIntervalSince(message.createdAt)
         return age >= 0 && age <= Self.freshAssistantWindow
+    }
+
+    private var normalizedRole: String {
+        message.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var isUserMessage: Bool {
+        normalizedRole == "user"
+    }
+
+    private var isAssistantMessage: Bool {
+        normalizedRole == "assistant"
     }
 
     private func scheduleAssistantMarkdownDebounceIfNeeded() {
@@ -164,6 +190,9 @@ struct MessageRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            #if os(macOS)
+            .macPointingCursor()
+            #endif
 
             if isThinkingExpanded {
                 Markdown(thinking)
@@ -230,7 +259,11 @@ struct MessageRow: View {
             Image(systemName: "number")
                 .font(.system(size: 8, weight: .ultraLight))
             Text("\(tokenCount) tokens")
+                #if os(macOS)
+                .font(.appMono(10, weight: .medium))
+                #else
                 .font(.app(10, weight: .medium).monospaced())
+                #endif
         }
         .foregroundStyle(Color.textTertiary)
         .padding(.leading, 6)
