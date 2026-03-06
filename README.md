@@ -40,8 +40,7 @@ SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Pla
 - Runtime scaffold injection ahead of system prompt for deterministic context shaping
 - Long-press chat actions: Copy, Edit Prompt, Regenerate
 - Rich code blocks: syntax highlighting, line numbers, copy, auto/manual collapse
-- Inline code execution with Run button — output displayed inline below the code block
-- Interactive input detection: snippets using `input()`, `prompt()`, or `read` are rejected pre-flight with a friendly message
+- Inline code execution with Run button and Input panel for stdin values — output displayed inline below the code block
 - Account-scoped persistence for chats, scaffolds, and favorites
 - Keychain-secured API key storage
 - Network monitoring with offline detection, retry logic, and certificate pinning
@@ -166,12 +165,25 @@ Code blocks include a **Run** button for supported languages. Output is ephemera
 | | macOS | iOS |
 |---|---|---|
 | **Python** | `/usr/bin/python3` via `Process` | Not available |
-| **JavaScript** | `/usr/bin/env node` via `Process` | `JavaScriptCore` (no Node APIs) |
+| **JavaScript** | Node.js via `Process` (auto-detected) with JavaScriptCore fallback | `JavaScriptCore` (no Node APIs) |
 | **Shell** | `/bin/bash` via `Process` | Not available |
 | **Timeout** | 10 seconds | None (JSC is synchronous) |
-| **Interactive input** | Detected and rejected pre-flight | Detected and rejected pre-flight |
+| **Stdin input** | Supported via Input panel | Supported via Input panel |
+| **Sandbox** | Ephemeral temp workspace (scoped HOME/TMPDIR, cleaned after run) | JavaScriptCore context |
 
-Interactive patterns (`input()`, `prompt()`, shell `read`) are detected before execution and return a friendly message instead of hanging or crashing. If detection is bypassed, runtime EOF errors are normalized to the same message.
+### Input Panel
+
+Code blocks that use `input()`, `prompt()`, or `readLine()` can receive values through the **Input panel** — a toggle panel on the code block with one value per line. The execution engine:
+- Passes input values as stdin to the process (macOS) or injects them into the JSCore context (iOS)
+- Normalizes line endings (`\r\n`/`\r` → `\n`) to prevent EOF issues
+- Shows a clear "more input needed" error if the program requests more values than provided
+
+### JavaScript Runtime (macOS)
+
+The macOS JavaScript runtime has smart fallback behavior:
+- Resolves Node.js from common paths (`/opt/homebrew/bin/node`, `/usr/local/bin/node`) and shell lookup (nvm, fnm, volta)
+- `prompt()`-style code is routed to JavaScriptCore even when Node is installed (avoids `prompt is not defined`)
+- If Node is missing, falls back to JavaScriptCore for compatible code and shows install guidance for Node-specific APIs
 
 See: [`CodeExecutionService.swift`](OllamaCloud/Sources/Services/CodeExecutionService.swift) | [`SeerCodeBlock.swift`](OllamaCloud/Sources/Views/SeerCodeBlock.swift)
 
