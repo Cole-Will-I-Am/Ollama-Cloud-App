@@ -227,16 +227,17 @@ struct SeerCodeBlock: View {
     // MARK: - Output Panel
 
     private func outputPanel(_ result: CodeExecutionResult) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let status = statusPresentation(for: result)
+        return VStack(alignment: .leading, spacing: 0) {
             Rectangle().fill(Color.border).frame(height: 0.5)
 
             HStack {
                 Label(
-                    result.timedOut ? "Timed out" : (result.exitCode == 0 ? "Output" : "Error (exit \(result.exitCode))"),
-                    systemImage: result.exitCode == 0 && !result.timedOut ? "checkmark.circle" : "exclamationmark.triangle"
+                    status.title,
+                    systemImage: status.systemImage
                 )
                 .font(.appLabel(9))
-                .foregroundStyle(result.exitCode == 0 && !result.timedOut ? Color.success : Color.danger)
+                .foregroundStyle(status.color)
 
                 Spacer()
 
@@ -280,6 +281,26 @@ struct SeerCodeBlock: View {
             }
         }
         .background(Color.bgPrimary.opacity(0.6))
+    }
+
+    private func statusPresentation(for result: CodeExecutionResult) -> (title: String, systemImage: String, color: Color) {
+        if result.timedOut {
+            return ("Timed out", "exclamationmark.triangle", Color.danger)
+        }
+
+        if isInteractiveInputUnsupportedError(result.stderr) {
+            return ("Interactive input unsupported", "info.circle", Color.textSecondary)
+        }
+
+        if result.exitCode == 0 {
+            return ("Output", "checkmark.circle", Color.success)
+        }
+
+        return ("Error (exit \(result.exitCode))", "exclamationmark.triangle", Color.danger)
+    }
+
+    private func isInteractiveInputUnsupportedError(_ stderr: String) -> Bool {
+        stderr.lowercased().contains("interactive input is not supported in inline run")
     }
 
     // MARK: - Actions

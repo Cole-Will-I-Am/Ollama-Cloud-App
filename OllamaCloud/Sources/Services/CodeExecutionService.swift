@@ -53,6 +53,12 @@ struct CodeExecutionResult {
 // MARK: - Code Execution Service
 
 enum CodeExecutionService {
+    private static let interactiveInputUnsupportedMessage =
+    """
+    Interactive input is not supported in inline Run.
+    Use fixed sample values instead of reading from stdin/prompt.
+    """
+
     static func execute(code: String, language: ExecutableLanguage, timeout: TimeInterval = 10) async -> CodeExecutionResult {
         #if os(macOS)
         return await executeMacOS(code: code, language: language, timeout: timeout)
@@ -65,6 +71,15 @@ enum CodeExecutionService {
 
     #if os(macOS)
     private static func executeMacOS(code: String, language: ExecutableLanguage, timeout: TimeInterval) async -> CodeExecutionResult {
+        if requiresInteractiveInput(code: code, language: language) {
+            return CodeExecutionResult(
+                stdout: "",
+                stderr: interactiveInputUnsupportedMessage,
+                exitCode: 2,
+                timedOut: false
+            )
+        }
+
         let (executablePath, arguments) = processInfo(for: language)
 
         return await withCheckedContinuation { continuation in
@@ -93,8 +108,30 @@ enum CodeExecutionService {
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
 
+            var stdoutData = Data()
+            var stderrData = Data()
+            let stdoutGroup = DispatchGroup()
+            let stderrGroup = DispatchGroup()
+
             do {
                 try process.run()
+
+                // Close the parent's write handles; only the child should write to stdout/stderr.
+                stdoutPipe.fileHandleForWriting.closeFile()
+                stderrPipe.fileHandleForWriting.closeFile()
+
+                stdoutGroup.enter()
+                DispatchQueue.global(qos: .userInitiated).async {
+                    stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    stdoutGroup.leave()
+                }
+
+                stderrGroup.enter()
+                DispatchQueue.global(qos: .userInitiated).async {
+                    stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                    stderrGroup.leave()
+                }
+
                 process.waitUntilExit()
             } catch {
                 killer.cancel()
@@ -109,12 +146,16 @@ enum CodeExecutionService {
 
             killer.cancel()
 
-            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            stdoutGroup.wait()
+            stderrGroup.wait()
+
+            let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+            let normalizedStderr = normalizeInteractiveInputError(stderr: stderr, language: language)
 
             continuation.resume(returning: CodeExecutionResult(
-                stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-                stderr: String(data: stderrData, encoding: .utf8) ?? "",
+                stdout: stdout,
+                stderr: normalizedStderr,
                 exitCode: process.terminationStatus,
                 timedOut: timedOut
             ))
@@ -132,6 +173,45 @@ enum CodeExecutionService {
         }
     }
     #endif
+
+    static func requiresInteractiveInput(code: String, language: ExecutableLanguage) -> Bool {
+        let lower = code.lowercased()
+        switch language {
+        case .python:
+            return lower.contains("input(")
+                || lower.contains("raw_input(")
+                || lower.contains("sys.stdin.readline(")
+        case .javascript:
+            return lower.contains("prompt(")
+                || lower.contains("process.stdin")
+                || lower.contains("readline.createinterface(")
+        case .shell:
+            return lower.contains("\nread ")
+                || lower.hasPrefix("read ")
+                || lower.contains("\nread\t")
+                || lower.hasPrefix("read\t")
+                || lower.contains("read -p")
+        }
+    }
+
+    private static func normalizeInteractiveInputError(stderr: String, language: ExecutableLanguage) -> String {
+        let lower = stderr.lowercased()
+        switch language {
+        case .python:
+            if lower.contains("eoferror: eof when reading a line") {
+                return interactiveInputUnsupportedMessage
+            }
+        case .javascript:
+            if lower.contains("stdin") && lower.contains("end-of-file") {
+                return interactiveInputUnsupportedMessage
+            }
+        case .shell:
+            if lower.contains("read error") && lower.contains("0: bad file descriptor") {
+                return interactiveInputUnsupportedMessage
+            }
+        }
+        return stderr
+    }
 
     // MARK: - iOS — JavaScriptCore
 

@@ -72,6 +72,7 @@ enum SeerAssistantProfile {
             "Use exact UI labels when possible (Chats, Parameters, Model Picker, Reasoning Scaffold, Settings).",
             "Reasoning scaffolds are guidance for reasoning, not strict output rules.",
             "Code blocks have a Run button that executes code inline. On macOS, Python, JavaScript, and Shell are supported. On iOS, only JavaScript runs (via JavaScriptCore) — Python and Shell are not available. Output is ephemeral and not saved.",
+            "Inline Run is non-interactive: avoid input(), prompt(), and shell read calls in runnable snippets; prefer fixed sample values instead.",
             "Do not invent actions, settings, or model capabilities. If uncertain, state uncertainty and propose a safe check.",
             "Never request or expose secrets such as API keys or backend tokens.",
             "When discussing implementation, reference concrete files and minimal patch paths.",
