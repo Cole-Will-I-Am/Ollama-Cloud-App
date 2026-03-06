@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  SEER is an iOS client for Ollama Cloud with streaming chat and model controls.
+  SEER is a native iOS and macOS client for Ollama Cloud with streaming chat and model controls.
 </p>
 
 <p align="center">
@@ -71,6 +71,8 @@ flowchart LR
 - Runtime scaffold injection ahead of system prompt for deterministic context shaping
 - Long-press chat actions: `Copy`, `Edit Prompt`, and `Regenerate`
 - Rich code block UX: lightweight syntax highlighting, line numbers, copy action, and auto/manual collapse
+- Inline code execution: Run button on code blocks for Python, JavaScript, and Shell (macOS). JavaScript only on iOS via JavaScriptCore. Output is ephemeral and displayed inline below the code block
+- Native macOS target sharing the same codebase with platform-appropriate controls
 - Attachment chips surface truncation metadata (`truncated shown/original chars`) for large files
 - Account-scoped local persistence for chats/scaffolds/favorites using `API host + API key fingerprint`
 - Keychain-secured API key storage
@@ -140,7 +142,7 @@ Think in four internal layers and explain in plain language without framework ja
 
 ## Requirements
 
-- iOS 17.0+
+- iOS 17.0+ / macOS 14.0+
 - Xcode 16+
 - An [Ollama Cloud](https://ollama.com) API key
 
@@ -164,6 +166,18 @@ Always use this script to avoid installing stale builds from multiple DerivedDat
 Defaults:
 - Device: `iPhone 17 Pro`
 - Derived data: `/tmp/OllamaCloud-DerivedData`
+
+## Run macOS
+
+Build and run the macOS target directly:
+
+```
+xcodegen generate
+xcodebuild build -scheme OllamaCloudMac -destination 'platform=macOS,arch=arm64' -quiet
+open "$(ls -td ~/Library/Developer/Xcode/DerivedData/OllamaCloud*/Build/Products/Debug/OllamaCloudMac.app | head -1)"
+```
+
+Or open `OllamaCloud.xcodeproj` in Xcode and select the `OllamaCloudMac` scheme.
 
 ## Optional Backend Relay
 
