@@ -53,8 +53,108 @@ final class Conversation {
     var numBatch: Int
     var numThread: Int
 
+    var activeLeafID: UUID?       // Tip of the currently viewed branch (nil = legacy linear fallback)
+
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message]
+
+    /// Messages along the active branch from root to leaf.
+    /// Falls back to sorted-by-date for legacy conversations (activeLeafID == nil).
+    var activeBranchMessages: [Message] {
+        let sorted = messages.sorted { $0.createdAt < $1.createdAt }
+        guard let leafID = activeLeafID else {
+            return sorted
+        }
+        let branch = branchMessages(leafID: leafID)
+        return branch.isEmpty ? sorted : branch
+    }
+
+    /// Walk from `leafID` up via parentID to build the branch in root→leaf order.
+    func branchMessages(leafID: UUID) -> [Message] {
+        let lookup = messages.reduce(into: [UUID: Message]()) { partialResult, message in
+            partialResult[message.id] = message
+        }
+        var chain: [Message] = []
+        var currentID: UUID? = leafID
+        var visited: Set<UUID> = []
+
+        while let id = currentID,
+              visited.insert(id).inserted,
+              let msg = lookup[id] {
+            chain.append(msg)
+            currentID = msg.parentID
+        }
+        return chain.reversed()
+    }
+
+    /// Walk DOWN from a message, always picking the most recently created child, until reaching a leaf.
+    func findLeaf(from messageID: UUID) -> UUID {
+        let childrenByParent = Dictionary(grouping: messages, by: { $0.parentID })
+        var current = messageID
+        var visited: Set<UUID> = []
+
+        while visited.insert(current).inserted,
+              let children = childrenByParent[current],
+              !children.isEmpty {
+            current = children
+                .sorted { lhs, rhs in
+                    if lhs.createdAt != rhs.createdAt {
+                        return lhs.createdAt < rhs.createdAt
+                    }
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                .last!
+                .id
+        }
+        return current
+    }
+
+    /// Converts legacy linear chats (all parentID == nil) into a linked chain and validates activeLeafID.
+    /// Returns true if the conversation was mutated.
+    @discardableResult
+    func prepareBranchingState() -> Bool {
+        let sorted = messages.sorted { $0.createdAt < $1.createdAt }
+        guard !sorted.isEmpty else {
+            if activeLeafID != nil {
+                activeLeafID = nil
+                return true
+            }
+            return false
+        }
+
+        var didChange = false
+
+        if let activeLeafID {
+            if !sorted.contains(where: { $0.id == activeLeafID }) {
+                self.activeLeafID = sorted.last?.id
+                didChange = true
+            }
+        }
+
+        let hasParentLinks = sorted.contains { $0.parentID != nil }
+        if !hasParentLinks {
+            var previousID: UUID?
+            for message in sorted {
+                if message.parentID != previousID {
+                    message.parentID = previousID
+                    didChange = true
+                }
+                previousID = message.id
+            }
+            if activeLeafID != sorted.last?.id {
+                activeLeafID = sorted.last?.id
+                didChange = true
+            }
+            return didChange
+        }
+
+        if activeLeafID == nil {
+            activeLeafID = sorted.last?.id
+            didChange = true
+        }
+
+        return didChange
+    }
 
     var thinkingMode: ThinkingMode {
         get { ThinkingMode(rawValue: thinkingModeRaw ?? ThinkingMode.auto.rawValue) ?? .auto }

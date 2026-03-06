@@ -40,7 +40,7 @@ struct ChatView: View {
     @State private var scaffoldPersistenceError: String?
     @State private var exportError: String?
     @State private var showVisionModelWarning = false
-    @State private var pendingHistoryAction: PendingHistoryAction?
+    @State private var forkParentID: UUID?
     #if os(macOS)
     @State private var isFileDropTargeted = false
     @State private var isHoveringNewBadge = false
@@ -59,19 +59,8 @@ struct ChatView: View {
         let originalCharacterCount: Int
     }
 
-    private struct PendingHistoryAction {
-        enum Kind {
-            case editPrompt
-            case regenerate
-        }
-
-        let kind: Kind
-        let messageID: UUID
-        let removedMessageCount: Int
-    }
-
     private var sortedMessages: [Message] {
-        conversation.messages.sorted { $0.createdAt < $1.createdAt }
+        conversation.activeBranchMessages
     }
     private static let streamingAutoScrollThrottleInterval: TimeInterval = 0.1
 
@@ -187,6 +176,7 @@ struct ChatView: View {
                 }
             }
             .onAppear {
+                ensureBranchingStatePrepared()
                 refreshActiveScaffoldNameFromStore()
                 if conversation.messages.isEmpty && !conversation.modelName.isEmpty {
                     isInputFocused = true
@@ -279,27 +269,6 @@ struct ChatView: View {
             } message: {
                 Text("The selected model may not support image input. Choose a vision-capable model or remove image attachments.")
             }
-            .confirmationDialog(
-                pendingHistoryActionTitle,
-                isPresented: Binding(
-                    get: { pendingHistoryAction != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            pendingHistoryAction = nil
-                        }
-                    }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button(pendingHistoryActionConfirmLabel, role: .destructive) {
-                    performPendingHistoryAction()
-                }
-                Button("Cancel", role: .cancel) {
-                    pendingHistoryAction = nil
-                }
-            } message: {
-                Text(pendingHistoryActionMessage)
-            }
     }
 
     @ViewBuilder
@@ -318,6 +287,16 @@ struct ChatView: View {
             .onReceive(NotificationCenter.default.publisher(for: AppCommand.exportConversation)) { _ in
                 #if os(macOS)
                 exportConversationMarkdown()
+                #endif
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AppCommand.previousBranch)) { _ in
+                #if os(macOS)
+                cycleBranch(direction: -1)
+                #endif
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AppCommand.nextBranch)) { _ in
+                #if os(macOS)
+                cycleBranch(direction: 1)
                 #endif
             }
     }
@@ -363,15 +342,22 @@ struct ChatView: View {
                         } else {
                             LazyVStack(spacing: 16) {
                                 ForEach(messages) { message in
+                                    let siblings = siblingsFor(message)
+                                    let siblingIndex = siblings.firstIndex(where: { $0.id == message.id }) ?? 0
                                     MessageRow(
                                         message: message,
                                         chatMessageCount: messages.count,
                                         showsThinkingSection: shouldShowThinkingUI,
+                                        siblingMessages: siblings,
+                                        siblingIndex: siblingIndex,
                                         onEditPrompt: { selected in
                                             requestEditPrompt(for: selected)
                                         },
                                         onRegenerate: { selected in
                                             requestRegenerate(for: selected)
+                                        },
+                                        onSwitchBranch: { target in
+                                            switchBranch(to: target)
                                         }
                                     )
                                         .id(message.id)
@@ -1022,114 +1008,30 @@ struct ChatView: View {
         || (shouldShowThinkingUI && !streaming.streamingThinking.isEmpty)
     }
 
-    private var pendingHistoryActionTitle: String {
-        guard let pendingHistoryAction else { return "Confirm Action" }
-        switch pendingHistoryAction.kind {
-        case .editPrompt:
-            return "Edit Prompt?"
-        case .regenerate:
-            return "Regenerate Response?"
-        }
-    }
+    private func ensureBranchingStatePrepared() {
+        guard conversation.prepareBranchingState() else { return }
 
-    private var pendingHistoryActionConfirmLabel: String {
-        guard let pendingHistoryAction else { return "Continue" }
-        switch pendingHistoryAction.kind {
-        case .editPrompt:
-            return "Edit Prompt"
-        case .regenerate:
-            return "Regenerate"
-        }
-    }
-
-    private var pendingHistoryActionMessage: String {
-        guard let pendingHistoryAction else { return "" }
-        let suffix = pendingHistoryAction.removedMessageCount == 1 ? "" : "s"
-        switch pendingHistoryAction.kind {
-        case .editPrompt:
-            return "This will remove \(pendingHistoryAction.removedMessageCount) message\(suffix) so you can edit and resend."
-        case .regenerate:
-            return "This will remove \(pendingHistoryAction.removedMessageCount) message\(suffix) from this point and generate a new response."
+        conversation.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            streaming.notice = "Branch state could not be fully persisted."
         }
     }
 
     private func requestEditPrompt(for message: Message) {
         guard !streaming.isStreaming else { return }
+        guard message.role == "user" else { return }
 
-        let sorted = sortedMessages
-        guard let userIndex = sorted.firstIndex(where: { $0.id == message.id }),
-              sorted[userIndex].role == "user" else {
-            return
-        }
+        ensureBranchingStatePrepared()
+        forkParentID = message.parentID
 
-        pendingHistoryAction = PendingHistoryAction(
-            kind: .editPrompt,
-            messageID: message.id,
-            removedMessageCount: sorted.count - userIndex
-        )
-    }
-
-    private func requestRegenerate(for message: Message) {
-        guard !streaming.isStreaming else { return }
-
-        let sorted = sortedMessages
-        guard let assistantIndex = sorted.firstIndex(where: { $0.id == message.id }),
-              sorted[assistantIndex].role == "assistant" else {
-            return
-        }
-
-        guard let userIndex = (0..<assistantIndex).reversed().first(where: { sorted[$0].role == "user" }) else {
-            streaming.notice = "Could not find the related user prompt for regeneration."
-            return
-        }
-
-        pendingHistoryAction = PendingHistoryAction(
-            kind: .regenerate,
-            messageID: message.id,
-            removedMessageCount: sorted.count - userIndex
-        )
-    }
-
-    private func performPendingHistoryAction() {
-        guard let action = pendingHistoryAction else { return }
-        pendingHistoryAction = nil
-
-        switch action.kind {
-        case .editPrompt:
-            editPromptFromHistory(messageID: action.messageID)
-        case .regenerate:
-            regenerateFromAssistant(messageID: action.messageID)
-        }
-    }
-
-    private func editPromptFromHistory(messageID: UUID) {
-        guard !streaming.isStreaming else { return }
-
-        let sorted = sortedMessages
-        guard let userIndex = sorted.firstIndex(where: { $0.id == messageID }),
-              sorted[userIndex].role == "user" else {
-            return
-        }
-
-        let targetUserMessage = sorted[userIndex]
-        let (restoredPrompt, _) = splitDisplayContent(targetUserMessage.content)
-        let restoredImages = decodeImages(from: targetUserMessage).map { base64 in
+        let (restoredPrompt, _) = splitDisplayContent(message.content)
+        let restoredImages = decodeImages(from: message).map { base64 in
             PendingImageAttachment(
                 base64: base64,
                 byteCount: Data(base64Encoded: base64)?.count ?? 0
             )
-        }
-
-        for message in sorted[userIndex...] {
-            modelContext.delete(message)
-        }
-        conversation.updatedAt = Date()
-
-        do {
-            try modelContext.save()
-        } catch {
-            streaming.error = "Failed to prepare prompt editing."
-            return
         }
 
         input = restoredPrompt
@@ -1137,7 +1039,7 @@ struct ChatView: View {
         pendingFileAttachments = []
         isInputFocused = true
 
-        if hasAttachedFiles(in: targetUserMessage.attachmentRequestContent) {
+        if hasAttachedFiles(in: message.attachmentRequestContent) {
             streaming.notice = "Prompt restored. Reattach files before sending."
         } else {
             streaming.notice = "Prompt restored for editing."
@@ -1145,36 +1047,20 @@ struct ChatView: View {
         Haptic.selection()
     }
 
-    private func regenerateFromAssistant(messageID: UUID) {
+    private func requestRegenerate(for message: Message) {
         guard !streaming.isStreaming else { return }
+        guard message.role == "assistant" else { return }
 
-        let sorted = sortedMessages
-        guard let assistantIndex = sorted.firstIndex(where: { $0.id == messageID }),
-              sorted[assistantIndex].role == "assistant" else {
-            return
-        }
+        ensureBranchingStatePrepared()
 
-        guard let userIndex = (0..<assistantIndex).reversed().first(where: { sorted[$0].role == "user" }) else {
+        guard let sourceUserMessage = nearestAncestorUserMessage(from: message.parentID) else {
             streaming.notice = "Could not find the related user prompt for regeneration."
             return
         }
 
-        let sourceUserMessage = sorted[userIndex]
         let (userText, attachmentSummary) = splitDisplayContent(sourceUserMessage.content)
         let requestContent = sourceUserMessage.attachmentRequestContent ?? sourceUserMessage.content
         let images = decodeImages(from: sourceUserMessage)
-
-        for message in sorted[userIndex...] {
-            modelContext.delete(message)
-        }
-        conversation.updatedAt = Date()
-
-        do {
-            try modelContext.save()
-        } catch {
-            streaming.error = "Failed to regenerate from that point in history."
-            return
-        }
 
         input = ""
         pendingImageAttachments.removeAll()
@@ -1193,12 +1079,70 @@ struct ChatView: View {
                 requestContent: requestContent,
                 imageBase64s: images,
                 attachmentSummary: attachmentSummary,
+                persistUserMessage: false,
+                parentMessageID: sourceUserMessage.id,
                 tools: tools,
                 mcpManager: manager,
                 conversation: conversation,
                 modelContext: modelContext
             )
         }
+    }
+
+    private func siblingsFor(_ message: Message) -> [Message] {
+        guard conversation.activeLeafID != nil else { return [] }
+        let parentID = message.parentID
+        return conversation.messages
+            .filter { $0.parentID == parentID && $0.role == message.role }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private func cycleBranch(direction: Int) {
+        ensureBranchingStatePrepared()
+        guard conversation.activeLeafID != nil else { return }
+
+        let branch = sortedMessages
+        // Find the deepest message in the active branch that has siblings
+        for message in branch.reversed() {
+            let siblings = siblingsFor(message)
+            guard siblings.count > 1 else { continue }
+            guard let currentIndex = siblings.firstIndex(where: { $0.id == message.id }) else { continue }
+
+            let nextIndex: Int
+            if direction > 0 {
+                nextIndex = currentIndex < siblings.count - 1 ? currentIndex + 1 : 0
+            } else {
+                nextIndex = currentIndex > 0 ? currentIndex - 1 : siblings.count - 1
+            }
+            switchBranch(to: siblings[nextIndex])
+            return
+        }
+    }
+
+    private func switchBranch(to target: Message) {
+        let leafID = conversation.findLeaf(from: target.id)
+        conversation.activeLeafID = leafID
+        try? modelContext.save()
+    }
+
+    private func nearestAncestorUserMessage(from messageID: UUID?) -> Message? {
+        guard let messageID else { return nil }
+
+        let lookup = conversation.messages.reduce(into: [UUID: Message]()) { partialResult, message in
+            partialResult[message.id] = message
+        }
+        var currentID: UUID? = messageID
+        var visited: Set<UUID> = []
+
+        while let id = currentID,
+              visited.insert(id).inserted,
+              let message = lookup[id] {
+            if message.role == "user" {
+                return message
+            }
+            currentID = message.parentID
+        }
+        return nil
     }
 
     private func splitDisplayContent(_ content: String) -> (userText: String, attachmentSummary: String?) {
@@ -1288,11 +1232,14 @@ struct ChatView: View {
             return
         }
 
+        ensureBranchingStatePrepared()
         let attachmentSummary = makeAttachmentSummary()
         let requestContent = makeRequestContent(userText: text)
         let imageBase64s = pendingImageAttachments.map(\.base64)
+        let parentForNewMessage = forkParentID ?? conversation.activeLeafID
 
         input = ""
+        forkParentID = nil
         pendingImageAttachments.removeAll()
         pendingFileAttachments.removeAll()
 
@@ -1309,6 +1256,7 @@ struct ChatView: View {
                 requestContent: requestContent,
                 imageBase64s: imageBase64s,
                 attachmentSummary: attachmentSummary,
+                parentMessageID: parentForNewMessage,
                 tools: tools,
                 mcpManager: manager,
                 conversation: conversation,

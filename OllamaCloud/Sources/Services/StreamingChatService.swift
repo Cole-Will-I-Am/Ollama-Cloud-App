@@ -29,6 +29,7 @@ class StreamingChatService: ObservableObject {
     private(set) var lastSentRequestContent: String?
     private(set) var lastSentImageBase64s: [String] = []
     private(set) var lastSentAttachmentSummary: String?
+    private(set) var lastSentParentMessageID: UUID?
 
     private var streamTask: Task<Void, Never>?
     private var receivedAnyTokens = false
@@ -74,6 +75,7 @@ class StreamingChatService: ObservableObject {
         imageBase64s: [String] = [],
         attachmentSummary: String? = nil,
         persistUserMessage: Bool = true,
+        parentMessageID: UUID? = nil,
         tools: [ChatTool]? = nil,
         mcpManager: AnyObject? = nil,
         conversation: Conversation,
@@ -95,8 +97,25 @@ class StreamingChatService: ObservableObject {
         lastSentImageBase64s = imageBase64s
         lastSentAttachmentSummary = attachmentSummary
         recoveryAction = nil
+
         error = nil
         notice = nil
+
+        var currentLeafID: UUID? = parentMessageID
+
+        let didPrepareBranchingState = conversation.prepareBranchingState()
+        if didPrepareBranchingState {
+            conversation.updatedAt = Date()
+            do {
+                try modelContext.save()
+            } catch {
+                notice = "Branch state updated but could not be persisted."
+            }
+        }
+        if currentLeafID == nil {
+            currentLeafID = conversation.activeLeafID
+        }
+        lastSentParentMessageID = currentLeafID
 
         let selectedModel = conversation.modelName
         let model = SeerAssistantProfile.runtimeModelName(for: selectedModel)
@@ -129,7 +148,8 @@ class StreamingChatService: ObservableObject {
             requested: persistUserMessage,
             conversation: conversation,
             resolvedRequestContent: resolvedRequestContent,
-            imageBase64s: imageBase64s
+            imageBase64s: imageBase64s,
+            parentMessageID: currentLeafID
         ) {
             let imageJSON: String? = {
                 guard !imageBase64s.isEmpty,
@@ -145,9 +165,12 @@ class StreamingChatService: ObservableObject {
                 content: resolvedDisplayContent,
                 attachmentRequestContent: resolvedRequestContent == resolvedDisplayContent ? nil : resolvedRequestContent,
                 imageBase64sJSON: imageJSON,
+                parentID: currentLeafID,
                 conversation: conversation
             )
             modelContext.insert(userMessage)
+            currentLeafID = userMessage.id
+            conversation.activeLeafID = userMessage.id
             conversation.updatedAt = Date()
 
             // Auto-title from first user message
@@ -177,8 +200,11 @@ class StreamingChatService: ObservableObject {
                 notice = "Scaffold state changed but could not be persisted."
             }
         }
+        let branchMessages = currentLeafID != nil
+            ? conversation.branchMessages(leafID: currentLeafID!)
+            : conversation.messages.sorted { $0.createdAt < $1.createdAt }
         let requestMessages = Self.buildOutboundMessages(
-            conversationMessages: conversation.messages,
+            conversationMessages: branchMessages,
             systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
                 baseSystemPrompt: conversation.systemPrompt,
                 selectedModelName: selectedModel
@@ -305,9 +331,11 @@ class StreamingChatService: ObservableObject {
                         role: "tool_call",
                         content: latestResult.content,
                         toolCallsJSON: toolCallJSON,
+                        parentID: currentLeafID,
                         conversation: conversation
                     )
                     modelContext.insert(toolCallMessage)
+                    currentLeafID = toolCallMessage.id
 
                     // Execute each tool call
                     for call in latestResult.toolCalls {
@@ -333,11 +361,14 @@ class StreamingChatService: ObservableObject {
                             role: "tool",
                             content: resultText,
                             toolName: toolName,
+                            parentID: currentLeafID,
                             conversation: conversation
                         )
                         modelContext.insert(toolResultMessage)
+                        currentLeafID = toolResultMessage.id
                     }
 
+                    conversation.activeLeafID = currentLeafID
                     self.isExecutingTool = false
                     self.toolCallStatus = nil
 
@@ -349,8 +380,11 @@ class StreamingChatService: ObservableObject {
                     }
 
                     // Rebuild outbound messages and re-stream
+                    let toolBranchMessages = currentLeafID != nil
+                        ? conversation.branchMessages(leafID: currentLeafID!)
+                        : conversation.messages.sorted { $0.createdAt < $1.createdAt }
                     currentMessages = Self.buildOutboundMessages(
-                        conversationMessages: conversation.messages,
+                        conversationMessages: toolBranchMessages,
                         systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
                             baseSystemPrompt: conversation.systemPrompt,
                             selectedModelName: conversation.modelName
@@ -379,9 +413,12 @@ class StreamingChatService: ObservableObject {
                         role: "tool",
                         content: "Maximum tool call rounds (\(maxRounds)) reached. Stopping.",
                         toolName: "system",
+                        parentID: currentLeafID,
                         conversation: conversation
                     )
                     modelContext.insert(errorMsg)
+                    currentLeafID = errorMsg.id
+                    conversation.activeLeafID = currentLeafID
                     try? modelContext.save()
                 }
             }
@@ -420,9 +457,11 @@ class StreamingChatService: ObservableObject {
                     content: persistedContent,
                     thinkingContent: streamingThinking.isEmpty ? nil : streamingThinking,
                     outputTokenCount: persistedTokenCount,
+                    parentID: currentLeafID,
                     conversation: conversation
                 )
                 modelContext.insert(assistantMessage)
+                conversation.activeLeafID = assistantMessage.id
                 conversation.updatedAt = Date()
                 do {
                     try modelContext.save()
@@ -461,13 +500,37 @@ class StreamingChatService: ObservableObject {
         requested: Bool,
         conversation: Conversation,
         resolvedRequestContent: String,
-        imageBase64s: [String]
+        imageBase64s: [String],
+        parentMessageID: UUID?
     ) -> Bool {
         guard !requested else { return true }
 
-        guard let latestUser = conversation.messages
+        let matchingSiblingUser = conversation.messages
+            .filter { $0.role == "user" && $0.parentID == parentMessageID }
             .sorted(by: { $0.createdAt < $1.createdAt })
-            .last(where: { $0.role == "user" }) else {
+            .last
+        if let matchingSiblingUser {
+            let siblingOutbound: String = {
+                if let attachmentRequestContent = matchingSiblingUser.attachmentRequestContent,
+                   !attachmentRequestContent.isEmpty {
+                    return attachmentRequestContent
+                }
+                return matchingSiblingUser.content
+            }()
+            let siblingImages = Self.decodedImages(for: matchingSiblingUser) ?? []
+            if siblingOutbound == resolvedRequestContent && siblingImages == imageBase64s {
+                return false
+            }
+        }
+
+        let comparisonUser = nearestAncestorUserMessage(
+            in: conversation,
+            from: parentMessageID
+        ) ?? conversation.messages
+            .sorted(by: { $0.createdAt < $1.createdAt })
+            .last(where: { $0.role == "user" })
+
+        guard let latestUser = comparisonUser else {
             return true
         }
 
@@ -481,6 +544,26 @@ class StreamingChatService: ObservableObject {
 
         let latestImages = Self.decodedImages(for: latestUser) ?? []
         return latestOutbound != resolvedRequestContent || latestImages != imageBase64s
+    }
+
+    private func nearestAncestorUserMessage(in conversation: Conversation, from messageID: UUID?) -> Message? {
+        guard let messageID else { return nil }
+
+        let lookup = conversation.messages.reduce(into: [UUID: Message]()) { partialResult, message in
+            partialResult[message.id] = message
+        }
+        var currentID: UUID? = messageID
+        var visited: Set<UUID> = []
+
+        while let id = currentID,
+              visited.insert(id).inserted,
+              let message = lookup[id] {
+            if message.role == "user" {
+                return message
+            }
+            currentID = message.parentID
+        }
+        return nil
     }
 
     nonisolated static func buildOutboundMessages(
@@ -828,6 +911,7 @@ class StreamingChatService: ObservableObject {
             imageBase64s: lastSentImageBase64s,
             attachmentSummary: lastSentAttachmentSummary,
             persistUserMessage: false,
+            parentMessageID: lastSentParentMessageID,
             tools: tools,
             mcpManager: mcpManager,
             conversation: conversation,
