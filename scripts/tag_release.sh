@@ -34,8 +34,8 @@ if ! [[ "${marketing_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
-if ! [[ "${build_number}" =~ ^[0-9]{12}$ ]]; then
-  echo "Error: build_number must be 12 digits (YYYYMMDDHHmm)" >&2
+if ! [[ "${build_number}" =~ ^[0-9]+$ ]]; then
+  echo "Error: build_number must be numeric" >&2
   exit 1
 fi
 

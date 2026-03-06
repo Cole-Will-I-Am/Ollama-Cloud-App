@@ -16,6 +16,7 @@ App Store Connect tracks iOS and macOS submissions independently. GitHub should 
 - `CFBundleVersion` (build number):
   - Unique per platform submission.
   - Recommended format: `YYYYMMDDHHmm` (example: `202603051104`).
+  - Any numeric value is valid, but timestamp format is easiest to keep monotonic.
 
 ## Git tags for clean platform history
 
