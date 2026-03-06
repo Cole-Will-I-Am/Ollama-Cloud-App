@@ -464,6 +464,14 @@ Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for d
 
 ---
 
+## Release Tracking
+
+SEER ships iOS and macOS apps from one repository, but each platform is submitted and reviewed independently in App Store Connect.
+
+For clean GitHub history (platform-specific tags, build numbering, and release naming), see [`docs/RELEASE_VERSIONING.md`](docs/RELEASE_VERSIONING.md).
+
+---
+
 ## License
 
 Licensed under the Apache License, Version 2.0.
