@@ -1,0 +1,6 @@
+# Require review on all changes
+* @Cole-Cant-Code
+
+# Extra protection on backend auth & config
+backend/src/auth.mjs @Cole-Cant-Code
+backend/src/config.mjs @Cole-Cant-Code
