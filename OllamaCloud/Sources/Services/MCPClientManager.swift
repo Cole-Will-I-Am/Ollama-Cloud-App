@@ -81,6 +81,11 @@ class MCPClientManager: ObservableObject {
             self.config = config
             let builtInIDs = Set(BuiltInMCPRegistry.servers.map(\.id))
             for (name, serverConfig) in config.mcpServers where !builtInIDs.contains(name) {
+                guard CustomMCPRegistry.isEnabled(serverName: name) else {
+                    _ = bumpGeneration(for: name)
+                    servers[name] = .disconnected
+                    continue
+                }
                 servers[name] = .connecting
                 let generation = bumpGeneration(for: name)
                 startConnection(name: name, config: serverConfig, generation: generation)
@@ -118,6 +123,10 @@ class MCPClientManager: ObservableObject {
             servers[name] = .connecting
             startConnection(name: name, config: builtIn.toServerConfig(), generation: generation)
         } else if let serverConfig = config?.mcpServers[name] {
+            guard CustomMCPRegistry.isEnabled(serverName: name) else {
+                servers[name] = .disconnected
+                return
+            }
             servers[name] = .connecting
             startConnection(name: name, config: serverConfig, generation: generation)
         }
@@ -133,6 +142,26 @@ class MCPClientManager: ObservableObject {
         } else {
             _ = bumpGeneration(for: server.id)
             await disconnectServer(name: server.id)
+        }
+    }
+
+    /// Toggle a custom server (from ~/.seer/mcp.json) on or off.
+    func toggleCustomServer(name: String, enabled: Bool) async {
+        CustomMCPRegistry.setEnabled(serverName: name, enabled: enabled)
+        if enabled {
+            if config == nil {
+                config = MCPConfigLoader.load()
+            }
+            guard let serverConfig = config?.mcpServers[name] else {
+                servers[name] = .error("Missing config for '\(name)' in ~/.seer/mcp.json")
+                return
+            }
+            let generation = bumpGeneration(for: name)
+            servers[name] = .connecting
+            startConnection(name: name, config: serverConfig, generation: generation)
+        } else {
+            _ = bumpGeneration(for: name)
+            await disconnectServer(name: name)
         }
     }
 

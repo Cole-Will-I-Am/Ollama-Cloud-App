@@ -114,6 +114,30 @@ enum BuiltInMCPRegistry {
     }
 }
 
+enum CustomMCPRegistry {
+    static let defaultEnabled = true
+
+    static func isEnabled(serverName: String) -> Bool {
+        let key = defaultsKey(for: serverName)
+        if UserDefaults.standard.object(forKey: key) == nil {
+            return defaultEnabled
+        }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    static func setEnabled(serverName: String, enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: defaultsKey(for: serverName))
+    }
+
+    private static func defaultsKey(for serverName: String) -> String {
+        let allowed = CharacterSet.alphanumerics
+        let sanitized = String(serverName.unicodeScalars.map { scalar in
+            allowed.contains(scalar) ? Character(scalar) : "_"
+        })
+        return "mcp_custom_enabled_\(sanitized)"
+    }
+}
+
 // MARK: - MCP library catalog + config install
 
 struct MCPLibraryServer: Identifiable {

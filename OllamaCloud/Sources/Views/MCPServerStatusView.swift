@@ -88,20 +88,22 @@ struct MCPServerStatusView: View {
     }
 
     private func customRow(name: String, state: MCPServerState) -> some View {
-        HStack(spacing: 12) {
+        let isEnabled = CustomMCPRegistry.isEnabled(serverName: name)
+
+        return HStack(spacing: 12) {
             Circle()
-                .fill(statusColor(for: state, enabled: true))
+                .fill(statusColor(for: state, enabled: isEnabled))
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.app(13, weight: .medium))
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(isEnabled ? Color.textPrimary : Color.textTertiary)
 
-                if isConnecting(state) {
+                if isEnabled, isConnecting(state) {
                     ConnectingTimerLabel(startedAt: mcpManager.connectingStartedAt[name])
                 } else {
-                    Text(state.statusLabel)
+                    Text(isEnabled ? state.statusLabel : "Off")
                         .font(.app(11))
                         .foregroundStyle(Color.textTertiary)
                 }
@@ -109,15 +111,27 @@ struct MCPServerStatusView: View {
 
             Spacer()
 
-            Button {
-                Task { await mcpManager.restartServer(name: name) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.textTertiary)
+            if isEnabled {
+                Button {
+                    Task { await mcpManager.restartServer(name: name) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .macPointingCursor()
             }
-            .buttonStyle(.plain)
-            .macPointingCursor()
+
+            Toggle("", isOn: Binding(
+                get: { CustomMCPRegistry.isEnabled(serverName: name) },
+                set: { newValue in
+                    Task { await mcpManager.toggleCustomServer(name: name, enabled: newValue) }
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .labelsHidden()
         }
         .padding(16)
     }
