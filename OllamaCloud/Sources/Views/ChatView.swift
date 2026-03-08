@@ -16,6 +16,7 @@ struct ChatView: View {
     @EnvironmentObject private var mcpManager: MCPClientManager
     #endif
     @Bindable var conversation: Conversation
+    var project: Project?
     @StateObject private var streaming = StreamingChatService()
     @State private var input = ""
     @State private var showModelPicker = false
@@ -134,6 +135,7 @@ struct ChatView: View {
             .sheet(isPresented: $showModelPicker) {
                 ModelPickerView(onSelect: { model in
                     conversation.modelName = model.name
+                    conversation.apiProvider = model.provider
                     do {
                         try modelContext.save()
                         showModelPicker = false
@@ -1068,10 +1070,13 @@ struct ChatView: View {
         Haptic.impact()
 
         Task {
-            var tools: [ChatTool]? = nil
+            var tools: [ChatTool] = VisualsToolkit.tools
+            if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
-            tools = mcpManager.ollamaTools()
+            if let mcpTools = mcpManager.ollamaTools() {
+                tools.append(contentsOf: mcpTools)
+            }
             manager = mcpManager
             #endif
             await streaming.sendMessage(
@@ -1081,8 +1086,9 @@ struct ChatView: View {
                 attachmentSummary: attachmentSummary,
                 persistUserMessage: false,
                 parentMessageID: sourceUserMessage.id,
-                tools: tools,
+                tools: tools.isEmpty ? nil : tools,
                 mcpManager: manager,
+                project: project,
                 conversation: conversation,
                 modelContext: modelContext
             )
@@ -1245,10 +1251,13 @@ struct ChatView: View {
 
         Haptic.impact()
         Task {
-            var tools: [ChatTool]? = nil
+            var tools: [ChatTool] = VisualsToolkit.tools
+            if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
-            tools = mcpManager.ollamaTools()
+            if let mcpTools = mcpManager.ollamaTools() {
+                tools.append(contentsOf: mcpTools)
+            }
             manager = mcpManager
             #endif
             await streaming.sendMessage(
@@ -1257,8 +1266,9 @@ struct ChatView: View {
                 imageBase64s: imageBase64s,
                 attachmentSummary: attachmentSummary,
                 parentMessageID: parentForNewMessage,
-                tools: tools,
+                tools: tools.isEmpty ? nil : tools,
                 mcpManager: manager,
+                project: project,
                 conversation: conversation,
                 modelContext: modelContext
             )
@@ -1270,13 +1280,16 @@ struct ChatView: View {
 
         Haptic.impact()
         Task {
-            var tools: [ChatTool]? = nil
+            var tools: [ChatTool] = VisualsToolkit.tools
+            if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
-            tools = mcpManager.ollamaTools()
+            if let mcpTools = mcpManager.ollamaTools() {
+                tools.append(contentsOf: mcpTools)
+            }
             manager = mcpManager
             #endif
-            await streaming.retryLast(tools: tools, mcpManager: manager, conversation: conversation, modelContext: modelContext)
+            await streaming.retryLast(tools: tools.isEmpty ? nil : tools, mcpManager: manager, project: project, conversation: conversation, modelContext: modelContext)
         }
     }
 

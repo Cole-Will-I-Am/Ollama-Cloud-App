@@ -11,8 +11,11 @@ struct MessageRow: View {
     let message: Message
     let chatMessageCount: Int
     let showsThinkingSection: Bool
+    let siblingMessages: [Message]
+    let siblingIndex: Int
     let onEditPrompt: ((Message) -> Void)?
     let onRegenerate: ((Message) -> Void)?
+    let onSwitchBranch: ((Message) -> Void)?
     @State private var isThinkingExpanded = false
     @State private var showAssistantMarkdown = true
     @State private var assistantMarkdownDebounceTask: Task<Void, Never>?
@@ -46,8 +49,14 @@ struct MessageRow: View {
 
                     if isUserMessage {
                         userBubble
+                        if siblingMessages.count > 1 {
+                            branchSwitcher
+                        }
                     } else {
                         assistantBubble
+                        if siblingMessages.count > 1 {
+                            branchSwitcher
+                        }
                         if let outputTokenCount = message.outputTokenCount, outputTokenCount > 0 {
                             tokenFooter(outputTokenCount)
                         }
@@ -266,6 +275,43 @@ struct MessageRow: View {
         NSPasteboard.general.setString(text, forType: .string)
         #endif
         Haptic.notification(.success)
+    }
+
+    private var branchSwitcher: some View {
+        HStack(spacing: 10) {
+            Button {
+                let prevIndex = siblingIndex > 0 ? siblingIndex - 1 : siblingMessages.count - 1
+                onSwitchBranch?(siblingMessages[prevIndex])
+                Haptic.selection()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .macPointingCursor()
+            #endif
+
+            Text("\(siblingIndex + 1) of \(siblingMessages.count)")
+                .font(.appLabel(10))
+
+            Button {
+                let nextIndex = siblingIndex < siblingMessages.count - 1 ? siblingIndex + 1 : 0
+                onSwitchBranch?(siblingMessages[nextIndex])
+                Haptic.selection()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .macPointingCursor()
+            #endif
+        }
+        .foregroundStyle(Color.textTertiary)
+        .padding(.top, 4)
+        .padding(.leading, isUserMessage ? 0 : 6)
+        .padding(.trailing, isUserMessage ? 6 : 0)
     }
 
     private func tokenFooter(_ tokenCount: Int) -> some View {

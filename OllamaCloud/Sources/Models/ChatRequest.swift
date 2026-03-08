@@ -23,12 +23,14 @@ struct ChatRequestMessage: Encodable {
     let content: String
     let images: [String]?
     let tool_name: String?
+    let tool_call_id: String?
 
-    init(role: String, content: String, images: [String]? = nil, tool_name: String? = nil) {
+    init(role: String, content: String, images: [String]? = nil, tool_name: String? = nil, tool_call_id: String? = nil) {
         self.role = role
         self.content = content
         self.images = images
         self.tool_name = tool_name
+        self.tool_call_id = tool_call_id
     }
 
     func encode(to encoder: Encoder) throws {
@@ -37,10 +39,11 @@ struct ChatRequestMessage: Encodable {
         try container.encode(content, forKey: .content)
         try container.encodeIfPresent(images, forKey: .images)
         try container.encodeIfPresent(tool_name, forKey: .tool_name)
+        try container.encodeIfPresent(tool_call_id, forKey: .tool_call_id)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case role, content, images, tool_name
+        case role, content, images, tool_name, tool_call_id
     }
 }
 
@@ -78,12 +81,30 @@ struct ChatToolProperty: Encodable {
     let type: String
     let description: String
     let `enum`: [String]?
+    let items: ChatToolPropertyItems?
 
-    init(type: String, description: String, enum enumValues: [String]? = nil) {
+    init(type: String, description: String, enum enumValues: [String]? = nil, items: ChatToolPropertyItems? = nil) {
         self.type = type
         self.description = description
         self.enum = enumValues
+        self.items = items
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(description, forKey: .description)
+        try container.encodeIfPresent(`enum`, forKey: .enum)
+        try container.encodeIfPresent(items, forKey: .items)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, description, `enum`, items
+    }
+}
+
+struct ChatToolPropertyItems: Encodable {
+    let type: String
 }
 
 struct ChatOptions: Encodable {

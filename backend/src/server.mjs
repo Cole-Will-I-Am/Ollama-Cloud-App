@@ -540,7 +540,17 @@ export function createApp({
     }
 
     const rateKey = `${auth.principal.sub || clientIp}:${route}`;
-    const rl = await rateLimiter.check(rateKey);
+    let rl = { allowed: true, remaining: 0, resetAt: Date.now() + config.rateLimitWindowMs };
+    try {
+      rl = await rateLimiter.check(rateKey);
+    } catch (err) {
+      logger.error('Rate limiter check failed; failing open', {
+        requestId,
+        route,
+        error: String(err),
+      });
+    }
+
     if (!rl.allowed) {
       metrics.recordRateLimited();
       setCommonHeaders(req, res, config, requestId);

@@ -12,7 +12,12 @@ struct SettingsView: View {
     @State private var mcpLibraryError: String?
     #endif
     @AppStorage("hasAPIKey") private var hasAPIKey = false
+    @AppStorage("hasOpenAIKey") private var hasOpenAIKey = false
     @State private var showRemoveConfirmation = false
+    @State private var showRemoveOpenAIConfirmation = false
+    @State private var openAIKeyInput = ""
+    @State private var isValidatingOpenAIKey = false
+    @State private var openAIKeyError: String?
 
     var body: some View {
         NavigationStack {
@@ -62,6 +67,109 @@ struct SettingsView: View {
                                                 .stroke(Color.danger.opacity(0.1), lineWidth: 0.5)
                                         )
                                 )
+                            }
+                        }
+                        .padding(16)
+                    }
+
+                    // OpenAI
+                    section("OPENAI") {
+                        VStack(spacing: 16) {
+                            if hasOpenAIKey, KeychainHelper.load(key: "openai_api_key") != nil {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.success.opacity(0.12))
+                                            .frame(width: 38, height: 38)
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .ultraLight))
+                                            .foregroundStyle(Color.success)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Connected")
+                                            .font(.app(15, weight: .medium))
+                                            .foregroundStyle(Color.textPrimary)
+                                        Text("api.openai.com")
+                                            .font(.app(12))
+                                            .foregroundStyle(Color.textTertiary)
+                                    }
+                                    Spacer()
+                                }
+
+                                Button {
+                                    showRemoveOpenAIConfirmation = true
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "key.slash")
+                                            .font(.system(size: 13, weight: .ultraLight))
+                                        Text("REMOVE OPENAI KEY")
+                                            .font(.appLabel(11))
+                                            .tracking(2)
+                                    }
+                                    .foregroundStyle(Color.danger)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(Color.danger.opacity(0.06))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(Color.danger.opacity(0.1), lineWidth: 0.5)
+                                            )
+                                    )
+                                }
+                            } else {
+                                VStack(spacing: 12) {
+                                    SecureField("OpenAI API Key", text: $openAIKeyInput)
+                                        .font(.app(14))
+                                        .textFieldStyle(.plain)
+                                        .padding(12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .fill(Color.bgSecondary)
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(Color.border, lineWidth: 0.5)
+                                        )
+                                        #if os(iOS)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                        #endif
+
+                                    if let openAIKeyError {
+                                        Text(openAIKeyError)
+                                            .font(.app(11))
+                                            .foregroundStyle(Color.danger)
+                                    }
+
+                                    Button {
+                                        connectOpenAI()
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            if isValidatingOpenAIKey {
+                                                ProgressView()
+                                                    .controlSize(.small)
+                                                    .tint(Color.textPrimary)
+                                            }
+                                            Text("CONNECT")
+                                                .font(.appLabel(11))
+                                                .tracking(2)
+                                        }
+                                        .foregroundStyle(Color.textPrimary)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 13)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .fill(Color.accent.opacity(0.22))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                        .stroke(Color.accent.opacity(0.2), lineWidth: 0.5)
+                                                )
+                                        )
+                                    }
+                                    .disabled(openAIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isValidatingOpenAIKey)
+                                }
                             }
                         }
                         .padding(16)
@@ -136,6 +244,48 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("You'll need to re-enter your key to continue.")
+            }
+            .confirmationDialog(
+                "Remove OpenAI Key?",
+                isPresented: $showRemoveOpenAIConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Remove", role: .destructive) {
+                    KeychainHelper.delete(key: "openai_api_key")
+                    hasOpenAIKey = false
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("OpenAI models will no longer appear in the model picker.")
+            }
+        }
+    }
+
+    private func connectOpenAI() {
+        let key = openAIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return }
+
+        isValidatingOpenAIKey = true
+        openAIKeyError = nil
+
+        Task {
+            do {
+                let valid = try await OpenAIAPIClient.shared.validateKey(key)
+                await MainActor.run {
+                    isValidatingOpenAIKey = false
+                    if valid {
+                        KeychainHelper.save(key: "openai_api_key", value: key)
+                        hasOpenAIKey = true
+                        openAIKeyInput = ""
+                    } else {
+                        openAIKeyError = "Invalid API key."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isValidatingOpenAIKey = false
+                    openAIKeyError = error.localizedDescription
+                }
             }
         }
     }

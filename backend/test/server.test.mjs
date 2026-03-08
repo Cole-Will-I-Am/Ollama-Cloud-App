@@ -49,12 +49,12 @@ function makeLogger() {
   };
 }
 
-async function startTestServer({ config, fetchImpl }) {
-  const rateLimiter = new MemoryRateLimiter({ windowMs: config.rateLimitWindowMs, max: config.rateLimitMax });
+async function startTestServer({ config, fetchImpl, rateLimiter }) {
+  const resolvedRateLimiter = rateLimiter || new MemoryRateLimiter({ windowMs: config.rateLimitWindowMs, max: config.rateLimitMax });
   const app = createApp({
     config,
     logger: makeLogger(),
-    rateLimiter,
+    rateLimiter: resolvedRateLimiter,
     fetchImpl,
   });
 
@@ -217,6 +217,39 @@ test('rate limiting returns 429 after threshold', async () => {
   assert.equal(r2.status, 200);
   assert.equal(r3.status, 429);
   await srv.close();
+});
+
+test('rate limiter failures fail open and still serve the request', async () => {
+  const config = baseConfig();
+  const fetchImpl = async () => toJsonResponse({ models: [{ name: 'model-a' }] }, 200);
+  const failingLimiter = {
+    async check() {
+      throw new Error('redis unavailable');
+    },
+    getReadyState() {
+      return { provider: 'redis', ready: false };
+    },
+    async close() {},
+  };
+  const srv = await startTestServer({ config, fetchImpl, rateLimiter: failingLimiter });
+
+  const res = await fetch(`${srv.baseUrl}/api/tags`, {
+    headers: { authorization: 'Bearer k' },
+  });
+
+  assert.equal(res.status, 200);
+  await srv.close();
+});
+
+test('memory rate limiter does not grow unbounded under high key cardinality', async () => {
+  const rl = new MemoryRateLimiter({ windowMs: 60_000, max: 5 });
+  rl.maxBuckets = 10;
+
+  for (let i = 0; i < 500; i += 1) {
+    await rl.check(`key-${i}`);
+  }
+
+  assert.ok(rl.buckets.size <= rl.maxBuckets);
 });
 
 test('chat request is not retried on upstream failure', async () => {

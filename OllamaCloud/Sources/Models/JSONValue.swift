@@ -54,6 +54,40 @@ enum JSONValue: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Convenience accessors
+
+extension JSONValue {
+    var stringValue: String? {
+        if case .string(let s) = self { return s }
+        return nil
+    }
+
+    var numberValue: Double? {
+        if case .number(let n) = self { return n }
+        return nil
+    }
+
+    var intValue: Int? {
+        if case .number(let n) = self { return Int(n) }
+        return nil
+    }
+
+    var boolValue: Bool? {
+        if case .bool(let b) = self { return b }
+        return nil
+    }
+
+    var arrayValue: [JSONValue]? {
+        if case .array(let a) = self { return a }
+        return nil
+    }
+
+    var objectValue: [String: JSONValue]? {
+        if case .object(let o) = self { return o }
+        return nil
+    }
+}
+
 // MARK: - MCP SDK interop (macOS only)
 
 #if os(macOS)

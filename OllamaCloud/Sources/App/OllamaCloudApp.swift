@@ -6,7 +6,9 @@ private enum AppModelContainer {
         let schema = Schema([
             Conversation.self,
             Message.self,
-            ReasoningScaffold.self
+            ReasoningScaffold.self,
+            Project.self,
+            ProjectFile.self
         ])
 
         do {
@@ -56,6 +58,11 @@ struct OllamaCloudApp: App {
                     AppCommand.post(AppCommand.newChat)
                 }
                 .keyboardShortcut("n", modifiers: .command)
+
+                Button("New Project") {
+                    AppCommand.post(AppCommand.newProject)
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
 
             CommandGroup(after: .saveItem) {
@@ -82,6 +89,18 @@ struct OllamaCloudApp: App {
                     AppCommand.post(AppCommand.quickModelSwitch)
                 }
                 .keyboardShortcut("k", modifiers: .command)
+
+                Divider()
+
+                Button("Previous Branch") {
+                    AppCommand.post(AppCommand.previousBranch)
+                }
+                .keyboardShortcut("[", modifiers: [.command, .shift])
+
+                Button("Next Branch") {
+                    AppCommand.post(AppCommand.nextBranch)
+                }
+                .keyboardShortcut("]", modifiers: [.command, .shift])
 
                 Divider()
 

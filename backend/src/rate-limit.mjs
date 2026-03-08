@@ -5,13 +5,25 @@ export class MemoryRateLimiter {
     this.windowMs = windowMs;
     this.max = max;
     this.buckets = new Map();
+    this.checks = 0;
+    this.cleanupEveryChecks = 256;
+    this.maxBuckets = 100000;
   }
 
   async check(key) {
     const now = Date.now();
+    this.checks += 1;
+    if (this.checks % this.cleanupEveryChecks === 0 || this.buckets.size > this.maxBuckets) {
+      this.cleanupExpired(now);
+    }
+
     const current = this.buckets.get(key);
 
     if (!current || now > current.resetAt) {
+      if (!current && this.buckets.size >= this.maxBuckets) {
+        // Degrade gracefully under key-cardinality spikes instead of growing unbounded.
+        return { allowed: true, remaining: this.max - 1, resetAt: now + this.windowMs };
+      }
       this.buckets.set(key, { count: 1, resetAt: now + this.windowMs });
       return { allowed: true, remaining: this.max - 1, resetAt: now + this.windowMs };
     }
@@ -31,6 +43,14 @@ export class MemoryRateLimiter {
 
   async close() {
     // no-op
+  }
+
+  cleanupExpired(now = Date.now()) {
+    for (const [key, bucket] of this.buckets.entries()) {
+      if (!bucket || now > bucket.resetAt) {
+        this.buckets.delete(key);
+      }
+    }
   }
 }
 

@@ -40,51 +40,20 @@ struct ModelPickerView: View {
         searchedModels.filter { !favoriteModelNames.contains($0.name) }
     }
 
+    // Provider-grouped computed properties for non-favorite models
+    private var ollamaModels: [OllamaModel] {
+        nonFavoriteModels.filter { $0.provider == .ollama }
+    }
+
+    private var openaiModels: [OllamaModel] {
+        nonFavoriteModels.filter { $0.provider == .openai }
+    }
+
     private var hasVisibleModels: Bool {
         if hideNonFavoriteModels {
             return !favoriteModels.isEmpty
         }
         return !searchedModels.isEmpty
-    }
-
-    /// Infer capability tags from model name.
-    private func capabilityTags(for name: String) -> [(String, String, Color)] {
-        if isSeerModel(name) {
-            return [
-                ("sparkles", "APP EXPERT", Color.accent),
-                ("brain", "GUIDE", Color(red: 0.55, green: 0.38, blue: 0.95)),
-            ]
-        }
-
-        let lower = name.lowercased()
-        var tags: [(String, String, Color)] = []
-
-        // Speed / size
-        if lower.contains("tiny") || lower.contains("mini") || lower.contains("small") || lower.contains("1b") || lower.contains("3b") || lower.contains("0.5b") {
-            tags.append(("bolt", "FAST", Color.success))
-        }
-
-        // Reasoning
-        if lower.contains("deepseek") || lower.contains("think") || lower.contains("reason") || lower.contains("r1") || lower.contains("qwq") {
-            tags.append(("brain", "REASON", Color(red: 0.55, green: 0.38, blue: 0.95)))
-        }
-
-        // Creative / large
-        if lower.contains("70b") || lower.contains("72b") || lower.contains("405b") || lower.contains("llama3.1") || lower.contains("command-r") {
-            tags.append(("paintbrush", "CREATIVE", Color(red: 1.0, green: 0.6, blue: 0.2)))
-        }
-
-        // Code
-        if lower.contains("code") || lower.contains("starcoder") || lower.contains("deepseek-coder") || lower.contains("qwen2.5-coder") {
-            tags.append(("chevron.left.forwardslash.chevron.right", "CODE", Color.accent))
-        }
-
-        // Vision
-        if lower.contains("vision") || lower.contains("llava") || lower.contains("moondream") {
-            tags.append(("eye", "VISION", Color(red: 0.3, green: 0.8, blue: 0.9)))
-        }
-
-        return tags
     }
 
     private func isSeerModel(_ name: String) -> Bool {
@@ -200,11 +169,21 @@ struct ModelPickerView: View {
                                 }
                             }
 
-                            if !hideNonFavoriteModels && !nonFavoriteModels.isEmpty {
-                                sectionHeader(favoriteModels.isEmpty ? "MODELS" : "ALL MODELS")
-                                ForEach(nonFavoriteModels) { model in
-                                    modelRow(model, isFavorite: false)
-                                        .id("other-\(model.id)")
+                            if !hideNonFavoriteModels {
+                                if !ollamaModels.isEmpty {
+                                    sectionHeader("OLLAMA")
+                                    ForEach(ollamaModels) { model in
+                                        modelRow(model, isFavorite: false)
+                                            .id("other-\(model.id)")
+                                    }
+                                }
+
+                                if !openaiModels.isEmpty {
+                                    sectionHeader("OPENAI")
+                                    ForEach(openaiModels) { model in
+                                        modelRow(model, isFavorite: false)
+                                            .id("other-\(model.id)")
+                                    }
                                 }
                             }
                         }
@@ -280,28 +259,9 @@ struct ModelPickerView: View {
                             .font(.app(15, weight: .regular))
                             .foregroundStyle(Color.textPrimary)
 
-                        HStack(spacing: 6) {
-                            Text(model.name)
-                                .font(.app(11, weight: .light))
-                                .foregroundStyle(Color.textTertiary)
-
-                            let tags = capabilityTags(for: model.name)
-                            ForEach(tags, id: \.1) { icon, label, color in
-                                HStack(spacing: 3) {
-                                    Image(systemName: icon)
-                                        .font(.system(size: 7, weight: .medium))
-                                    Text(label)
-                                        .font(.appLabel(7))
-                                        .tracking(1.5)
-                                }
-                                .foregroundStyle(color)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule().fill(color.opacity(0.1))
-                                )
-                            }
-                        }
+                        Text(model.name)
+                            .font(.app(11, weight: .light))
+                            .foregroundStyle(Color.textTertiary)
                     }
 
                     Spacer()
@@ -476,12 +436,26 @@ struct ModelPickerView: View {
         error = nil
         fetchTask = Task {
             do {
-                let fetched = try await OllamaAPIClient.shared.fetchModels()
-                models = fetched.sorted { lhs, rhs in
+                async let ollamaFetch = OllamaAPIClient.shared.fetchModels()
+
+                let hasOpenAIKey = KeychainHelper.load(key: "openai_api_key") != nil
+                async let openAIFetch: [OllamaModel] = hasOpenAIKey
+                    ? OpenAIAPIClient.shared.fetchModels()
+                    : []
+
+                let ollamaResults = try await ollamaFetch
+                let openAIResults = (try? await openAIFetch) ?? []
+
+                let allModels = ollamaResults + openAIResults
+                models = allModels.sorted { lhs, rhs in
                     let leftIsSeer = isSeerModel(lhs.name)
                     let rightIsSeer = isSeerModel(rhs.name)
                     if leftIsSeer != rightIsSeer {
                         return leftIsSeer && !rightIsSeer
+                    }
+                    // Group by provider
+                    if lhs.provider != rhs.provider {
+                        return lhs.provider == .ollama
                     }
                     return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
                 }

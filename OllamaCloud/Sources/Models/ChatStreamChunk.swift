@@ -15,6 +15,7 @@ struct ChatStreamChunk: Decodable {
 }
 
 struct ChunkToolCall: Decodable, Sendable {
+    let id: String?
     let function: ChunkToolCallFunction
 }
 

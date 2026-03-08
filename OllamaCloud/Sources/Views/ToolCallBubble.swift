@@ -87,14 +87,46 @@ struct ToolCallBubble: View {
 struct ToolResultBubble: View {
     let toolName: String?
     let content: String
-    @State private var isExpanded = false
+    @State private var isExpanded: Bool
+
+    init(toolName: String?, content: String) {
+        self.toolName = toolName
+        self.content = content
+        // Auto-expand only trusted built-in visual HTML results.
+        let isVisualHTML = Self.detectHTML(content) && (toolName.map(VisualsToolkit.handles) ?? false)
+        self._isExpanded = State(initialValue: isVisualHTML)
+    }
 
     private var isError: Bool {
         content.hasPrefix("Tool error:") || content.hasPrefix("Unknown tool:") || content.contains("timed out")
     }
 
+    private var isHTMLContent: Bool {
+        Self.detectHTML(content)
+    }
+
+    private var isTrustedVisualHTML: Bool {
+        isHTMLContent && (toolName.map(VisualsToolkit.handles) ?? false)
+    }
+
+    private static func detectHTML(_ content: String) -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix("<!DOCTYPE html>") || trimmed.hasPrefix("<html")
+    }
+
     private var displayName: String {
         toolName ?? "tool"
+    }
+
+    private var htmlHeight: CGFloat {
+        guard let name = toolName else { return 300 }
+        switch name {
+        case "render_table", "render_comparison_table": return 250
+        case "render_metrics_grid": return 200
+        case "render_dashboard": return 450
+        case "render_timeline", "render_flowchart", "render_tree": return 280
+        default: return 300
+        }
     }
 
     var body: some View {
@@ -106,7 +138,7 @@ struct ToolResultBubble: View {
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: isError ? "xmark.circle" : "checkmark.circle")
+                        Image(systemName: isTrustedVisualHTML ? "chart.bar.xaxis" : (isError ? "xmark.circle" : "checkmark.circle"))
                             .font(.system(size: 10, weight: .medium))
                         Text(displayName)
                             .font(.appMono(11, weight: .medium))
@@ -115,7 +147,7 @@ struct ToolResultBubble: View {
                             .font(.system(size: 8, weight: .medium))
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
-                    .foregroundStyle(isError ? Color.danger : Color.success)
+                    .foregroundStyle(isError ? Color.danger : (isTrustedVisualHTML ? Color.accent : Color.success))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -124,12 +156,19 @@ struct ToolResultBubble: View {
                 #endif
 
                 if isExpanded {
-                    Text(content)
-                        .font(.appMono(10, weight: .regular))
-                        .foregroundStyle(Color.textSecondary)
-                        .lineLimit(20)
-                        .textSelection(.enabled)
-                        .transition(.opacity)
+                    if isTrustedVisualHTML {
+                        HTMLContentView(htmlContent: content)
+                            .frame(height: htmlHeight)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .transition(.opacity)
+                    } else {
+                        Text(content)
+                            .font(.appMono(10, weight: .regular))
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(20)
+                            .textSelection(.enabled)
+                            .transition(.opacity)
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -139,12 +178,12 @@ struct ToolResultBubble: View {
                     .fill(Color.white.opacity(0.03))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke((isError ? Color.danger : Color.success).opacity(0.15), lineWidth: 0.5)
+                            .stroke((isError ? Color.danger : (isTrustedVisualHTML ? Color.accent : Color.success)).opacity(0.15), lineWidth: 0.5)
                     )
             )
-            .frame(maxWidth: 500, alignment: .leading)
+            .frame(maxWidth: isTrustedVisualHTML ? 700 : 500, alignment: .leading)
 
-            Spacer(minLength: 48)
+            Spacer(minLength: isTrustedVisualHTML ? 24 : 48)
         }
     }
 }

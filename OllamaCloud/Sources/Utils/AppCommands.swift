@@ -7,6 +7,9 @@ enum AppCommand {
     static let sendMessage = Notification.Name("seer.command.sendMessage")
     static let quickModelSwitch = Notification.Name("seer.command.quickModelSwitch")
     static let exportConversation = Notification.Name("seer.command.exportConversation")
+    static let previousBranch = Notification.Name("seer.command.previousBranch")
+    static let nextBranch = Notification.Name("seer.command.nextBranch")
+    static let newProject = Notification.Name("seer.command.newProject")
     static let selectConversationIndex = Notification.Name("seer.command.selectConversationIndex")
 
     static let conversationIndexUserInfoKey = "conversationIndex"

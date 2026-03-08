@@ -19,8 +19,9 @@ struct ConversationListView: View {
         self.accountScopeKey = accountScopeKey
         _conversations = Query(
             filter: #Predicate<Conversation> { conversation in
-                conversation.accountScopeKey == accountScopeKey
-                || conversation.accountScopeKey == ""
+                (conversation.accountScopeKey == accountScopeKey
+                 || conversation.accountScopeKey == "")
+                && conversation.isProjectChat != true
             },
             sort: \Conversation.updatedAt,
             order: .reverse

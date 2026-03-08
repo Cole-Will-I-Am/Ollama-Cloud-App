@@ -78,6 +78,7 @@ class StreamingChatService: ObservableObject {
         parentMessageID: UUID? = nil,
         tools: [ChatTool]? = nil,
         mcpManager: AnyObject? = nil,
+        project: Project? = nil,
         conversation: Conversation,
         modelContext: ModelContext
     ) async {
@@ -118,9 +119,10 @@ class StreamingChatService: ObservableObject {
         lastSentParentMessageID = currentLeafID
 
         let selectedModel = conversation.modelName
-        let model = SeerAssistantProfile.runtimeModelName(for: selectedModel)
-        let shouldPreflightAvailability = !SeerAssistantProfile.isSeerModel(selectedModel)
-        let thinkingEnabled = SeerAssistantProfile.shouldEnableThinking(
+        let provider = conversation.apiProvider
+        let model = provider == .ollama ? SeerAssistantProfile.runtimeModelName(for: selectedModel) : selectedModel
+        let shouldPreflightAvailability = provider == .ollama && !SeerAssistantProfile.isSeerModel(selectedModel)
+        let thinkingEnabled = provider == .ollama && SeerAssistantProfile.shouldEnableThinking(
             for: selectedModel,
             mode: conversation.thinkingMode
         )
@@ -203,13 +205,19 @@ class StreamingChatService: ObservableObject {
         let branchMessages = currentLeafID != nil
             ? conversation.branchMessages(leafID: currentLeafID!)
             : conversation.messages.sorted { $0.createdAt < $1.createdAt }
-        let requestMessages = Self.buildOutboundMessages(
-            conversationMessages: branchMessages,
-            systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
+        let systemPrompt: String = {
+            if provider == .openai {
+                return conversation.systemPrompt
+            }
+            return SeerAssistantProfile.mergedSystemPrompt(
                 baseSystemPrompt: conversation.systemPrompt,
                 selectedModelName: selectedModel
-            ),
-            scaffoldSystemPrompt: scaffoldResolution.systemPrompt
+            )
+        }()
+        let requestMessages = Self.buildOutboundMessages(
+            conversationMessages: branchMessages,
+            systemPrompt: systemPrompt,
+            scaffoldSystemPrompt: provider == .ollama ? scaffoldResolution.systemPrompt : nil
         )
 
         let baseOptions = ChatOptions(
@@ -227,10 +235,13 @@ class StreamingChatService: ObservableObject {
             num_batch: conversation.numBatch != 512 ? conversation.numBatch : nil,
             num_thread: conversation.numThread != 0 ? conversation.numThread : nil
         )
-        let options = SeerAssistantProfile.tunedOptions(
-            base: baseOptions,
-            selectedModelName: selectedModel
-        )
+        let options: ChatOptions = {
+            if provider == .openai { return baseOptions }
+            return SeerAssistantProfile.tunedOptions(
+                base: baseOptions,
+                selectedModelName: selectedModel
+            )
+        }()
 
         // Start streaming
         isStreaming = true
@@ -256,6 +267,7 @@ class StreamingChatService: ObservableObject {
                         options: options,
                         think: thinkingEnabled,
                         tools: currentTools,
+                        provider: provider,
                         idleTimeoutNanoseconds: Self.idleTimeout,
                         uiFlushIntervalNanoseconds: Self.uiFlushIntervalNanoseconds
                     ) { [weak self] update in
@@ -309,120 +321,154 @@ class StreamingChatService: ObservableObject {
                 }
             }
 
-            // Tool call loop (macOS only)
-            #if os(macOS)
-            if let result = streamResult, !result.toolCalls.isEmpty, let manager = mcpManager as? MCPClientManager {
-                var rounds = 0
-                let maxRounds = 10
-                var latestResult = result
+            // Tool call loop (cross-platform: built-in tools everywhere, MCP on macOS)
+            if let result = streamResult, !result.toolCalls.isEmpty {
+                let hasBuiltinHandler = result.toolCalls.contains {
+                    VisualsToolkit.handles($0.function.name)
+                    || CodeToolkit.handles($0.function.name)
+                }
+                #if os(macOS)
+                let hasMCPHandler = mcpManager is MCPClientManager
+                #else
+                let hasMCPHandler = false
+                #endif
 
-                toolRoundLoop: while !latestResult.toolCalls.isEmpty && rounds < maxRounds && !Task.isCancelled {
-                    rounds += 1
+                if hasBuiltinHandler || hasMCPHandler {
+                    var rounds = 0
+                    let maxRounds = 10
+                    var latestResult = result
 
-                    // Persist tool_call message
-                    let toolCallData = latestResult.toolCalls.map { call -> [String: Any] in
-                        let argsAny = call.function.arguments.mapValues(\.anyValue)
-                        return ["name": call.function.name, "arguments": argsAny]
-                    }
-                    let toolCallJSON = (try? JSONSerialization.data(withJSONObject: toolCallData))
-                        .flatMap { String(data: $0, encoding: .utf8) }
+                    toolRoundLoop: while !latestResult.toolCalls.isEmpty && rounds < maxRounds && !Task.isCancelled {
+                        rounds += 1
 
-                    let toolCallMessage = Message(
-                        role: "tool_call",
-                        content: latestResult.content,
-                        toolCallsJSON: toolCallJSON,
-                        parentID: currentLeafID,
-                        conversation: conversation
-                    )
-                    modelContext.insert(toolCallMessage)
-                    currentLeafID = toolCallMessage.id
-
-                    // Execute each tool call
-                    for call in latestResult.toolCalls {
-                        let toolName = call.function.name
-
-                        self.isExecutingTool = true
-                        self.toolCallStatus = "Calling \(toolName)..."
-
-                        let serverName = manager.serverForTool(named: toolName)
-                        let (resultText, isError): (String, Bool)
-                        if let serverName {
-                            (resultText, isError) = await manager.callTool(
-                                serverName: serverName,
-                                toolName: toolName,
-                                arguments: call.function.arguments
-                            )
-                        } else {
-                            (resultText, isError) = ("Unknown tool: \(toolName)", true)
+                        // Persist tool_call message
+                        let toolCallData = latestResult.toolCalls.map { call -> [String: Any] in
+                            let argsAny = call.function.arguments.mapValues(\.anyValue)
+                            if let id = call.id, !id.isEmpty {
+                                return ["id": id, "name": call.function.name, "arguments": argsAny]
+                            }
+                            return ["name": call.function.name, "arguments": argsAny]
                         }
-                        _ = isError // Error state is conveyed through the result text to the model
+                        let toolCallJSON = (try? JSONSerialization.data(withJSONObject: toolCallData))
+                            .flatMap { String(data: $0, encoding: .utf8) }
 
-                        let toolResultMessage = Message(
-                            role: "tool",
-                            content: resultText,
-                            toolName: toolName,
+                        let toolCallMessage = Message(
+                            role: "tool_call",
+                            content: latestResult.content,
+                            toolCallsJSON: toolCallJSON,
                             parentID: currentLeafID,
                             conversation: conversation
                         )
-                        modelContext.insert(toolResultMessage)
-                        currentLeafID = toolResultMessage.id
+                        modelContext.insert(toolCallMessage)
+                        currentLeafID = toolCallMessage.id
+
+                        // Execute each tool call
+                        for call in latestResult.toolCalls {
+                            let toolName = call.function.name
+
+                            self.isExecutingTool = true
+                            self.toolCallStatus = "Calling \(toolName)..."
+
+                            let resultText: String
+                            let isError: Bool
+
+                            if VisualsToolkit.handles(toolName) {
+                                (resultText, isError) = VisualsToolkit.execute(
+                                    toolName: toolName,
+                                    arguments: call.function.arguments
+                                )
+                            } else if CodeToolkit.handles(toolName), let project {
+                                (resultText, isError) = CodeToolkit.execute(
+                                    toolName: toolName,
+                                    arguments: call.function.arguments,
+                                    project: project,
+                                    modelContext: modelContext
+                                )
+                            } else {
+                                #if os(macOS)
+                                if let manager = mcpManager as? MCPClientManager,
+                                   let serverName = manager.serverForTool(named: toolName) {
+                                    (resultText, isError) = await manager.callTool(
+                                        serverName: serverName,
+                                        toolName: toolName,
+                                        arguments: call.function.arguments
+                                    )
+                                } else {
+                                    (resultText, isError) = ("Unknown tool: \(toolName)", true)
+                                }
+                                #else
+                                (resultText, isError) = ("Unknown tool: \(toolName)", true)
+                                #endif
+                            }
+                            _ = isError // Error state is conveyed through the result text to the model
+
+                            let toolResultMessage = Message(
+                                role: "tool",
+                                content: resultText,
+                                toolName: toolName,
+                                toolCallID: call.id,
+                                parentID: currentLeafID,
+                                conversation: conversation
+                            )
+                            modelContext.insert(toolResultMessage)
+                            currentLeafID = toolResultMessage.id
+                        }
+
+                        conversation.activeLeafID = currentLeafID
+                        self.isExecutingTool = false
+                        self.toolCallStatus = nil
+
+                        do {
+                            try modelContext.save()
+                        } catch {
+                            self.error = "Failed to save tool output"
+                            break toolRoundLoop
+                        }
+
+                        // Rebuild outbound messages and re-stream
+                        let toolBranchMessages = currentLeafID != nil
+                            ? conversation.branchMessages(leafID: currentLeafID!)
+                            : conversation.messages.sorted { $0.createdAt < $1.createdAt }
+                        currentMessages = Self.buildOutboundMessages(
+                            conversationMessages: toolBranchMessages,
+                            systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
+                                baseSystemPrompt: conversation.systemPrompt,
+                                selectedModelName: conversation.modelName
+                            ),
+                            scaffoldSystemPrompt: nil
+                        )
+
+                        // Reset streaming state for next round
+                        streamingContent = ""
+                        streamingThinking = ""
+                        tokenCount = 0
+                        tokensPerSecond = 0
+
+                        switch await executeStreamAttempt(messages: currentMessages, currentTools: currentTools) {
+                        case .success(let nextResult):
+                            latestResult = nextResult
+                            streamResult = nextResult
+                        case .failure(let failure):
+                            streamFailure = failure
+                            break toolRoundLoop
+                        }
                     }
 
-                    conversation.activeLeafID = currentLeafID
-                    self.isExecutingTool = false
-                    self.toolCallStatus = nil
-
-                    do {
-                        try modelContext.save()
-                    } catch {
-                        self.error = "Failed to save tool output"
-                        break toolRoundLoop
+                    if rounds >= maxRounds && !latestResult.toolCalls.isEmpty {
+                        let errorMsg = Message(
+                            role: "tool",
+                            content: "Maximum tool call rounds (\(maxRounds)) reached. Stopping.",
+                            toolName: "system",
+                            parentID: currentLeafID,
+                            conversation: conversation
+                        )
+                        modelContext.insert(errorMsg)
+                        currentLeafID = errorMsg.id
+                        conversation.activeLeafID = currentLeafID
+                        try? modelContext.save()
                     }
-
-                    // Rebuild outbound messages and re-stream
-                    let toolBranchMessages = currentLeafID != nil
-                        ? conversation.branchMessages(leafID: currentLeafID!)
-                        : conversation.messages.sorted { $0.createdAt < $1.createdAt }
-                    currentMessages = Self.buildOutboundMessages(
-                        conversationMessages: toolBranchMessages,
-                        systemPrompt: SeerAssistantProfile.mergedSystemPrompt(
-                            baseSystemPrompt: conversation.systemPrompt,
-                            selectedModelName: conversation.modelName
-                        ),
-                        scaffoldSystemPrompt: nil
-                    )
-
-                    // Reset streaming state for next round
-                    streamingContent = ""
-                    streamingThinking = ""
-                    tokenCount = 0
-                    tokensPerSecond = 0
-
-                    switch await executeStreamAttempt(messages: currentMessages, currentTools: currentTools) {
-                    case .success(let nextResult):
-                        latestResult = nextResult
-                        streamResult = nextResult
-                    case .failure(let failure):
-                        streamFailure = failure
-                        break toolRoundLoop
-                    }
-                }
-
-                if rounds >= maxRounds && !latestResult.toolCalls.isEmpty {
-                    let errorMsg = Message(
-                        role: "tool",
-                        content: "Maximum tool call rounds (\(maxRounds)) reached. Stopping.",
-                        toolName: "system",
-                        parentID: currentLeafID,
-                        conversation: conversation
-                    )
-                    modelContext.insert(errorMsg)
-                    currentLeafID = errorMsg.id
-                    conversation.activeLeafID = currentLeafID
-                    try? modelContext.save()
                 }
             }
-            #endif
 
             if let streamResult {
                 finalEvalCount = streamResult.finalEvalCount
@@ -601,7 +647,8 @@ class StreamingChatService: ObservableObject {
                     role: msg.role,
                     content: outboundContent,
                     images: decodedImages(for: msg),
-                    tool_name: msg.toolName
+                    tool_name: msg.toolName,
+                    tool_call_id: msg.toolCallID
                 )
             )
         }
@@ -725,6 +772,37 @@ class StreamingChatService: ObservableObject {
         options: ChatOptions,
         think: Bool,
         tools: [ChatTool]? = nil,
+        provider: APIProvider = .ollama,
+        idleTimeoutNanoseconds: UInt64,
+        uiFlushIntervalNanoseconds: UInt64,
+        onFlush: @Sendable (StreamFlushUpdate) async -> Void
+    ) async throws -> StreamRunResult {
+        switch provider {
+        case .ollama:
+            return try await performOllamaStream(
+                model: model, messages: messages, options: options, think: think, tools: tools,
+                idleTimeoutNanoseconds: idleTimeoutNanoseconds,
+                uiFlushIntervalNanoseconds: uiFlushIntervalNanoseconds,
+                onFlush: onFlush
+            )
+        case .openai:
+            return try await performOpenAIStream(
+                model: model, messages: messages, options: options, tools: tools,
+                idleTimeoutNanoseconds: idleTimeoutNanoseconds,
+                uiFlushIntervalNanoseconds: uiFlushIntervalNanoseconds,
+                onFlush: onFlush
+            )
+        }
+    }
+
+    // MARK: - Ollama Stream
+
+    nonisolated private static func performOllamaStream(
+        model: String,
+        messages: [ChatRequestMessage],
+        options: ChatOptions,
+        think: Bool,
+        tools: [ChatTool]?,
         idleTimeoutNanoseconds: UInt64,
         uiFlushIntervalNanoseconds: UInt64,
         onFlush: @Sendable (StreamFlushUpdate) async -> Void
@@ -847,43 +925,247 @@ class StreamingChatService: ObservableObject {
             }
 
             await flushPending(force: true)
-            let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
-            let averageFlushMs: Double? = {
-                guard flushCount > 1 else { return nil }
-                return flushIntervalTotalMs / Double(flushCount - 1)
-            }()
-            let metrics = StreamMetricsSnapshot(
-                completionMs: completionMs,
-                firstTokenMs: firstTokenMs,
-                flushCount: flushCount,
-                averageFlushMs: averageFlushMs
-            )
-
-            return StreamRunResult(
-                content: fullContent,
-                thinking: fullThinking,
-                tokenCount: tokenCount,
-                tokensPerSecond: tokensPerSecond,
-                finalEvalCount: finalEvalCount,
-                sawTokens: sawTokens,
-                metrics: metrics,
+            return makeStreamResult(
+                fullContent: fullContent, fullThinking: fullThinking,
+                tokenCount: tokenCount, tokensPerSecond: tokensPerSecond,
+                finalEvalCount: finalEvalCount, sawTokens: sawTokens,
+                streamStartedAt: streamStartedAt, firstTokenMs: firstTokenMs,
+                flushCount: flushCount, flushIntervalTotalMs: flushIntervalTotalMs,
                 toolCalls: accumulatedToolCalls
             )
         } catch {
             await flushPending(force: true)
-            let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
-            let averageFlushMs: Double? = {
-                guard flushCount > 1 else { return nil }
-                return flushIntervalTotalMs / Double(flushCount - 1)
-            }()
-            let metrics = StreamMetricsSnapshot(
-                completionMs: completionMs,
-                firstTokenMs: firstTokenMs,
-                flushCount: flushCount,
-                averageFlushMs: averageFlushMs
+            throw makeStreamFailure(
+                error: error, sawTokens: sawTokens, streamStartedAt: streamStartedAt,
+                firstTokenMs: firstTokenMs, flushCount: flushCount, flushIntervalTotalMs: flushIntervalTotalMs
             )
-            throw StreamRunFailure(underlying: error, sawTokens: sawTokens, metrics: metrics)
         }
+    }
+
+    // MARK: - OpenAI Stream (SSE)
+
+    nonisolated private static func performOpenAIStream(
+        model: String,
+        messages: [ChatRequestMessage],
+        options: ChatOptions,
+        tools: [ChatTool]?,
+        idleTimeoutNanoseconds: UInt64,
+        uiFlushIntervalNanoseconds: UInt64,
+        onFlush: @Sendable (StreamFlushUpdate) async -> Void
+    ) async throws -> StreamRunResult {
+        let streamStartedAt = Date()
+        let (bytes, _) = try await OpenAIAPIClient.shared.streamChat(
+            model: model,
+            messages: messages,
+            temperature: options.temperature,
+            topP: options.top_p,
+            maxTokens: options.num_predict,
+            presencePenalty: options.presence_penalty,
+            frequencyPenalty: options.frequency_penalty,
+            seed: options.seed,
+            tools: tools
+        )
+
+        let lineIterator = AsyncLineIterator(bytes.lines.makeAsyncIterator())
+
+        var fullContent = ""
+        var pendingContent = ""
+
+        var tokenCount = 0
+        var tokensPerSecond = 0.0
+        var contentStartTime: Date?
+        var firstTokenMs: Int?
+        var sawTokens = false
+        var finalEvalCount: Int?
+
+        // Accumulate tool call deltas by index
+        var toolCallAccumulators: [Int: (id: String, name: String, arguments: String)] = [:]
+
+        var lastFlushTime: Date?
+        var flushCount = 0
+        var flushIntervalTotalMs = 0.0
+
+        func flushPending(force: Bool = false) async {
+            guard !pendingContent.isEmpty else { return }
+
+            let now = Date()
+            if !force, let lastFlushTime {
+                let elapsedNanos = now.timeIntervalSince(lastFlushTime) * 1_000_000_000
+                if elapsedNanos < Double(uiFlushIntervalNanoseconds) {
+                    return
+                }
+            }
+
+            let update = StreamFlushUpdate(
+                contentDelta: pendingContent,
+                thinkingDelta: "",
+                tokenCount: tokenCount,
+                tokensPerSecond: tokensPerSecond,
+                isThinking: false
+            )
+
+            pendingContent.removeAll(keepingCapacity: true)
+
+            if let lastFlushTime {
+                flushIntervalTotalMs += now.timeIntervalSince(lastFlushTime) * 1000
+            }
+            lastFlushTime = now
+            flushCount += 1
+
+            await onFlush(update)
+        }
+
+        do {
+            while !Task.isCancelled {
+                guard let line = try await Self.nextLineWithTimeout(
+                    from: lineIterator,
+                    timeoutNanoseconds: idleTimeoutNanoseconds
+                ) else {
+                    break
+                }
+                guard !Task.isCancelled else { break }
+                guard !line.isEmpty else { continue }
+
+                // SSE format: lines starting with "data: "
+                guard line.hasPrefix("data: ") else { continue }
+                let payload = String(line.dropFirst(6))
+
+                if payload == "[DONE]" { break }
+
+                guard let data = payload.data(using: .utf8),
+                      let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data) else {
+                    continue
+                }
+
+                if let completionTokens = chunk.usage?.completion_tokens, completionTokens > 0 {
+                    finalEvalCount = completionTokens
+                }
+
+                guard let choice = chunk.choices?.first else { continue }
+
+                // Accumulate tool call deltas
+                if let toolCallDeltas = choice.delta?.tool_calls {
+                    for delta in toolCallDeltas {
+                        var acc = toolCallAccumulators[delta.index] ?? (id: "", name: "", arguments: "")
+                        if let id = delta.id { acc.id = id }
+                        if let name = delta.function?.name, !name.isEmpty {
+                            acc.name = mergeToolDeltaText(current: acc.name, incoming: name)
+                        }
+                        if let args = delta.function?.arguments, !args.isEmpty {
+                            acc.arguments = mergeToolDeltaText(current: acc.arguments, incoming: args)
+                        }
+                        toolCallAccumulators[delta.index] = acc
+                    }
+                }
+
+                if let token = choice.delta?.content, !token.isEmpty {
+                    sawTokens = true
+                    tokenCount += 1
+                    pendingContent += token
+                    fullContent += token
+
+                    if contentStartTime == nil {
+                        contentStartTime = Date()
+                        firstTokenMs = Int(contentStartTime!.timeIntervalSince(streamStartedAt) * 1000)
+                    }
+                    if let contentStartTime {
+                        let elapsed = Date().timeIntervalSince(contentStartTime)
+                        if elapsed > 0.1 {
+                            tokensPerSecond = Double(tokenCount) / elapsed
+                        }
+                    }
+                    await flushPending()
+                }
+
+                if choice.finish_reason != nil {
+                    break
+                }
+            }
+
+            await flushPending(force: true)
+
+            // Convert accumulated tool calls to ChunkToolCall format
+            let accumulatedToolCalls: [ChunkToolCall] = toolCallAccumulators
+                .sorted { $0.key < $1.key }
+                .compactMap { _, acc -> ChunkToolCall? in
+                    guard !acc.name.isEmpty else { return nil }
+                    let arguments: [String: JSONValue]
+                    if let data = acc.arguments.data(using: .utf8),
+                       let parsed = try? JSONDecoder().decode([String: JSONValue].self, from: data) {
+                        arguments = parsed
+                    } else {
+                        arguments = [:]
+                    }
+                    return ChunkToolCall(
+                        id: acc.id.isEmpty ? nil : acc.id,
+                        function: ChunkToolCallFunction(name: acc.name, arguments: arguments)
+                    )
+                }
+
+            return makeStreamResult(
+                fullContent: fullContent, fullThinking: "",
+                tokenCount: tokenCount, tokensPerSecond: tokensPerSecond,
+                finalEvalCount: finalEvalCount, sawTokens: sawTokens,
+                streamStartedAt: streamStartedAt, firstTokenMs: firstTokenMs,
+                flushCount: flushCount, flushIntervalTotalMs: flushIntervalTotalMs,
+                toolCalls: accumulatedToolCalls
+            )
+        } catch {
+            await flushPending(force: true)
+            throw makeStreamFailure(
+                error: error, sawTokens: sawTokens, streamStartedAt: streamStartedAt,
+                firstTokenMs: firstTokenMs, flushCount: flushCount, flushIntervalTotalMs: flushIntervalTotalMs
+            )
+        }
+    }
+
+    // MARK: - Stream Result Helpers
+
+    nonisolated private static func makeStreamResult(
+        fullContent: String, fullThinking: String,
+        tokenCount: Int, tokensPerSecond: Double,
+        finalEvalCount: Int?, sawTokens: Bool,
+        streamStartedAt: Date, firstTokenMs: Int?,
+        flushCount: Int, flushIntervalTotalMs: Double,
+        toolCalls: [ChunkToolCall]
+    ) -> StreamRunResult {
+        let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
+        let averageFlushMs: Double? = flushCount > 1
+            ? flushIntervalTotalMs / Double(flushCount - 1) : nil
+        let metrics = StreamMetricsSnapshot(
+            completionMs: completionMs, firstTokenMs: firstTokenMs,
+            flushCount: flushCount, averageFlushMs: averageFlushMs
+        )
+        return StreamRunResult(
+            content: fullContent, thinking: fullThinking,
+            tokenCount: tokenCount, tokensPerSecond: tokensPerSecond,
+            finalEvalCount: finalEvalCount, sawTokens: sawTokens,
+            metrics: metrics, toolCalls: toolCalls
+        )
+    }
+
+    nonisolated private static func makeStreamFailure(
+        error: Error, sawTokens: Bool,
+        streamStartedAt: Date, firstTokenMs: Int?,
+        flushCount: Int, flushIntervalTotalMs: Double
+    ) -> StreamRunFailure {
+        let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
+        let averageFlushMs: Double? = flushCount > 1
+            ? flushIntervalTotalMs / Double(flushCount - 1) : nil
+        let metrics = StreamMetricsSnapshot(
+            completionMs: completionMs, firstTokenMs: firstTokenMs,
+            flushCount: flushCount, averageFlushMs: averageFlushMs
+        )
+        return StreamRunFailure(underlying: error, sawTokens: sawTokens, metrics: metrics)
+    }
+
+    nonisolated private static func mergeToolDeltaText(current: String, incoming: String) -> String {
+        guard !incoming.isEmpty else { return current }
+        guard !current.isEmpty else { return incoming }
+        if incoming == current { return current }
+        if incoming.hasPrefix(current) { return incoming }
+        if current.hasPrefix(incoming) { return current }
+        return current + incoming
     }
 
     private func handleStreamError(_ error: Error) {
@@ -902,7 +1184,7 @@ class StreamingChatService: ObservableObject {
         lastSentRequestContent != nil
     }
 
-    func retryLast(tools: [ChatTool]? = nil, mcpManager: AnyObject? = nil, conversation: Conversation, modelContext: ModelContext) async {
+    func retryLast(tools: [ChatTool]? = nil, mcpManager: AnyObject? = nil, project: Project? = nil, conversation: Conversation, modelContext: ModelContext) async {
         guard let lastSentRequestContent else { return }
 
         await sendMessage(
@@ -914,6 +1196,7 @@ class StreamingChatService: ObservableObject {
             parentMessageID: lastSentParentMessageID,
             tools: tools,
             mcpManager: mcpManager,
+            project: project,
             conversation: conversation,
             modelContext: modelContext
         )

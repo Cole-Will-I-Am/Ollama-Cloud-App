@@ -425,44 +425,46 @@ class MCPClientManager: ObservableObject {
     }
 
     private func resolveCommand(_ command: String) -> String? {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let fm = FileManager.default
+        let expanded = (trimmed as NSString).expandingTildeInPath
+
         // If it's an absolute path, use directly
-        if command.hasPrefix("/") {
-            return FileManager.default.isExecutableFile(atPath: command) ? command : nil
+        if expanded.hasPrefix("/") {
+            return fm.isExecutableFile(atPath: expanded) ? expanded : nil
+        }
+
+        // Support explicit relative paths without invoking a shell.
+        if expanded.contains("/") {
+            let cwd = URL(fileURLWithPath: fm.currentDirectoryPath, isDirectory: true)
+            let absolutePath = URL(fileURLWithPath: expanded, relativeTo: cwd).standardized.path
+            return fm.isExecutableFile(atPath: absolutePath) ? absolutePath : nil
         }
 
         // Check known paths
-        let knownDirs = [
+        var searchDirs = [
             "/opt/homebrew/bin",
             "/usr/local/bin",
             "/usr/bin",
             "/bin"
         ]
-        for dir in knownDirs {
-            let path = "\(dir)/\(command)"
-            if FileManager.default.isExecutableFile(atPath: path) {
+
+        // Also search the effective PATH from the app environment.
+        let envPathDirs = Self.enrichedPath(ProcessInfo.processInfo.environment["PATH"])
+            .split(separator: ":")
+            .map(String.init)
+        for dir in envPathDirs where !searchDirs.contains(dir) {
+            searchDirs.append(dir)
+        }
+
+        for dir in searchDirs {
+            let path = (dir as NSString).appendingPathComponent(trimmed)
+            if fm.isExecutableFile(atPath: path) {
                 return path
             }
         }
-
-        // Login shell fallback for nvm/fnm/volta etc.
-        let proc = Process()
-        let pipe = Pipe()
-        proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        proc.arguments = ["-lic", "command -v \(command) 2>/dev/null"]
-        proc.standardOutput = pipe
-        proc.standardError = FileHandle.nullDevice
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-            if proc.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let path = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if !path.isEmpty && FileManager.default.isExecutableFile(atPath: path) {
-                    return path
-                }
-            }
-        } catch {}
         return nil
     }
 

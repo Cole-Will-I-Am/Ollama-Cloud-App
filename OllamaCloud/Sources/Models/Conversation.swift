@@ -27,6 +27,7 @@ final class Conversation {
     var isPinned: Bool?
     var accountScopeKey: String
     var modelName: String
+    var apiProviderRaw: String?
     var thinkingModeRaw: String?
     var systemPrompt: String
     var activeScaffoldID: String?
@@ -52,6 +53,8 @@ final class Conversation {
     var seed: Int
     var numBatch: Int
     var numThread: Int
+
+    var isProjectChat: Bool?      // nil/false = normal chat, true = project chat panel
 
     var activeLeafID: UUID?       // Tip of the currently viewed branch (nil = legacy linear fallback)
 
@@ -154,6 +157,11 @@ final class Conversation {
         }
 
         return didChange
+    }
+
+    var apiProvider: APIProvider {
+        get { APIProvider(rawValue: apiProviderRaw ?? "") ?? .ollama }
+        set { apiProviderRaw = newValue.rawValue }
     }
 
     var thinkingMode: ThinkingMode {
