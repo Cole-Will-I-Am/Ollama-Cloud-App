@@ -1,22 +1,29 @@
 # Xcode Cloud Setup
 
-This repo is prepared for Xcode Cloud, with one important local step: commit the generated Xcode project.
+This repo is prepared for Xcode Cloud. The generated Xcode project is already committed, so you can open it directly in Xcode and start configuring workflows.
 
 ## Why the project file must be committed
 
 The app uses XcodeGen (`project.yml`) as the source of truth. That works well locally, but Xcode Cloud expects a stable `.xcodeproj` or `.xcworkspace` to already exist in the repository when configuring and running workflows.
 
-Commit `OllamaCloud.xcodeproj` after generating it from `project.yml`.
+`OllamaCloud.xcodeproj` is therefore committed to the repo, generated from `project.yml`.
 
-## One-time local setup
+## Project file (already committed)
 
-From the repository root:
+`OllamaCloud.xcodeproj` has been generated from `project.yml` and committed to the
+repository, including the shared schemes (`OllamaCloud`, `OllamaCloudMac`) that Xcode
+Cloud needs to select a build target. No local `xcodegen` run is required to get
+started — just clone and open the project in Xcode.
+
+### Regenerating after editing `project.yml`
+
+If you change `project.yml`, regenerate and re-commit the project:
 
 ```bash
-brew install xcodegen
+brew install xcodegen   # first time only
 xcodegen generate
-git add project.yml OllamaCloud.xcodeproj .gitignore
-git commit -m "Add generated Xcode project for Xcode Cloud"
+git add project.yml OllamaCloud.xcodeproj
+git commit -m "Regenerate Xcode project"
 git push origin main
 ```
 
