@@ -3,11 +3,16 @@ import SwiftData
 
 struct RootView: View {
     @AppStorage("hasAPIKey") private var hasAPIKey = false
+    @AppStorage(ConsentStore.storageKey) private var consentSignature = ""
 
     var body: some View {
         Group {
             if hasAPIKey, KeychainHelper.load(key: "api_key") != nil {
-                MainAppView()
+                if ConsentStore.hasConsented(signature: consentSignature) {
+                    MainAppView()
+                } else {
+                    DataSharingConsentView()
+                }
             } else {
                 APIKeyEntryView()
             }

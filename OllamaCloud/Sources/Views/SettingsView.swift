@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var openAIKeyInput = ""
     @State private var isValidatingOpenAIKey = false
     @State private var openAIKeyError: String?
+    @State private var showDataSharingSheet = false
 
     var body: some View {
         NavigationStack {
@@ -175,6 +176,72 @@ struct SettingsView: View {
                         .padding(16)
                     }
 
+                    // Privacy / data sharing
+                    section("PRIVACY") {
+                        VStack(spacing: 0) {
+                            Button {
+                                showDataSharingSheet = true
+                            } label: {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.accent.opacity(0.12))
+                                            .frame(width: 38, height: 38)
+                                        Image(systemName: "hand.raised")
+                                            .font(.system(size: 14, weight: .ultraLight))
+                                            .foregroundStyle(Color.accent)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Data Sharing")
+                                            .font(.app(15, weight: .medium))
+                                            .foregroundStyle(Color.textPrimary)
+                                        Text("What's sent to \(AppConfig.apiHostDisplayName)")
+                                            .font(.app(12))
+                                            .foregroundStyle(Color.textTertiary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .ultraLight))
+                                        .foregroundStyle(Color.textTertiary)
+                                }
+                                .padding(16)
+                            }
+                            .buttonStyle(.plain)
+                            #if os(macOS)
+                            .macPointingCursor()
+                            #endif
+
+                            Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
+
+                            if let url = URL(string: AppConfig.privacyPolicyURL) {
+                                Link(destination: url) {
+                                    HStack(spacing: 12) {
+                                        ZStack {
+                                            Circle()
+                                                .fill(Color.accent.opacity(0.12))
+                                                .frame(width: 38, height: 38)
+                                            Image(systemName: "doc.text")
+                                                .font(.system(size: 14, weight: .ultraLight))
+                                                .foregroundStyle(Color.accent)
+                                        }
+                                        Text("Privacy Policy")
+                                            .font(.app(15, weight: .medium))
+                                            .foregroundStyle(Color.textPrimary)
+                                        Spacer()
+                                        Image(systemName: "arrow.up.right")
+                                            .font(.system(size: 12, weight: .ultraLight))
+                                            .foregroundStyle(Color.textTertiary)
+                                    }
+                                    .padding(16)
+                                }
+                                .buttonStyle(.plain)
+                                #if os(macOS)
+                                .macPointingCursor()
+                                #endif
+                            }
+                        }
+                    }
+
                     // MCP Servers (macOS only)
                     #if os(macOS)
                     section("MCP SERVERS") {
@@ -257,6 +324,9 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("OpenAI models will no longer appear in the model picker.")
+            }
+            .sheet(isPresented: $showDataSharingSheet) {
+                DataSharingDisclosureSheet()
             }
         }
     }

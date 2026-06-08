@@ -9,6 +9,9 @@ enum AppConfig {
     private static let defaultSeerModelName = "SEER"
     private static let defaultSeerBackingModelName = "qwen3.5:397b-cloud"
 
+    /// Public privacy policy, surfaced in the data-sharing consent gate and Settings.
+    static let privacyPolicyURL = "https://github.com/Cole-Will-I-Am/Ollama-Cloud-App/blob/main/PRIVACY.md"
+
     static var apiBaseURL: String {
         let defaultsValue = UserDefaults.standard.string(forKey: apiBaseURLKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let value = defaultsValue, !value.isEmpty {

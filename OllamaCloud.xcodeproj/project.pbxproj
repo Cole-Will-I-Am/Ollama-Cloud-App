@@ -90,6 +90,7 @@
 		97DF7482326269A237A6AC3E /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCAEB5AC8AF71CD6E2541AFE /* Project.swift */; };
 		9979B9CD38531ECEE2901DE9 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C157108DBC284AC0E0DDD9D3 /* ModelPickerView.swift */; };
 		99E42EA980535B8D97501CD3 /* ReasoningScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8BD44D35B02C376766E7A8 /* ReasoningScaffold.swift */; };
+		9C174066E1DF0C345C0C2277 /* DataSharingConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB37823DDAA8A97B6362856 /* DataSharingConsentView.swift */; };
 		9C9272E74088B0AF08A66903 /* ReasoningScaffoldCompilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B3702E0049FA5F6FF481D9 /* ReasoningScaffoldCompilerTests.swift */; };
 		9E9BC0215304541CFA017C58 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE3697A1AA7CBBBF5D89721 /* SettingsView.swift */; };
 		9EBEB2D9326ABF471BD0455D /* StreamPerformanceEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7299FDABE3E1AF1E66E782 /* StreamPerformanceEdgeCaseTests.swift */; };
@@ -105,6 +106,7 @@
 		B827F2627581DAC3AB73559C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F6948731F57B9EABA4330EC5 /* Assets.xcassets */; };
 		B837B1C1C6163BACA9A47DFA /* CodeWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B674679B447350CE7544911C /* CodeWorkspaceView.swift */; };
 		B8DAAE490455441EBF4F58E5 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2DA05C02081EF310663C087 /* Conversation.swift */; };
+		BA2940F12D0566A1FBEAFB63 /* ConsentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947EEBC03B230AFD80734197 /* ConsentStore.swift */; };
 		BECE7B18D3E5B6B6221A60CC /* StreamPerformanceEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7299FDABE3E1AF1E66E782 /* StreamPerformanceEdgeCaseTests.swift */; };
 		C00822EEBD825499392B6A21 /* ReasoningScaffoldRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC16779ADE7B4CB4880755 /* ReasoningScaffoldRuntimeTests.swift */; };
 		C69318F288AC407F67ACBC67 /* SheetSizing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE4775A9CE24BEBA665C77D /* SheetSizing.swift */; };
@@ -130,8 +132,10 @@
 		E7E21D7193C737025FC3F370 /* ScaffoldTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A572915DC250AF16E9FBF5B /* ScaffoldTemplatePickerView.swift */; };
 		E93DC82D4B99174F49EEB932 /* OllamaAPIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB0C547F97A26C9662FCB11 /* OllamaAPIErrorTests.swift */; };
 		E98613388C82FFB1EB900F2B /* CodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285792F5EA5B8AE09C0F1EA1 /* CodeEditorView.swift */; };
+		E9E849CE75C421E7684D8F08 /* ConsentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947EEBC03B230AFD80734197 /* ConsentStore.swift */; };
 		ECD3A8641BF2B2ADF558F0FC /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F25A30C8A6C7E984C9535743 /* ProjectListView.swift */; };
 		F11B57F2FC42B50B56108641 /* ReasoningScaffoldResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B104E576F922A29010EEE20 /* ReasoningScaffoldResolver.swift */; };
+		F30D3FF62D601B2903855926 /* DataSharingConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB37823DDAA8A97B6362856 /* DataSharingConsentView.swift */; };
 		F40F8DB38ECBEA74D13AA8AD /* FileTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D09C01C84B5E0AC860BD0D /* FileTreeView.swift */; };
 		F5CC0438870701EC2AC2939C /* ScaffoldTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A572915DC250AF16E9FBF5B /* ScaffoldTemplatePickerView.swift */; };
 		F5EAC353EA2DFC1DC02804A2 /* ChatStreamChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CCB61B463090A27B34A5DB7 /* ChatStreamChunk.swift */; };
@@ -199,8 +203,10 @@
 		8C97627BF6B107443383CC1E /* SeerCodeBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeerCodeBlock.swift; sourceTree = "<group>"; };
 		93F1D838B20FE252FA2BAB4A /* ChatRequestEncodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequestEncodingTests.swift; sourceTree = "<group>"; };
 		9450712C08EB00BF80A9657C /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		947EEBC03B230AFD80734197 /* ConsentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentStore.swift; sourceTree = "<group>"; };
 		9FA60E4BE05E8EF53FAC0744 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A274F3B4E0516F31374EE615 /* OllamaModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaModel.swift; sourceTree = "<group>"; };
+		ACB37823DDAA8A97B6362856 /* DataSharingConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSharingConsentView.swift; sourceTree = "<group>"; };
 		AE530D9DAF969B58A87300DA /* VisualsToolkit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualsToolkit.swift; sourceTree = "<group>"; };
 		B1FE1F9192F8E66EFDC0C5A8 /* CodeBlockExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockExtractor.swift; sourceTree = "<group>"; };
 		B495B902DDEA2BEFEB471675 /* ScaffoldPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaffoldPreviewView.swift; sourceTree = "<group>"; };
@@ -267,6 +273,7 @@
 				285792F5EA5B8AE09C0F1EA1 /* CodeEditorView.swift */,
 				B674679B447350CE7544911C /* CodeWorkspaceView.swift */,
 				B4D42CA85D710F45C8FFBC24 /* ConversationListView.swift */,
+				ACB37823DDAA8A97B6362856 /* DataSharingConsentView.swift */,
 				B7D09C01C84B5E0AC860BD0D /* FileTreeView.swift */,
 				C3AC4FA4CA0DDA4D0161FEBD /* HTMLContentView.swift */,
 				F6BD5F6BDD83FDEC7CA71BB1 /* MCPServerStatusView.swift */,
@@ -380,6 +387,7 @@
 				FA48EF1FA3D73FC7B42D2780 /* AppTelemetry.swift */,
 				B1FE1F9192F8E66EFDC0C5A8 /* CodeBlockExtractor.swift */,
 				CBF233A86DE1E6499CFBB4F4 /* CodeBlockOutputState.swift */,
+				947EEBC03B230AFD80734197 /* ConsentStore.swift */,
 				9450712C08EB00BF80A9657C /* KeychainHelper.swift */,
 				0FE4775A9CE24BEBA665C77D /* SheetSizing.swift */,
 				08D57B142DD003667282F347 /* Theme.swift */,
@@ -576,8 +584,10 @@
 				27C784DC538DE064A8082B0E /* CodeExecutionService.swift in Sources */,
 				A85DD99C93DDB4F87DEEC06F /* CodeToolkit.swift in Sources */,
 				467AA04481DAAB3277770C01 /* CodeWorkspaceView.swift in Sources */,
+				BA2940F12D0566A1FBEAFB63 /* ConsentStore.swift in Sources */,
 				1D1FDB114A520906F4CBB6D7 /* Conversation.swift in Sources */,
 				F7B888D84AA4D6F8ECEC757F /* ConversationListView.swift in Sources */,
+				9C174066E1DF0C345C0C2277 /* DataSharingConsentView.swift in Sources */,
 				F40F8DB38ECBEA74D13AA8AD /* FileTreeView.swift in Sources */,
 				20C35328DBD277F6A56A50AF /* HTMLContentView.swift in Sources */,
 				77914FF392CD519D2D693697 /* JSONValue.swift in Sources */,
@@ -670,8 +680,10 @@
 				96F81084E2D804567B204E48 /* CodeExecutionService.swift in Sources */,
 				A45AB7B499240DBB0A915C47 /* CodeToolkit.swift in Sources */,
 				B837B1C1C6163BACA9A47DFA /* CodeWorkspaceView.swift in Sources */,
+				E9E849CE75C421E7684D8F08 /* ConsentStore.swift in Sources */,
 				B8DAAE490455441EBF4F58E5 /* Conversation.swift in Sources */,
 				1103401FB21E53A4B19730E2 /* ConversationListView.swift in Sources */,
+				F30D3FF62D601B2903855926 /* DataSharingConsentView.swift in Sources */,
 				07004243B24C69EF2C5BAC41 /* FileTreeView.swift in Sources */,
 				27012023CA8459BB27AE2022 /* HTMLContentView.swift in Sources */,
 				22B19661F1F58B20D169C64E /* JSONValue.swift in Sources */,
@@ -922,7 +934,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1003,7 +1015,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
