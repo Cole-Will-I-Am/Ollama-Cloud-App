@@ -198,6 +198,10 @@ struct MainAppView: View {
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.openSettings)) { _ in
             showSettings = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: AppCommand.dataReset)) { _ in
+            selectedConversation = nil
+            selectedProject = nil
+        }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
             set: { _ in persistenceError = nil }

@@ -11,6 +11,7 @@ enum AppCommand {
     static let nextBranch = Notification.Name("seer.command.nextBranch")
     static let newProject = Notification.Name("seer.command.newProject")
     static let selectConversationIndex = Notification.Name("seer.command.selectConversationIndex")
+    static let dataReset = Notification.Name("seer.command.dataReset")
 
     static let conversationIndexUserInfoKey = "conversationIndex"
 

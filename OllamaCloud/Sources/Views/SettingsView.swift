@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var network: NetworkMonitor
     #if os(macOS)
     @EnvironmentObject private var mcpManager: MCPClientManager
@@ -19,6 +20,8 @@ struct SettingsView: View {
     @State private var isValidatingOpenAIKey = false
     @State private var openAIKeyError: String?
     @State private var showDataSharingSheet = false
+    @State private var showDeleteAllConfirmation = false
+    @State private var dataActionError: String?
 
     var body: some View {
         NavigationStack {
@@ -242,6 +245,45 @@ struct SettingsView: View {
                         }
                     }
 
+                    // Data
+                    section("DATA") {
+                        VStack(spacing: 14) {
+                            Text("Delete all conversations and projects stored on this device. This cannot be undone and does not affect your API keys.")
+                                .font(.app(12, weight: .light))
+                                .foregroundStyle(Color.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button {
+                                showDeleteAllConfirmation = true
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 13, weight: .ultraLight))
+                                    Text("DELETE ALL DATA")
+                                        .font(.appLabel(11))
+                                        .tracking(2)
+                                }
+                                .foregroundStyle(Color.danger)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.danger.opacity(0.06))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .stroke(Color.danger.opacity(0.1), lineWidth: 0.5)
+                                        )
+                                )
+                            }
+                            #if os(macOS)
+                            .buttonStyle(.plain)
+                            .macPointingCursor()
+                            #endif
+                        }
+                        .padding(16)
+                    }
+
                     // MCP Servers (macOS only)
                     #if os(macOS)
                     section("MCP SERVERS") {
@@ -328,6 +370,40 @@ struct SettingsView: View {
             .sheet(isPresented: $showDataSharingSheet) {
                 DataSharingDisclosureSheet()
             }
+            .confirmationDialog(
+                "Delete all data?",
+                isPresented: $showDeleteAllConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Everything", role: .destructive) {
+                    deleteAllData()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes all conversations and projects from this device. Your API keys are not affected.")
+            }
+            .alert("Couldn't Delete Data", isPresented: Binding(
+                get: { dataActionError != nil },
+                set: { _ in dataActionError = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(dataActionError ?? "An unknown error occurred.")
+            }
+        }
+    }
+
+    private func deleteAllData() {
+        do {
+            try modelContext.delete(model: Conversation.self)
+            try modelContext.delete(model: Project.self)
+            try modelContext.save()
+            AppCommand.post(AppCommand.dataReset)
+            Haptic.notification(.success)
+            dismiss()
+        } catch {
+            dataActionError = error.localizedDescription
+            Haptic.notification(.error)
         }
     }
 
