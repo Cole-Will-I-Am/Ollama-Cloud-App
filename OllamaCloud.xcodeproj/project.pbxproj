@@ -100,6 +100,7 @@
 		ACABEDE65D22ABA53098762E /* CodeBlockExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FE1F9192F8E66EFDC0C5A8 /* CodeBlockExtractor.swift */; };
 		AF93E009596757C0A702A003 /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4DCE8F6E13E4D0C69D29D0 /* ChatRequest.swift */; };
 		B0344E456BA453E69510DBE7 /* VisualsToolkit.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE530D9DAF969B58A87300DA /* VisualsToolkit.swift */; };
+		B11C5109BA106BA1971E65FF /* SpeechDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C32E36449F492305A12FC /* SpeechDictation.swift */; };
 		B3EB7275F39A0830296BAE92 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCAEB5AC8AF71CD6E2541AFE /* Project.swift */; };
 		B41BB10DDD2BD97DF9458F9E /* ProjectFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2C807BD8FD23F1BE4A53F1 /* ProjectFile.swift */; };
 		B7D697FDBFE07EBBE47D5BB7 /* CodeExecutionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD54BE49E032350F3710101B /* CodeExecutionServiceTests.swift */; };
@@ -109,6 +110,7 @@
 		BA2940F12D0566A1FBEAFB63 /* ConsentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947EEBC03B230AFD80734197 /* ConsentStore.swift */; };
 		BECE7B18D3E5B6B6221A60CC /* StreamPerformanceEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7299FDABE3E1AF1E66E782 /* StreamPerformanceEdgeCaseTests.swift */; };
 		C00822EEBD825499392B6A21 /* ReasoningScaffoldRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC16779ADE7B4CB4880755 /* ReasoningScaffoldRuntimeTests.swift */; };
+		C64D7979DB7036B81FCA4D57 /* SpeechDictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C32E36449F492305A12FC /* SpeechDictation.swift */; };
 		C69318F288AC407F67ACBC67 /* SheetSizing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE4775A9CE24BEBA665C77D /* SheetSizing.swift */; };
 		CE3C028A664EC8A062E14EB5 /* SeerCodeBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C97627BF6B107443383CC1E /* SeerCodeBlock.swift */; };
 		D34409D04ED69114CBD9B8BF /* ProjectFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2C807BD8FD23F1BE4A53F1 /* ProjectFile.swift */; };
@@ -182,6 +184,7 @@
 		28D6064B3BD0327DFEEDECA1 /* StreamingChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingChatService.swift; sourceTree = "<group>"; };
 		2A39620DF5E25002BCC47933 /* OllamaCloudTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OllamaCloudTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B0C0F64C351536829151E3A /* ParametersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParametersView.swift; sourceTree = "<group>"; };
+		2B2C32E36449F492305A12FC /* SpeechDictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictation.swift; sourceTree = "<group>"; };
 		2B8BD44D35B02C376766E7A8 /* ReasoningScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReasoningScaffold.swift; sourceTree = "<group>"; };
 		2DE3697A1AA7CBBBF5D89721 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		2E489AD3D5B85A6D39081281 /* APIKeyEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyEntryView.swift; sourceTree = "<group>"; };
@@ -409,6 +412,7 @@
 				E94D3D42331480472129E965 /* ReasoningScaffoldReferenceCleaner.swift */,
 				6B104E576F922A29010EEE20 /* ReasoningScaffoldResolver.swift */,
 				5C120660C76B7C96EAA1DD17 /* SeerAssistantProfile.swift */,
+				2B2C32E36449F492305A12FC /* SpeechDictation.swift */,
 				28D6064B3BD0327DFEEDECA1 /* StreamingChatService.swift */,
 				AE530D9DAF969B58A87300DA /* VisualsToolkit.swift */,
 			);
@@ -628,6 +632,7 @@
 				CE3C028A664EC8A062E14EB5 /* SeerCodeBlock.swift in Sources */,
 				9E9BC0215304541CFA017C58 /* SettingsView.swift in Sources */,
 				3325FC6BB19EBD07E2F6AC2A /* SheetSizing.swift in Sources */,
+				C64D7979DB7036B81FCA4D57 /* SpeechDictation.swift in Sources */,
 				A4302729EA77D73F6926143B /* StreamingChatService.swift in Sources */,
 				4BDE25A627BE0E724A20EB1D /* Theme.swift in Sources */,
 				1E7128DA7368265A338C33B7 /* ToolCallBubble.swift in Sources */,
@@ -724,6 +729,7 @@
 				E12F4C4E253BC310C19D9B7D /* SeerCodeBlock.swift in Sources */,
 				9000A00E5909343383FEC6E3 /* SettingsView.swift in Sources */,
 				C69318F288AC407F67ACBC67 /* SheetSizing.swift in Sources */,
+				B11C5109BA106BA1971E65FF /* SpeechDictation.swift in Sources */,
 				74A2CC2FFBA9CD1C79FE9F49 /* StreamingChatService.swift in Sources */,
 				4F846C8BBE5541EE3A78F830 /* Theme.swift in Sources */,
 				D48FA1251CF476843D142A69 /* ToolCallBubble.swift in Sources */,
@@ -827,6 +833,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_CFBundleDisplayName = SEER;
 				INFOPLIST_KEY_CFBundleName = SEER;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SEER uses the microphone to let you dictate messages by voice.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "SEER uses speech recognition to turn your dictation into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -850,6 +858,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_CFBundleDisplayName = SEER;
 				INFOPLIST_KEY_CFBundleName = SEER;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SEER uses the microphone to let you dictate messages by voice.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "SEER uses speech recognition to turn your dictation into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

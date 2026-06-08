@@ -42,6 +42,8 @@ struct ChatView: View {
     @State private var exportError: String?
     #if os(iOS)
     @State private var exportShareItem: ExportShareItem?
+    @StateObject private var dictation = SpeechDictation()
+    @State private var dictationBaseText = ""
     #endif
     @State private var showVisionModelWarning = false
     @State private var forkParentID: UUID?
@@ -921,6 +923,27 @@ struct ChatView: View {
                         .accessibilityLabel("Message input")
                         .accessibilityHint("Type your message")
 
+                    #if os(iOS)
+                    if dictation.isAvailable {
+                        Button {
+                            toggleDictation()
+                        } label: {
+                            Image(systemName: dictation.isRecording ? "mic.fill" : "mic")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(dictation.isRecording ? .white : Color.accent)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .background(
+                                    Circle()
+                                        .fill(dictation.isRecording ? AnyShapeStyle(Color.danger) : AnyShapeStyle(Color.accentSoft))
+                                        .overlay(Circle().stroke(Color.border, lineWidth: 0.5))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(streaming.isStreaming)
+                        .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Start voice dictation")
+                    }
+                    #endif
+
                     if streaming.isStreaming {
                         Button {
                             Haptic.impact(.medium)
@@ -959,8 +982,48 @@ struct ChatView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(Color.bgPrimary)
+            #if os(iOS)
+            .onChange(of: dictation.transcript) { _, newValue in
+                applyDictation(newValue)
+            }
+            .onDisappear { dictation.stop() }
+            .alert("Dictation", isPresented: Binding(
+                get: { dictation.errorMessage != nil },
+                set: { _ in dictation.errorMessage = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(dictation.errorMessage ?? "")
+            }
+            #endif
         }
     }
+
+    #if os(iOS)
+    private func toggleDictation() {
+        if dictation.isRecording {
+            dictation.stop()
+        } else {
+            dictationBaseText = input.trimmingCharacters(in: .whitespacesAndNewlines)
+            isInputFocused = false
+            Haptic.impact()
+            dictation.start()
+        }
+    }
+
+    /// Mirror the live transcript into the composer, preserving any text that
+    /// was already typed before dictation began.
+    private func applyDictation(_ transcript: String) {
+        let spoken = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if dictationBaseText.isEmpty {
+            input = spoken
+        } else if spoken.isEmpty {
+            input = dictationBaseText
+        } else {
+            input = dictationBaseText + " " + spoken
+        }
+    }
+    #endif
 
     @ViewBuilder
     private var toolbarPrincipal: some View {
@@ -1239,6 +1302,9 @@ struct ChatView: View {
     }
 
     private func send() {
+        #if os(iOS)
+        dictation.stop()
+        #endif
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || hasPendingAttachments else { return }
 
