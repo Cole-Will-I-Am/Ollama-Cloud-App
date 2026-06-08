@@ -1,5 +1,5 @@
-*.xcodeproj
-*.xcworkspace
+# Keep the generated Xcode project in source control for Xcode Cloud.
+# Xcode Cloud expects a stable .xcodeproj or .xcworkspace to be present in the repo.
 xcuserdata/
 DerivedData/
 build/
