@@ -10,7 +10,8 @@ name: iOS — TestFlight Release
 #   ASC_KEY_ID         App Store Connect API key ID
 #   ASC_ISSUER_ID      App Store Connect API issuer ID
 #   ASC_KEY_P8_BASE64  The .p8 key file, base64-encoded
-#   APPLE_TEAM_ID      Your 10-character Apple Developer Team ID
+# The Apple Team ID is baked in below (it isn't secret); set an APPLE_TEAM_ID
+# repo secret only if you need to override it.
 # See docs/CI_TESTFLIGHT_SETUP.md for step-by-step (browser-only) setup.
 
 on:
@@ -32,7 +33,9 @@ jobs:
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # Team ID is not secret (it ships inside every build), so it's baked in
+      # here as a default; a repo secret of the same name overrides it if set.
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'B3DB33R8JN' }}
       ARCHIVE_PATH: ${{ github.workspace }}/build/OllamaCloud.xcarchive
       EXPORT_PATH: ${{ github.workspace }}/build/export
     steps:

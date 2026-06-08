@@ -34,10 +34,11 @@ just works. After this, the workflow appears under the **Actions** tab.
 4. Click **Download API Key** — this gives you a file named `AuthKey_XXXXXXXXXX.p8`.
    You can only download it once; keep it safe.
 
-## 2. Find your Apple Team ID
+## 2. Apple Team ID (already configured)
 
-In <https://developer.apple.com/account> → **Membership details**, copy the
-**Team ID** (10 characters, e.g. `A1B2C3D4E5`).
+The Apple Team ID (`B3DB33R8JN`) is already baked into `project.yml`
+(`DEVELOPMENT_TEAM`) and the workflow, so there's nothing to do here. If you
+ever need to override it, add a repo secret named `APPLE_TEAM_ID`.
 
 ## 3. Base64-encode the .p8 key
 
@@ -49,7 +50,7 @@ The key has to go into a GitHub secret as one line. Encode it:
 
 Copy the resulting single-line string.
 
-## 4. Add the four repository secrets
+## 4. Add the three repository secrets
 
 In GitHub: repo → **Settings** → **Secrets and variables** → **Actions** →
 **New repository secret**. Add each of:
@@ -59,7 +60,8 @@ In GitHub: repo → **Settings** → **Secrets and variables** → **Actions** �
 | `ASC_KEY_ID` | The Key ID from step 1 (e.g. `XXXXXXXXXX`) |
 | `ASC_ISSUER_ID` | The Issuer ID from step 1 |
 | `ASC_KEY_P8_BASE64` | The base64 string from step 3 |
-| `APPLE_TEAM_ID` | The Team ID from step 2 |
+
+(The Apple Team ID is already configured — see step 2.)
 
 ## 5. Bump the version for the resubmission
 
