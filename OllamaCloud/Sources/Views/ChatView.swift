@@ -40,6 +40,9 @@ struct ChatView: View {
     @State private var attachmentError: String?
     @State private var scaffoldPersistenceError: String?
     @State private var exportError: String?
+    #if os(iOS)
+    @State private var exportShareItem: ExportShareItem?
+    #endif
     @State private var showVisionModelWarning = false
     @State private var forkParentID: UUID?
     #if os(macOS)
@@ -126,6 +129,17 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .macPointingCursor()
             }
+            #else
+            ToolbarItem(placement: .seerTrailing) {
+                Button {
+                    shareConversation()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .ultraLight))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .disabled(conversation.messages.isEmpty)
+            }
             #endif
         }
     }
@@ -172,6 +186,12 @@ struct ChatView: View {
                 #endif
                 .macSheetFixedSize(SeerSheetSize.scaffoldLibrary)
             }
+            #if os(iOS)
+            .sheet(item: $exportShareItem) { item in
+                ShareSheet(activityItems: [item.url])
+                    .presentationDetents([.medium, .large])
+            }
+            #endif
             .onChange(of: streaming.error) { _, newError in
                 if newError != nil {
                     Haptic.notification(.error)
@@ -1514,6 +1534,7 @@ struct ChatView: View {
             }
         }
     }
+    #endif
 
     private var defaultExportFilename: String {
         let raw = conversation.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1549,6 +1570,22 @@ struct ChatView: View {
         }
 
         return content
+    }
+
+    #if os(iOS)
+    /// Writes the conversation as a Markdown file to a temp location and presents
+    /// the iOS share sheet so it can be saved to Files, messaged, mailed, etc.
+    private func shareConversation() {
+        do {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(defaultExportFilename)
+            try markdownExportContent.write(to: url, atomically: true, encoding: .utf8)
+            exportShareItem = ExportShareItem(url: url)
+            Haptic.impact()
+        } catch {
+            exportError = error.localizedDescription
+            Haptic.notification(.error)
+        }
     }
     #endif
 
@@ -1748,3 +1785,22 @@ struct ChatView: View {
     }
     #endif
 }
+
+#if os(iOS)
+/// Identifiable wrapper so the exported file URL can drive `.sheet(item:)`.
+private struct ExportShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// Thin SwiftUI bridge to `UIActivityViewController` for the iOS share sheet.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+#endif

@@ -9,6 +9,7 @@ struct ConversationListView: View {
     @State private var showModelPicker = false
     @State private var pendingConversation: Conversation?
     @State private var persistenceError: String?
+    @State private var searchText = ""
     #if os(macOS)
     @State private var hoveredConversationID: UUID?
     @State private var isHoveringNewChatButton = false
@@ -39,6 +40,21 @@ struct ConversationListView: View {
         }
     }
 
+    /// `sortedConversations` narrowed by the search field. Matches the chat
+    /// title or the text of any message in the conversation (case-insensitive).
+    private var filteredConversations: [Conversation] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return sortedConversations }
+        return sortedConversations.filter { conversation in
+            if conversation.title.lowercased().contains(query) { return true }
+            return conversation.messages.contains { $0.content.lowercased().contains(query) }
+        }
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         List(selection: $selection) {
             #if os(macOS)
@@ -61,7 +77,7 @@ struct ConversationListView: View {
                 }
             }
             #endif
-            ForEach(sortedConversations) { conversation in
+            ForEach(filteredConversations) { conversation in
                 conversationRow(conversation)
             }
             .onDelete(perform: deleteConversations)
@@ -69,6 +85,7 @@ struct ConversationListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.bgPrimary)
+        .searchable(text: $searchText, prompt: "Search chats")
         #if os(macOS)
         .animation(.easeOut(duration: 0.14), value: selection?.id)
         .safeAreaInset(edge: .bottom) {
@@ -157,6 +174,17 @@ struct ConversationListView: View {
                     Text("Let's Party")
                         .font(.app(15, weight: .light))
                         .foregroundStyle(Color.textTertiary)
+                }
+            } else if isSearching && filteredConversations.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 30, weight: .ultraLight))
+                        .foregroundStyle(Color.textTertiary)
+                    Text("No chats match \u{201C}\(searchText)\u{201D}")
+                        .font(.app(14, weight: .light))
+                        .foregroundStyle(Color.textTertiary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
             }
         }
@@ -274,8 +302,10 @@ struct ConversationListView: View {
     }
 
     private func deleteConversations(at offsets: IndexSet) {
+        let visible = filteredConversations
         for index in offsets {
-            let conversation = sortedConversations[index]
+            guard index < visible.count else { continue }
+            let conversation = visible[index]
             if selection?.id == conversation.id { selection = nil }
             modelContext.delete(conversation)
         }
