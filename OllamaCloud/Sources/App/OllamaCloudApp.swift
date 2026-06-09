@@ -11,21 +11,41 @@ private enum AppModelContainer {
             ProjectFile.self
         ])
 
+        let configuration = ModelConfiguration("OllamaCloud", schema: schema)
+
         do {
-            let configuration = ModelConfiguration("OllamaCloud", schema: schema)
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
-            // If the on-disk store cannot be opened (schema drift/corruption),
-            // fail open with an in-memory container so the app still launches.
-            print("Failed to create persistent model container, falling back to in-memory store: \(error)")
+            // The on-disk store couldn't be opened — almost always schema drift
+            // across app updates (there is no migration plan). Rather than
+            // silently running in-memory (which loses every chat on relaunch),
+            // reset the store once and recreate a PERSISTENT container so new
+            // chats actually save going forward.
+            print("Persistent store failed to open (\(error)). Resetting store and retrying.")
+            destroyStoreFiles(at: configuration.url)
             do {
-                let fallback = ModelConfiguration("OllamaCloud-Recovery", schema: schema, isStoredInMemoryOnly: true)
-                return try ModelContainer(for: schema, configurations: [fallback])
+                return try ModelContainer(for: schema, configurations: [configuration])
             } catch {
-                fatalError("Failed to create fallback in-memory model container: \(error)")
+                // True last resort: in-memory so the app at least launches.
+                print("Reset store still failed (\(error)). Falling back to in-memory.")
+                do {
+                    let fallback = ModelConfiguration("OllamaCloud-Recovery", schema: schema, isStoredInMemoryOnly: true)
+                    return try ModelContainer(for: schema, configurations: [fallback])
+                } catch {
+                    fatalError("Failed to create fallback in-memory model container: \(error)")
+                }
             }
         }
     }()
+
+    /// Remove the SQLite store and its WAL/SHM sidecar files so a fresh
+    /// persistent store can be created in its place.
+    private static func destroyStoreFiles(at url: URL) {
+        let fileManager = FileManager.default
+        for path in [url.path, url.path + "-wal", url.path + "-shm"] {
+            try? fileManager.removeItem(atPath: path)
+        }
+    }
 }
 
 @main
