@@ -10,7 +10,8 @@ enum AppConfig {
     private static let defaultSeerBackingModelName = "qwen3.5:397b-cloud"
 
     /// Public privacy policy, surfaced in the data-sharing consent gate and Settings.
-    static let privacyPolicyURL = "https://github.com/Cole-Will-I-Am/Ollama-Cloud-App/blob/main/PRIVACY.md"
+    /// Hosted on the website so the app and site share one canonical policy.
+    static let privacyPolicyURL = "https://manticthink.com/privacy"
 
     static var apiBaseURL: String {
         let defaultsValue = UserDefaults.standard.string(forKey: apiBaseURLKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
