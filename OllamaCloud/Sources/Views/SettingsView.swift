@@ -14,6 +14,7 @@ struct SettingsView: View {
     #endif
     @AppStorage("hasAPIKey") private var hasAPIKey = false
     @AppStorage("hasOpenAIKey") private var hasOpenAIKey = false
+    @AppStorage("visualizations_enabled") private var visualizationsEnabled = true
     @State private var showRemoveConfirmation = false
     @State private var showRemoveOpenAIConfirmation = false
     @State private var openAIKeyInput = ""
@@ -282,6 +283,36 @@ struct SettingsView: View {
                             #endif
                         }
                         .padding(16)
+                    }
+
+                    // Chat behavior
+                    section("CHAT") {
+                        VStack(spacing: 0) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.accent.opacity(0.12))
+                                        .frame(width: 38, height: 38)
+                                    Image(systemName: "chart.bar.xaxis")
+                                        .font(.system(size: 14, weight: .ultraLight))
+                                        .foregroundStyle(Color.accent)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Visualizations")
+                                        .font(.app(15, weight: .medium))
+                                        .foregroundStyle(Color.textPrimary)
+                                    Text("Let the model render charts, tables, and dashboards")
+                                        .font(.app(12))
+                                        .foregroundStyle(Color.textTertiary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer()
+                                Toggle("", isOn: $visualizationsEnabled)
+                                    .labelsHidden()
+                                    .toggleStyle(.switch)
+                            }
+                            .padding(16)
+                        }
                     }
 
                     // MCP Servers (macOS only)

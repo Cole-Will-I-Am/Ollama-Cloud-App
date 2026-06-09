@@ -18,6 +18,7 @@ struct ChatView: View {
     @Bindable var conversation: Conversation
     var project: Project?
     @StateObject private var streaming = StreamingChatService()
+    @AppStorage("visualizations_enabled") private var visualizationsEnabled = true
     @State private var input = ""
     @State private var showModelPicker = false
     @State private var showParameters = false
@@ -1153,7 +1154,7 @@ struct ChatView: View {
         Haptic.impact()
 
         Task {
-            var tools: [ChatTool] = VisualsToolkit.tools
+            var tools: [ChatTool] = visualizationsEnabled ? VisualsToolkit.tools : []
             if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
@@ -1337,7 +1338,7 @@ struct ChatView: View {
 
         Haptic.impact()
         Task {
-            var tools: [ChatTool] = VisualsToolkit.tools
+            var tools: [ChatTool] = visualizationsEnabled ? VisualsToolkit.tools : []
             if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
@@ -1366,7 +1367,7 @@ struct ChatView: View {
 
         Haptic.impact()
         Task {
-            var tools: [ChatTool] = VisualsToolkit.tools
+            var tools: [ChatTool] = visualizationsEnabled ? VisualsToolkit.tools : []
             if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)

@@ -206,13 +206,22 @@ class StreamingChatService: ObservableObject {
             ? conversation.branchMessages(leafID: currentLeafID!)
             : conversation.messages.sorted { $0.createdAt < $1.createdAt }
         let systemPrompt: String = {
+            let base: String
             if provider == .openai {
-                return conversation.systemPrompt
+                base = conversation.systemPrompt
+            } else {
+                base = SeerAssistantProfile.mergedSystemPrompt(
+                    baseSystemPrompt: conversation.systemPrompt,
+                    selectedModelName: selectedModel
+                )
             }
-            return SeerAssistantProfile.mergedSystemPrompt(
-                baseSystemPrompt: conversation.systemPrompt,
-                selectedModelName: selectedModel
-            )
+            // When tools are attached, instruct the model not to recite them, so
+            // it doesn't introduce itself by listing chart/table/etc. capabilities.
+            guard let tools, !tools.isEmpty else { return base }
+            let guidance = "You may have rendering or utility tools available. Use a tool only when the user clearly wants that result. Never list, describe, or advertise your tools, and do not introduce yourself by your capabilities — just answer the user's message directly. For a greeting, reply with one short, friendly sentence."
+            return base.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? guidance
+                : "\(base)\n\n\(guidance)"
         }()
         let requestMessages = Self.buildOutboundMessages(
             conversationMessages: branchMessages,
