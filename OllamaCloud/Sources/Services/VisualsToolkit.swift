@@ -253,12 +253,16 @@ enum VisualsToolkit {
     }
 
     private static func jsonStringArray(_ values: [JSONValue]) -> String {
-        let strings = values.compactMap(\.stringValue).map { "\"\(escapeJS($0))\"" }
+        // Coerce every entry to a string (numbers/bools included) so numeric
+        // labels aren't dropped and the array stays length-aligned with its pair.
+        let strings = values.map { "\"\(escapeJS(coerceString($0)))\"" }
         return "[\(strings.joined(separator: ","))]"
     }
 
     private static func jsonNumberArray(_ values: [JSONValue]) -> String {
-        let numbers = values.compactMap(\.numberValue).map { formatNumber($0) }
+        // Coerce string-encoded numbers ("42", "1,200", "3%") so models that
+        // emit numbers as strings still chart correctly.
+        let numbers = values.compactMap { coerceNumber($0) }.map { formatNumber($0) }
         return "[\(numbers.joined(separator: ","))]"
     }
 
@@ -269,12 +273,57 @@ enum VisualsToolkit {
         return String(n)
     }
 
+    /// Tolerant number extraction: accepts JSON numbers, numeric strings
+    /// (stripping commas/%/$/whitespace), and bools. Models frequently emit
+    /// numbers as strings; without this they would be silently dropped.
+    private static func coerceNumber(_ value: JSONValue) -> Double? {
+        switch value {
+        case .number(let n): return n
+        case .bool(let b): return b ? 1 : 0
+        case .string(let s):
+            let cleaned = s.trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: ",", with: "")
+                .replacingOccurrences(of: "%", with: "")
+                .replacingOccurrences(of: "$", with: "")
+            return Double(cleaned)
+        default: return nil
+        }
+    }
+
+    /// Tolerant string extraction: stringifies numbers and bools too.
+    private static func coerceString(_ value: JSONValue) -> String {
+        switch value {
+        case .string(let s): return s
+        case .number(let n): return formatNumber(n)
+        case .bool(let b): return b ? "true" : "false"
+        default: return ""
+        }
+    }
+
+    /// Tolerant bool extraction: accepts bools, 0/1 numbers, and yes/no strings.
+    private static func coerceBool(_ value: JSONValue) -> Bool? {
+        switch value {
+        case .bool(let b): return b
+        case .number(let n): return n != 0
+        case .string(let s):
+            switch s.trimmingCharacters(in: .whitespaces).lowercased() {
+            case "true", "yes", "1", "on": return true
+            case "false", "no", "0", "off": return false
+            default: return nil
+            }
+        default: return nil
+        }
+    }
+
     private static func getString(_ args: [String: JSONValue], _ key: String, default defaultValue: String = "") -> String {
-        args[key]?.stringValue ?? defaultValue
+        guard let v = args[key] else { return defaultValue }
+        if case .null = v { return defaultValue }
+        let s = coerceString(v)
+        return s.isEmpty ? defaultValue : s
     }
 
     private static func getNumber(_ args: [String: JSONValue], _ key: String, default defaultValue: Double? = nil) -> Double? {
-        args[key]?.numberValue ?? defaultValue
+        args[key].flatMap { coerceNumber($0) } ?? defaultValue
     }
 
     private static func getArray(_ args: [String: JSONValue], _ key: String) -> [JSONValue]? {
@@ -282,7 +331,7 @@ enum VisualsToolkit {
     }
 
     private static func getBool(_ args: [String: JSONValue], _ key: String, default defaultValue: Bool = false) -> Bool {
-        args[key]?.boolValue ?? defaultValue
+        args[key].flatMap { coerceBool($0) } ?? defaultValue
     }
 
     // MARK: - HTML Template
@@ -522,8 +571,8 @@ enum VisualsToolkit {
         }
         let title = getString(args, "title", default: "Comparison")
 
-        let itemNames = items.compactMap(\.stringValue)
-        let criteriaNames = criteria.compactMap(\.stringValue)
+        let itemNames = items.map { coerceString($0) }
+        let criteriaNames = criteria.map { coerceString($0) }
 
         var html = "<h2>\(escapeJS(title))</h2>"
         html += "<div class=\"chart-container\"><table><thead><tr><th>Criteria</th>"
@@ -750,7 +799,7 @@ enum VisualsToolkit {
             guard let obj = step.objectValue else { continue }
             let id = obj["id"]?.stringValue ?? ""
             let label = obj["label"]?.stringValue ?? id
-            let next = obj["next"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let next = obj["next"]?.arrayValue?.map { coerceString($0) } ?? []
             stepList.append((id: id, label: label, next: next))
         }
 
@@ -938,9 +987,9 @@ enum VisualsToolkit {
         var values: [String] = []
         for link in links {
             guard let obj = link.objectValue else { continue }
-            if let s = obj["source"]?.numberValue { sources.append(formatNumber(s)) }
-            if let t = obj["target"]?.numberValue { targets.append(formatNumber(t)) }
-            if let v = obj["value"]?.numberValue { values.append(formatNumber(v)) }
+            if let sv = obj["source"], let s = coerceNumber(sv) { sources.append(formatNumber(s)) }
+            if let tv = obj["target"], let t = coerceNumber(tv) { targets.append(formatNumber(t)) }
+            if let vv = obj["value"], let v = coerceNumber(vv) { values.append(formatNumber(v)) }
         }
 
         let plotJS = """
@@ -972,7 +1021,7 @@ enum VisualsToolkit {
         }
         let title = getString(args, "title")
 
-        let catLabels = categories.compactMap(\.stringValue)
+        let catLabels = categories.map { coerceString($0) }
         var traces: [String] = []
         for (i, s) in seriesArr.enumerated() {
             guard let obj = s.objectValue,
