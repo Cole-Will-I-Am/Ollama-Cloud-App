@@ -190,7 +190,11 @@ struct ChatView: View {
                 .macSheetFixedSize(SeerSheetSize.scaffoldLibrary)
             }
             #if os(iOS)
-            .sheet(item: $exportShareItem) { item in
+            .sheet(item: $exportShareItem, onDismiss: {
+                // Remove the temporary export file once the share sheet closes.
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(defaultExportFilename)
+                try? FileManager.default.removeItem(at: tempURL)
+            }) { item in
                 ShareSheet(activityItems: [item.url])
                     .presentationDetents([.medium, .large])
             }
@@ -231,6 +235,8 @@ struct ChatView: View {
                     showFileImporter = true
                 }
                 Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Only vision-capable models can read images. Voice dictation is transcribed to text, so it works with any model.")
             }
             .photosPicker(
                 isPresented: $showPhotoPicker,

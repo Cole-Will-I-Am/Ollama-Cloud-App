@@ -31,11 +31,26 @@ final class SpeechDictation: ObservableObject {
                 guard let self else { return }
                 switch authStatus {
                 case .authorized:
-                    self.beginSession()
+                    self.ensureMicrophoneThenBegin()
                 case .denied, .restricted:
                     self.errorMessage = "Speech recognition is turned off for SEER. Enable it in Settings › Privacy & Security."
                 default:
                     self.errorMessage = "Speech recognition isn't available."
+                }
+            }
+        }
+    }
+
+    /// Speech recognition is authorized; make sure the microphone is too before
+    /// starting, so a denied mic gives a clear message instead of silent failure.
+    private func ensureMicrophoneThenBegin() {
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if granted {
+                    self.beginSession()
+                } else {
+                    self.errorMessage = "Microphone access is off for SEER. Enable it in Settings › Privacy & Security › Microphone."
                 }
             }
         }
