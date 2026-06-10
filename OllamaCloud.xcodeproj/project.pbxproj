@@ -842,7 +842,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_CFBundleDisplayName = SEER;
 				INFOPLIST_KEY_CFBundleName = SEER;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SEER uses the microphone to let you dictate messages by voice.";
@@ -867,7 +866,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_CFBundleDisplayName = SEER;
 				INFOPLIST_KEY_CFBundleName = SEER;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SEER uses the microphone to let you dictate messages by voice.";
