@@ -41,6 +41,7 @@ Most AI chat apps give you a text box and a send button. SEER gives you control 
 - Stream responses from 100+ cloud models via Ollama
 - Rich Markdown rendering with syntax-highlighted code blocks
 - Collapsible thinking/reasoning sections for supported models
+- Attach images, local files, and GitHub repository files as context
 - Pin, search, and organize conversations
 - Dark-mode-first OLED-optimized interface
 - Keychain-secured API key storage
@@ -313,6 +314,7 @@ SEER on iOS is a fully featured mobile client — not a stripped-down companion 
 - **iOS haptics** — `UIImpactFeedbackGenerator` and `UINotificationFeedbackGenerator` for tactile feedback
 - **Photo picker** — attach images from your library for vision-capable models
 - **File importer** — attach text files directly from the Files app
+- **GitHub repository context** — connect a read-only token, browse repos/branches, and attach selected source files to chat
 - **Full scaffold support** — same Reasoning Scaffold library and builder as macOS
 - **Full parameter control** — same model tuning capabilities as macOS
 
@@ -322,7 +324,7 @@ Everything that runs on macOS — streaming, scaffolds, model parameters, thinki
 
 ## Security & Privacy
 
-- **Keychain storage** — your API key is stored in the system Keychain with device-locked accessibility, never in plain text or UserDefaults
+- **Keychain storage** — your API keys and optional GitHub token are stored in the system Keychain with device-locked accessibility, never in plain text or UserDefaults
 - **Account isolation** — conversations, scaffolds, and favorites are scoped by a SHA-256 fingerprint of your API key and host. Different accounts never see each other's data
 - **Ephemeral code execution** — code runs in a scoped temp workspace that's cleaned up after every execution. No persistent side effects
 - **Network monitoring** — real-time connectivity detection with offline banners and automatic retry logic

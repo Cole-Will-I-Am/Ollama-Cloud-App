@@ -96,6 +96,7 @@
 		9EBEB2D9326ABF471BD0455D /* StreamPerformanceEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7299FDABE3E1AF1E66E782 /* StreamPerformanceEdgeCaseTests.swift */; };
 		A4302729EA77D73F6926143B /* StreamingChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D6064B3BD0327DFEEDECA1 /* StreamingChatService.swift */; };
 		A45AB7B499240DBB0A915C47 /* CodeToolkit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D2462AD0F1DC81717C1687 /* CodeToolkit.swift */; };
+		A9E3BC056FA5FA2EEB8FC1A5 /* GitHubAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31206795016E6B1BEED43B9 /* GitHubAPIClient.swift */; };
 		A85DD99C93DDB4F87DEEC06F /* CodeToolkit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D2462AD0F1DC81717C1687 /* CodeToolkit.swift */; };
 		ACABEDE65D22ABA53098762E /* CodeBlockExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FE1F9192F8E66EFDC0C5A8 /* CodeBlockExtractor.swift */; };
 		AF93E009596757C0A702A003 /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4DCE8F6E13E4D0C69D29D0 /* ChatRequest.swift */; };
@@ -150,6 +151,9 @@
 		FBBADA646DC2270064420E8D /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CED96AE3F69EC65C8BF0151 /* MessageRow.swift */; };
 		FC3EC19BE1D61BD8CE8031AB /* ProjectChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CECA81DA64C0A3339DF3620 /* ProjectChatPanel.swift */; };
 		FD89D1EFA94F27702649E334 /* APIKeyEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E489AD3D5B85A6D39081281 /* APIKeyEntryView.swift */; };
+		064F5A225251B8F57ABFCA6D /* GitHubContextPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97C69494E0AC58FB3874D7B /* GitHubContextPickerView.swift */; };
+		1192F8B12266D1D0601F46B5 /* GitHubContextPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97C69494E0AC58FB3874D7B /* GitHubContextPickerView.swift */; };
+		40E6EDFCC6887224CDF66A8F /* GitHubAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31206795016E6B1BEED43B9 /* GitHubAPIClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -219,12 +223,14 @@
 		BD7299FDABE3E1AF1E66E782 /* StreamPerformanceEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamPerformanceEdgeCaseTests.swift; sourceTree = "<group>"; };
 		BF2C807BD8FD23F1BE4A53F1 /* ProjectFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFile.swift; sourceTree = "<group>"; };
 		C157108DBC284AC0E0DDD9D3 /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
+		C31206795016E6B1BEED43B9 /* GitHubAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubAPIClient.swift; sourceTree = "<group>"; };
 		C3AC4FA4CA0DDA4D0161FEBD /* HTMLContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLContentView.swift; sourceTree = "<group>"; };
 		CBF233A86DE1E6499CFBB4F4 /* CodeBlockOutputState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockOutputState.swift; sourceTree = "<group>"; };
 		CD54BE49E032350F3710101B /* CodeExecutionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeExecutionServiceTests.swift; sourceTree = "<group>"; };
 		CDC9CFAD7F5434EBB1D702C1 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		CF351752934BA98234BB1E1B /* TypingIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicator.swift; sourceTree = "<group>"; };
 		D2DA05C02081EF310663C087 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		D97C69494E0AC58FB3874D7B /* GitHubContextPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubContextPickerView.swift; sourceTree = "<group>"; };
 		DCAEB5AC8AF71CD6E2541AFE /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		DE4DCE8F6E13E4D0C69D29D0 /* ChatRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequest.swift; sourceTree = "<group>"; };
 		DEB0C547F97A26C9662FCB11 /* OllamaAPIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaAPIErrorTests.swift; sourceTree = "<group>"; };
@@ -278,6 +284,7 @@
 				B4D42CA85D710F45C8FFBC24 /* ConversationListView.swift */,
 				ACB37823DDAA8A97B6362856 /* DataSharingConsentView.swift */,
 				B7D09C01C84B5E0AC860BD0D /* FileTreeView.swift */,
+				D97C69494E0AC58FB3874D7B /* GitHubContextPickerView.swift */,
 				C3AC4FA4CA0DDA4D0161FEBD /* HTMLContentView.swift */,
 				F6BD5F6BDD83FDEC7CA71BB1 /* MCPServerStatusView.swift */,
 				6CED96AE3F69EC65C8BF0151 /* MessageRow.swift */,
@@ -403,6 +410,7 @@
 			children = (
 				36C42AA0F8E983B9F158CD6D /* CodeExecutionService.swift */,
 				04D2462AD0F1DC81717C1687 /* CodeToolkit.swift */,
+				C31206795016E6B1BEED43B9 /* GitHubAPIClient.swift */,
 				E0B3AA6A3E7648E5A582C4C8 /* MCPClientManager.swift */,
 				0F29E4CBA2141576997723C8 /* NetworkMonitor.swift */,
 				12256D4D19A42943C34F8966 /* OllamaAPIClient.swift */,
@@ -597,6 +605,8 @@
 				F7B888D84AA4D6F8ECEC757F /* ConversationListView.swift in Sources */,
 				9C174066E1DF0C345C0C2277 /* DataSharingConsentView.swift in Sources */,
 				F40F8DB38ECBEA74D13AA8AD /* FileTreeView.swift in Sources */,
+				A9E3BC056FA5FA2EEB8FC1A5 /* GitHubAPIClient.swift in Sources */,
+				064F5A225251B8F57ABFCA6D /* GitHubContextPickerView.swift in Sources */,
 				20C35328DBD277F6A56A50AF /* HTMLContentView.swift in Sources */,
 				77914FF392CD519D2D693697 /* JSONValue.swift in Sources */,
 				847590C83B16D40774CAD978 /* KeychainHelper.swift in Sources */,
@@ -694,6 +704,8 @@
 				1103401FB21E53A4B19730E2 /* ConversationListView.swift in Sources */,
 				F30D3FF62D601B2903855926 /* DataSharingConsentView.swift in Sources */,
 				07004243B24C69EF2C5BAC41 /* FileTreeView.swift in Sources */,
+				40E6EDFCC6887224CDF66A8F /* GitHubAPIClient.swift in Sources */,
+				1192F8B12266D1D0601F46B5 /* GitHubContextPickerView.swift in Sources */,
 				27012023CA8459BB27AE2022 /* HTMLContentView.swift in Sources */,
 				22B19661F1F58B20D169C64E /* JSONValue.swift in Sources */,
 				162520C6654AF346D78B59EB /* KeychainHelper.swift in Sources */,
@@ -949,7 +961,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1031,7 +1043,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

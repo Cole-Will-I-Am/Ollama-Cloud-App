@@ -6,6 +6,7 @@ enum SeerSheetSize {
     static let scaffoldLibrary = CGSize(width: 620, height: 680)
     static let scaffoldTemplatePicker = CGSize(width: 500, height: 560)
     static let scaffoldBuilder = CGSize(width: 760, height: 780)
+    static let githubContextPicker = CGSize(width: 660, height: 720)
 }
 
 extension View {

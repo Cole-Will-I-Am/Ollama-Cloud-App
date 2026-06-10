@@ -35,6 +35,7 @@ struct ChatView: View {
     @State private var showScaffoldLibrary = false
     @State private var showPhotoPicker = false
     @State private var showFileImporter = false
+    @State private var showGitHubBrowser = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var pendingImageAttachments: [PendingImageAttachment] = []
     @State private var pendingFileAttachments: [PendingFileAttachment] = []
@@ -189,6 +190,15 @@ struct ChatView: View {
                 #endif
                 .macSheetFixedSize(SeerSheetSize.scaffoldLibrary)
             }
+            .sheet(isPresented: $showGitHubBrowser) {
+                GitHubContextPickerView { files in
+                    attachGitHubContextFiles(files)
+                }
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
+                .macSheetFixedSize(SeerSheetSize.githubContextPicker)
+            }
             #if os(iOS)
             .sheet(item: $exportShareItem, onDismiss: {
                 // Remove the temporary export file once the share sheet closes.
@@ -234,9 +244,12 @@ struct ChatView: View {
                 Button("Files") {
                     showFileImporter = true
                 }
+                Button("GitHub Repository") {
+                    showGitHubBrowser = true
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Only vision-capable models can read images. Voice dictation is transcribed to text, so it works with any model.")
+                Text("Attach images, local text files, or GitHub repository files as context for your next message.")
             }
             .photosPicker(
                 isPresented: $showPhotoPicker,
@@ -883,7 +896,7 @@ struct ChatView: View {
                     #endif
                     .disabled(streaming.isStreaming)
                     .accessibilityLabel("Add attachment")
-                    .accessibilityHint("Attach photos or text files to your next message")
+                    .accessibilityHint("Attach photos, local files, or GitHub repository files to your next message")
 
                     if AppConfig.reasoningScaffoldsEnabled {
                         Button {
@@ -1692,8 +1705,10 @@ struct ChatView: View {
 
         let sections = pendingFileAttachments.map { file in
             """
-            [Attached File: \(file.name)]
+            ## Attached file: \(file.name)
+            ```
             \(file.content)
+            ```
             """
         }.joined(separator: "\n\n")
 
@@ -1800,6 +1815,20 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    private func attachGitHubContextFiles(_ files: [GitHubContextFile]) {
+        guard !files.isEmpty else { return }
+        for file in files {
+            pendingFileAttachments.append(
+                PendingFileAttachment(
+                    name: file.name,
+                    content: file.content,
+                    originalCharacterCount: file.originalCharacterCount
+                )
+            )
+        }
+        Haptic.selection()
     }
 
     private func decodeTextFile(data: Data) -> String? {
