@@ -11,6 +11,6 @@ final class OllamaAPIErrorTests: XCTestCase {
 
     func testUserMessagesAreFriendly() {
         XCTAssertEqual(OllamaAPIError.timeout.userMessage, "Request timed out. Try again.")
-        XCTAssertEqual(OllamaAPIError.unauthorized.userMessage, "Invalid API key. Update it in Settings.")
+        XCTAssertEqual(OllamaAPIError.unauthorized.userMessage, "Invalid API key. Remove it in Settings and re-enter.")
     }
 }

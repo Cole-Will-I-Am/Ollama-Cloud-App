@@ -2,40 +2,53 @@ import XCTest
 @testable import OllamaCloud
 
 final class CodeExecutionServiceTests: XCTestCase {
-    func testRequiresInteractiveInputDetectsPythonInput() {
-        let code = """
-        name = input("Name: ")
-        print(name)
-        """
-
-        XCTAssertTrue(CodeExecutionService.requiresInteractiveInput(code: code, language: .python))
+    func testLanguageMappingFromMarkdownTags() {
+        XCTAssertEqual(ExecutableLanguage.from(markdownLanguage: "python3"), .python)
+        XCTAssertEqual(ExecutableLanguage.from(markdownLanguage: "py"), .python)
+        XCTAssertEqual(ExecutableLanguage.from(markdownLanguage: "node"), .javascript)
+        XCTAssertEqual(ExecutableLanguage.from(markdownLanguage: "JS"), .javascript)
+        XCTAssertEqual(ExecutableLanguage.from(markdownLanguage: "zsh"), .shell)
+        XCTAssertNil(ExecutableLanguage.from(markdownLanguage: "swift"))
+        XCTAssertNil(ExecutableLanguage.from(markdownLanguage: nil))
     }
 
-    func testRequiresInteractiveInputDetectsJavaScriptPrompt() {
+    func testPlatformAvailability() {
+        #if os(iOS)
+        XCTAssertTrue(ExecutableLanguage.javascript.isAvailableOnCurrentPlatform)
+        XCTAssertFalse(ExecutableLanguage.python.isAvailableOnCurrentPlatform)
+        XCTAssertFalse(ExecutableLanguage.shell.isAvailableOnCurrentPlatform)
+        #else
+        XCTAssertTrue(ExecutableLanguage.python.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(ExecutableLanguage.javascript.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(ExecutableLanguage.shell.isAvailableOnCurrentPlatform)
+        #endif
+    }
+
+    func testDetectsNodeStyleInteractiveJavaScript() {
+        let code = """
+        const readline = require('readline');
+        const rl = readline.createInterface({ input: process.stdin });
+        """
+
+        XCTAssertTrue(CodeExecutionService.usesNodeStyleInteractiveJavaScript(code))
+    }
+
+    func testDetectsPromptStyleJavaScript() {
         let code = """
         const age = prompt("Age?");
         console.log(age);
         """
 
-        XCTAssertTrue(CodeExecutionService.requiresInteractiveInput(code: code, language: .javascript))
+        XCTAssertTrue(CodeExecutionService.usesPromptStyleJavaScript(code))
     }
 
-    func testRequiresInteractiveInputDetectsShellRead() {
+    func testNonInteractiveJavaScriptIsNotFlagged() {
         let code = """
-        echo "Enter value"
-        read value
-        echo "$value"
+        const value = 42;
+        console.log(value);
         """
 
-        XCTAssertTrue(CodeExecutionService.requiresInteractiveInput(code: code, language: .shell))
-    }
-
-    func testRequiresInteractiveInputFalseForNonInteractivePython() {
-        let code = """
-        value = 42
-        print(value)
-        """
-
-        XCTAssertFalse(CodeExecutionService.requiresInteractiveInput(code: code, language: .python))
+        XCTAssertFalse(CodeExecutionService.usesNodeStyleInteractiveJavaScript(code))
+        XCTAssertFalse(CodeExecutionService.usesPromptStyleJavaScript(code))
     }
 }

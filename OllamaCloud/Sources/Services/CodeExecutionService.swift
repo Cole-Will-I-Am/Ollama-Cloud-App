@@ -452,7 +452,7 @@ enum CodeExecutionService {
         return clean.hasSuffix("\n") ? clean : "\(clean)\n"
     }
 
-    private static func usesNodeStyleInteractiveJavaScript(_ code: String) -> Bool {
+    static func usesNodeStyleInteractiveJavaScript(_ code: String) -> Bool {
         let lower = code.lowercased()
         return lower.contains("readline.createinterface(")
             || lower.contains("require('readline'")
@@ -460,7 +460,7 @@ enum CodeExecutionService {
             || lower.contains("node:readline")
     }
 
-    private static func usesPromptStyleJavaScript(_ code: String) -> Bool {
+    static func usesPromptStyleJavaScript(_ code: String) -> Bool {
         let lower = code.lowercased()
         return lower.contains("prompt(") || lower.contains("readline(")
     }
