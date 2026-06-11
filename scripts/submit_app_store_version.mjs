@@ -7,6 +7,7 @@ const versionString = requireEnv("APP_VERSION");
 const buildNumber = requireEnv("BUILD_NUMBER");
 const submitForReview = parseBool(process.env.SUBMIT_FOR_REVIEW || "false");
 const maxWaitMinutes = Number(process.env.MAX_WAIT_MINUTES || "30");
+const reviewSubmissionOverrideId = process.env.REVIEW_SUBMISSION_ID?.trim();
 
 const token = makeToken();
 
@@ -310,6 +311,12 @@ async function submit(appId, appStoreVersionId) {
 }
 
 async function findOrCreateReviewSubmission(appId, appStoreVersionId) {
+  if (reviewSubmissionOverrideId) {
+    const response = await api("GET", `/reviewSubmissions/${reviewSubmissionOverrideId}`);
+    console.log(`Using review submission override ${reviewSubmissionOverrideId}`);
+    return { reviewSubmission: response.data, hasItem: true };
+  }
+
   const existing = await listReviewSubmissions(appId);
   const reusableStates = new Set([
     "READY_FOR_REVIEW",

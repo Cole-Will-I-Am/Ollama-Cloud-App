@@ -15,6 +15,10 @@ on:
         description: "Submit to App Review after attaching the build"
         type: boolean
         default: true
+      review_submission_id:
+        description: "Existing review submission ID to submit, if App Store Connect already created one"
+        required: false
+        default: ""
 
 jobs:
   submit:
@@ -27,6 +31,7 @@ jobs:
       APP_VERSION: ${{ inputs.version }}
       BUILD_NUMBER: ${{ inputs.build }}
       SUBMIT_FOR_REVIEW: ${{ inputs.submit }}
+      REVIEW_SUBMISSION_ID: ${{ inputs.review_submission_id }}
       BUNDLE_ID: com.colecantcode.ollamacloud
       MAX_WAIT_MINUTES: "30"
     steps:
