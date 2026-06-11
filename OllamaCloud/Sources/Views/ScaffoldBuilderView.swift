@@ -301,6 +301,9 @@ struct ScaffoldBuilderView: View {
             onSave?(savedScaffold)
             dismiss()
         } catch {
+            // Undo the in-memory insert/edits so they can't be committed later
+            // by an unrelated save.
+            modelContext.rollback()
             saveError = "Failed to save reasoning scaffold."
         }
     }

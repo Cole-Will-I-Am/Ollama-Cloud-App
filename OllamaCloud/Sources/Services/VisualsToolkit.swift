@@ -243,13 +243,29 @@ enum VisualsToolkit {
         ))
     }
 
+    /// Escape for use inside a JS string literal (single- or double-quoted).
+    /// `<` is escaped so model-supplied text can't break out of the
+    /// surrounding <script> block.
     private static func escapeJS(_ string: String) -> String {
         string
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "<", with: "\\u003C")
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
             .replacingOccurrences(of: "\t", with: "\\t")
+    }
+
+    /// Escape for use in HTML element context (titles, table cells, labels) —
+    /// model-supplied text must render as text, not as live markup.
+    private static func escapeHTML(_ string: String) -> String {
+        string
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 
     private static func jsonStringArray(_ values: [JSONValue]) -> String {
@@ -479,7 +495,7 @@ enum VisualsToolkit {
 
     private static func wrapPlotlyHTML(title: String, plotJS: String, height: Int = 260) -> String {
         let body = """
-        \(title.isEmpty ? "" : "<h2>\(escapeJS(title))</h2>")
+        \(title.isEmpty ? "" : "<h2>\(escapeHTML(title))</h2>")
         <div class="chart-container">
             <div id="chart" class="plotly-chart"></div>
         </div>
@@ -536,10 +552,10 @@ enum VisualsToolkit {
         }
 
         var html = ""
-        if !title.isEmpty { html += "<h2>\(escapeJS(title))</h2>" }
+        if !title.isEmpty { html += "<h2>\(escapeHTML(title))</h2>" }
         html += "<div class=\"chart-container\"><table><thead><tr>"
         for key in keyOrder {
-            html += "<th>\(escapeJS(key))</th>"
+            html += "<th>\(escapeHTML(key))</th>"
         }
         html += "</tr></thead><tbody>"
         for row in rows {
@@ -548,7 +564,7 @@ enum VisualsToolkit {
             for key in keyOrder {
                 let cell: String
                 switch obj[key] {
-                case .string(let s): cell = escapeJS(s)
+                case .string(let s): cell = escapeHTML(s)
                 case .number(let n): cell = formatNumber(n)
                 case .bool(let b): cell = b ? "true" : "false"
                 case .null: cell = ""
@@ -574,22 +590,22 @@ enum VisualsToolkit {
         let itemNames = items.map { coerceString($0) }
         let criteriaNames = criteria.map { coerceString($0) }
 
-        var html = "<h2>\(escapeJS(title))</h2>"
+        var html = "<h2>\(escapeHTML(title))</h2>"
         html += "<div class=\"chart-container\"><table><thead><tr><th>Criteria</th>"
         for item in itemNames {
-            html += "<th>\(escapeJS(item))</th>"
+            html += "<th>\(escapeHTML(item))</th>"
         }
         html += "</tr></thead><tbody>"
 
         for criterion in criteriaNames {
-            html += "<tr><td style=\"font-weight:600;color:#a0a0b0\">\(escapeJS(criterion))</td>"
+            html += "<tr><td style=\"font-weight:600;color:#a0a0b0\">\(escapeHTML(criterion))</td>"
             for item in itemNames {
                 let score: String
                 if let itemScores = scoresObj[item]?.objectValue,
                    let val = itemScores[criterion] {
                     switch val {
                     case .number(let n): score = formatNumber(n)
-                    case .string(let s): score = escapeJS(s)
+                    case .string(let s): score = escapeHTML(s)
                     default: score = "-"
                     }
                 } else {
@@ -711,7 +727,7 @@ enum VisualsToolkit {
         let columns = args["columns"]?.intValue ?? 3
 
         var html = ""
-        if !title.isEmpty { html += "<h2>\(escapeJS(title))</h2>" }
+        if !title.isEmpty { html += "<h2>\(escapeHTML(title))</h2>" }
         html += "<div class=\"metric-grid\" style=\"grid-template-columns: repeat(\(columns), 1fr);\">"
 
         for m in metrics {
@@ -741,14 +757,14 @@ enum VisualsToolkit {
                 }
                 if !deltaStr.isEmpty {
                     let cls = (deltaNum ?? 0) >= 0 ? "delta-positive" : "delta-negative"
-                    deltaHTML = "<div class=\"metric-delta \(cls)\">\(escapeJS(deltaStr))</div>"
+                    deltaHTML = "<div class=\"metric-delta \(cls)\">\(escapeHTML(deltaStr))</div>"
                 }
             }
 
             html += """
             <div class="metric-card">
-                <div class="metric-label">\(escapeJS(label))</div>
-                <div class="metric-value">\(escapeJS(value))</div>
+                <div class="metric-label">\(escapeHTML(label))</div>
+                <div class="metric-value">\(escapeHTML(value))</div>
                 \(deltaHTML)
             </div>
             """
@@ -764,7 +780,7 @@ enum VisualsToolkit {
         let title = getString(args, "title")
 
         var html = ""
-        if !title.isEmpty { html += "<h2>\(escapeJS(title))</h2>" }
+        if !title.isEmpty { html += "<h2>\(escapeHTML(title))</h2>" }
         html += "<div style=\"padding: 8px 0;\">"
 
         for event in events {
@@ -776,9 +792,9 @@ enum VisualsToolkit {
             html += """
             <div class="timeline-item">
                 <div>
-                    <div class="timeline-date">\(escapeJS(date))</div>
-                    <div class="timeline-title">\(escapeJS(eventTitle))</div>
-                    \(!desc.isEmpty ? "<div class=\"timeline-desc\">\(escapeJS(desc))</div>" : "")
+                    <div class="timeline-date">\(escapeHTML(date))</div>
+                    <div class="timeline-title">\(escapeHTML(eventTitle))</div>
+                    \(!desc.isEmpty ? "<div class=\"timeline-desc\">\(escapeHTML(desc))</div>" : "")
                 </div>
             </div>
             """
@@ -804,14 +820,14 @@ enum VisualsToolkit {
         }
 
         var html = ""
-        if !title.isEmpty { html += "<h2>\(escapeJS(title))</h2>" }
+        if !title.isEmpty { html += "<h2>\(escapeHTML(title))</h2>" }
         html += "<div class=\"chart-container\"><div class=\"flow-container\">"
 
         for (i, step) in stepList.enumerated() {
             if i > 0 {
                 html += "<div class=\"flow-arrow\">\u{2192}</div>"
             }
-            html += "<div class=\"flow-step\">\(escapeJS(step.label))</div>"
+            html += "<div class=\"flow-step\">\(escapeHTML(step.label))</div>"
         }
 
         html += "</div></div>"
@@ -830,7 +846,7 @@ enum VisualsToolkit {
             for (key, value) in obj.sorted(by: { $0.key < $1.key }) {
                 let nodeColor = color(depth)
                 html += "<li style=\"padding:3px 0;\">"
-                html += "<span style=\"color:\(nodeColor);font-weight:500;font-size:12px;\">\(escapeJS(key))</span>"
+                html += "<span style=\"color:\(nodeColor);font-weight:500;font-size:12px;\">\(escapeHTML(key))</span>"
                 if let childObj = value.objectValue, !childObj.isEmpty {
                     html += buildTreeHTML(childObj, depth: depth + 1)
                 } else {
@@ -842,7 +858,7 @@ enum VisualsToolkit {
                     default: valStr = ""
                     }
                     if !valStr.isEmpty {
-                        html += " <span style=\"color:#808090;font-size:11px;\">: \(escapeJS(valStr))</span>"
+                        html += " <span style=\"color:#808090;font-size:11px;\">: \(escapeHTML(valStr))</span>"
                     }
                 }
                 html += "</li>"
@@ -852,9 +868,9 @@ enum VisualsToolkit {
         }
 
         var html = ""
-        if !title.isEmpty { html += "<h2>\(escapeJS(title))</h2>" }
+        if !title.isEmpty { html += "<h2>\(escapeHTML(title))</h2>" }
         html += "<div class=\"chart-container\">"
-        html += "<div style=\"font-weight:600;font-size:13px;color:#c4b5fd;margin-bottom:8px;\">\(escapeJS(rootName))</div>"
+        html += "<div style=\"font-weight:600;font-size:13px;color:#c4b5fd;margin-bottom:8px;\">\(escapeHTML(rootName))</div>"
         html += buildTreeHTML(data, depth: 0)
         html += "</div>"
         return (wrapHTML(title: title, body: html), false)
@@ -867,7 +883,7 @@ enum VisualsToolkit {
         let title = getString(args, "title")
 
         var htmlParts: [String] = []
-        if !title.isEmpty { htmlParts.append("<h2>\(escapeJS(title))</h2>") }
+        if !title.isEmpty { htmlParts.append("<h2>\(escapeHTML(title))</h2>") }
         htmlParts.append("<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;\">")
 
         for component in components {

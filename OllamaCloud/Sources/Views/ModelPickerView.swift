@@ -11,6 +11,7 @@ struct ModelPickerView: View {
     @State private var models: [OllamaModel] = []
     @State private var isLoading = true
     @State private var error: String?
+    @State private var openAIError: String?
     @State private var searchText = ""
     @State private var fetchTask: Task<Void, Never>?
     @State private var favoriteModelNames: Set<String> = []
@@ -184,6 +185,14 @@ struct ModelPickerView: View {
                                         modelRow(model, isFavorite: false)
                                             .id("other-\(model.id)")
                                     }
+                                } else if let openAIError {
+                                    sectionHeader("OPENAI")
+                                    Text(openAIError)
+                                        .font(.app(12, weight: .light))
+                                        .foregroundStyle(Color.textTertiary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 6)
                                 }
                             }
                         }
@@ -444,7 +453,16 @@ struct ModelPickerView: View {
                     : []
 
                 let ollamaResults = try await ollamaFetch
-                let openAIResults = (try? await openAIFetch) ?? []
+                let openAIResults: [OllamaModel]
+                do {
+                    openAIResults = try await openAIFetch
+                    openAIError = nil
+                } catch {
+                    // Don't block the Ollama list — but say why OpenAI models
+                    // are missing instead of silently dropping them.
+                    openAIResults = []
+                    openAIError = hasOpenAIKey ? "OpenAI models unavailable. Check your key in Settings." : nil
+                }
 
                 let allModels = ollamaResults + openAIResults
                 models = allModels.sorted { lhs, rhs in

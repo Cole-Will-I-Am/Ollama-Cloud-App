@@ -53,7 +53,7 @@ struct ScaffoldLibraryView: View {
             ZStack {
                 Color.bgPrimary.ignoresSafeArea()
 
-                if filteredScaffolds.isEmpty {
+                if scaffolds.isEmpty {
                     emptyState
                 } else {
                     List {
@@ -61,10 +61,27 @@ struct ScaffoldLibraryView: View {
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
 
-                        ForEach(filteredScaffolds) { scaffold in
-                            scaffoldRow(scaffold)
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
+                        if filteredScaffolds.isEmpty {
+                            // Distinct from the no-scaffolds empty state: keep
+                            // the search field so the query can be cleared.
+                            VStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 22, weight: .ultraLight))
+                                    .foregroundStyle(Color.textTertiary)
+                                Text("No scaffolds match \"\(searchText)\"")
+                                    .font(.app(13, weight: .light))
+                                    .foregroundStyle(Color.textTertiary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 32)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        } else {
+                            ForEach(filteredScaffolds) { scaffold in
+                                scaffoldRow(scaffold)
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                            }
                         }
                     }
                     .listStyle(.plain)
@@ -289,6 +306,9 @@ struct ScaffoldLibraryView: View {
         do {
             try modelContext.save()
         } catch {
+            // Undo the in-memory insert so it can't be committed later by an
+            // unrelated save.
+            modelContext.rollback()
             persistenceError = "Failed to duplicate scaffold."
         }
     }
@@ -309,6 +329,10 @@ struct ScaffoldLibraryView: View {
                 )
             }
         } catch {
+            // Undo the in-memory delete and cleared references — otherwise the
+            // UI shows the scaffold gone while the store still has it, and the
+            // pending changes get committed by the next unrelated save.
+            modelContext.rollback()
             persistenceError = "Failed to delete scaffold."
         }
     }
