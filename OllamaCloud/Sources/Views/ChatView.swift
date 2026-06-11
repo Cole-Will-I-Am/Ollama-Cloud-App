@@ -1000,7 +1000,7 @@ struct ChatView: View {
                         #endif
                         .accessibilityLabel("Stop generation")
                     } else {
-                        Button(action: send) {
+                        Button(action: { send() }) {
                             Image(systemName: canSend ? "arrow.up" : (network.isConnected ? "arrow.up" : "wifi.slash"))
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(.white)
