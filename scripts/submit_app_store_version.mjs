@@ -205,6 +205,7 @@ async function findReusableAppStoreVersion(appId) {
   const versions = await listAppStoreVersions(appId);
   const editableStates = new Set([
     "PREPARE_FOR_SUBMISSION",
+    "READY_FOR_REVIEW",
     "DEVELOPER_REJECTED",
     "REJECTED",
     "METADATA_REJECTED"
