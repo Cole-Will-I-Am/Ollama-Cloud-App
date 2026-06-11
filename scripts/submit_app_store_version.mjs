@@ -274,24 +274,28 @@ async function attachBuild(appStoreVersionId, buildId) {
 }
 
 async function submit(appId, appStoreVersionId) {
-  const reviewSubmission = await findOrCreateReviewSubmission(appId);
+  const { reviewSubmission, hasItem } = await findOrCreateReviewSubmission(appId, appStoreVersionId);
   const reviewSubmissionId = reviewSubmission.id;
   console.log(`Review submission: ${reviewSubmissionId} state=${reviewSubmission.attributes?.state}`);
 
-  await api("POST", "/reviewSubmissionItems", {
-    data: {
-      type: "reviewSubmissionItems",
-      relationships: {
-        reviewSubmission: {
-          data: { type: "reviewSubmissions", id: reviewSubmissionId }
-        },
-        appStoreVersion: {
-          data: { type: "appStoreVersions", id: appStoreVersionId }
+  if (hasItem) {
+    console.log(`App Store version ${appStoreVersionId} is already in review submission ${reviewSubmissionId}`);
+  } else {
+    await api("POST", "/reviewSubmissionItems", {
+      data: {
+        type: "reviewSubmissionItems",
+        relationships: {
+          reviewSubmission: {
+            data: { type: "reviewSubmissions", id: reviewSubmissionId }
+          },
+          appStoreVersion: {
+            data: { type: "appStoreVersions", id: appStoreVersionId }
+          }
         }
       }
-    }
-  });
-  console.log(`Added App Store version ${appStoreVersionId} to review submission`);
+    });
+    console.log(`Added App Store version ${appStoreVersionId} to review submission`);
+  }
 
   const submitted = await api("PATCH", `/reviewSubmissions/${reviewSubmissionId}`, {
     data: {
@@ -305,16 +309,27 @@ async function submit(appId, appStoreVersionId) {
   console.log(`Submitted for review: ${submitted.data.id} state=${submitted.data.attributes?.state}`);
 }
 
-async function findOrCreateReviewSubmission(appId) {
+async function findOrCreateReviewSubmission(appId, appStoreVersionId) {
   const existing = await listReviewSubmissions(appId);
   const reusableStates = new Set([
     "READY_FOR_REVIEW",
     "INCOMPLETE"
   ]);
+
+  for (const submission of existing) {
+    if (!reusableStates.has(submission.attributes?.state)) {
+      continue;
+    }
+    if (await reviewSubmissionContainsAppStoreVersion(submission.id, appStoreVersionId)) {
+      console.log(`Reusing review submission ${submission.id} because it already contains the app version`);
+      return { reviewSubmission: submission, hasItem: true };
+    }
+  }
+
   const reusable = existing.find((submission) => reusableStates.has(submission.attributes?.state));
   if (reusable) {
     console.log(`Reusing review submission ${reusable.id} state=${reusable.attributes?.state}`);
-    return reusable;
+    return { reviewSubmission: reusable, hasItem: false };
   }
 
   const created = await api("POST", "/reviewSubmissions", {
@@ -330,7 +345,7 @@ async function findOrCreateReviewSubmission(appId) {
       }
     }
   });
-  return created.data;
+  return { reviewSubmission: created.data, hasItem: false };
 }
 
 async function listReviewSubmissions(appId) {
@@ -341,6 +356,17 @@ async function listReviewSubmissions(appId) {
   });
   const response = await api("GET", `/reviewSubmissions?${params}`);
   return response.data || [];
+}
+
+async function reviewSubmissionContainsAppStoreVersion(reviewSubmissionId, appStoreVersionId) {
+  const params = query({
+    limit: "20"
+  });
+  const response = await api("GET", `/reviewSubmissions/${reviewSubmissionId}/items?${params}`);
+  return (response.data || []).some((item) => {
+    const related = item.relationships?.appStoreVersion?.data;
+    return related?.type === "appStoreVersions" && related.id === appStoreVersionId;
+  });
 }
 
 try {
