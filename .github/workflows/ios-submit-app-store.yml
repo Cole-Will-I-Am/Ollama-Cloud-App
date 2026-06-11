@@ -1,0 +1,38 @@
+name: iOS - Submit App Store Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Marketing version to submit"
+        required: true
+        default: "1.2.1"
+      build:
+        description: "Build number to attach and submit"
+        required: true
+        default: "16"
+      submit:
+        description: "Submit to App Review after attaching the build"
+        type: boolean
+        default: true
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APP_VERSION: ${{ inputs.version }}
+      BUILD_NUMBER: ${{ inputs.build }}
+      SUBMIT_FOR_REVIEW: ${{ inputs.submit }}
+      BUNDLE_ID: com.colecantcode.ollamacloud
+      MAX_WAIT_MINUTES: "30"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Attach build and submit for review
+        run: node scripts/submit_app_store_version.mjs
