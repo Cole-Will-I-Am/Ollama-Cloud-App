@@ -318,6 +318,7 @@ struct ParametersView: View {
             .sheet(isPresented: $showModelPicker) {
                 ModelPickerView(onSelect: { model in
                     conversation.modelName = model.name
+                    conversation.apiProvider = model.provider
                     conversation.updatedAt = Date()
                     do {
                         try modelContext.save()

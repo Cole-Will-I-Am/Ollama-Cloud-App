@@ -75,6 +75,9 @@ struct CodeEditorView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         let coordinator = context.coordinator
+        // Re-bind: the closure captures the selected file, which can change
+        // without this view's identity changing.
+        coordinator.onContentChange = onContentChange
         guard coordinator.isReady else {
             coordinator.pendingContent = content
             coordinator.pendingLanguage = language
@@ -120,6 +123,9 @@ struct CodeEditorView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         let coordinator = context.coordinator
+        // Re-bind: the closure captures the selected file, which can change
+        // without this view's identity changing.
+        coordinator.onContentChange = onContentChange
         guard coordinator.isReady else {
             coordinator.pendingContent = content
             coordinator.pendingLanguage = language
@@ -157,7 +163,7 @@ extension CodeEditorView {
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
-        let onContentChange: (String) -> Void
+        var onContentChange: (String) -> Void
         var isReady = false
         var pendingContent: String?
         var pendingLanguage: String?
@@ -341,6 +347,10 @@ extension CodeEditorView {
 
           window.setContent = function(text) {
             if (!textarea) return;
+            if (debounceTimer) {
+              clearTimeout(debounceTimer);
+              debounceTimer = null;
+            }
             const next = String(text || "");
             if (textarea.value !== next) {
               textarea.value = next;

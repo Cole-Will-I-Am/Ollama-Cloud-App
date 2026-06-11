@@ -114,6 +114,7 @@ struct MainAppView: View {
         } detail: {
             if sidebarMode == .projects, let project = selectedProject {
                 CodeWorkspaceView(project: project)
+                    .id(project.id)
             } else if sidebarMode == .projects {
                 ZStack {
                     Color.bgPrimary.ignoresSafeArea()

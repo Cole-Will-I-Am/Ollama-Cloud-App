@@ -137,6 +137,7 @@ struct ConversationListView: View {
             ModelPickerView(onSelect: { model in
                 if let conv = pendingConversation {
                     conv.modelName = model.name
+                    conv.apiProvider = model.provider
                     do {
                         try modelContext.save()
                         selection = conv

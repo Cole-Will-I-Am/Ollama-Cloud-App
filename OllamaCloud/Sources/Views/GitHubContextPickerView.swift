@@ -517,6 +517,7 @@ private final class GitHubContextPickerViewModel: ObservableObject {
     private static let tokenKey = "github_context_token"
     private static let fileCharacterCap = 200_000
     private static let maxSelectedFiles = 40
+    private static let maxFetchBytes = 5_000_000
 
     var canConnect: Bool {
         !tokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -666,12 +667,19 @@ private final class GitHubContextPickerViewModel: ObservableObject {
         isAttaching = true
         defer { isAttaching = false }
 
-        let byPath = Dictionary(uniqueKeysWithValues: tree.map { ($0.path, $0) })
+        let byPath = Dictionary(tree.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
         var files: [GitHubContextFile] = []
         var failed = 0
+        var skippedTooLarge = 0
 
         for path in selectedPaths.sorted() {
             guard let item = byPath[path] else { continue }
+            // Don't pull multi-megabyte blobs into memory just to keep the
+            // first fileCharacterCap characters.
+            if let size = item.size, size > Self.maxFetchBytes {
+                skippedTooLarge += 1
+                continue
+            }
 
             do {
                 var content = try await api.fetchBlobText(repository: repository, sha: item.sha, token: token)
@@ -696,12 +704,17 @@ private final class GitHubContextPickerViewModel: ObservableObject {
             }
         }
 
+        let dropped = failed + skippedTooLarge
         if files.isEmpty {
-            alertMessage = failed > 0
-                ? "Could not fetch the selected GitHub files."
-                : "No selected GitHub files contained readable text."
-        } else if failed > 0 {
-            alertMessage = "Attached \(files.count) file(s). \(failed) file(s) could not be fetched."
+            if skippedTooLarge > 0 {
+                alertMessage = "The selected GitHub files are too large to attach."
+            } else {
+                alertMessage = failed > 0
+                    ? "Could not fetch the selected GitHub files."
+                    : "No selected GitHub files contained readable text."
+            }
+        } else if dropped > 0 {
+            alertMessage = "Attached \(files.count) file(s). \(dropped) file(s) were skipped (too large or unreadable)."
         }
 
         return files
@@ -734,7 +747,10 @@ private final class GitHubContextPickerViewModel: ObservableObject {
             }
             await loadRepositories()
         } catch {
-            if !persist {
+            // Only discard a saved token when GitHub actually rejected it —
+            // a transient failure (offline, 5xx, cancelled task) must not
+            // wipe the user's stored credential.
+            if !persist, case GitHubAPIError.unauthorized = error {
                 KeychainHelper.delete(key: Self.tokenKey)
             }
             token = ""
