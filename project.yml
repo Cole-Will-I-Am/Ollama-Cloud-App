@@ -49,6 +49,10 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRODUCT_NAME: SEER
+        # Tests do `@testable import OllamaCloud`; without this the module
+        # name follows PRODUCT_NAME (SEER), like the macOS target already
+        # handles.
+        PRODUCT_MODULE_NAME: OllamaCloud
         # Modern identity name; without this XcodeGen emits the legacy
         # "iPhone Developer" default.
         CODE_SIGN_IDENTITY: "Apple Development"

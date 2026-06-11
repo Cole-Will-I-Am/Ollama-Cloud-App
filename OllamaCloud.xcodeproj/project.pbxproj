@@ -858,6 +858,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.colecantcode.ollamacloud;
+				PRODUCT_MODULE_NAME = OllamaCloud;
 				PRODUCT_NAME = SEER;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -885,6 +886,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.colecantcode.ollamacloud;
+				PRODUCT_MODULE_NAME = OllamaCloud;
 				PRODUCT_NAME = SEER;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
