@@ -799,7 +799,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.colecantcode.ollamacloud.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OllamaCloud.app/OllamaCloud";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SEER.app/SEER";
 			};
 			name = Release;
 		};
@@ -816,7 +816,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.colecantcode.ollamacloud.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OllamaCloud.app/OllamaCloud";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SEER.app/SEER";
 			};
 			name = Debug;
 		};
@@ -844,6 +844,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				INFOPLIST_KEY_CFBundleDisplayName = SEER;
 				INFOPLIST_KEY_CFBundleName = SEER;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SEER uses the microphone to let you dictate messages by voice.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "SEER uses speech recognition to turn your dictation into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -856,6 +857,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.colecantcode.ollamacloud;
+				PRODUCT_NAME = SEER;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -868,6 +870,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				INFOPLIST_KEY_CFBundleDisplayName = SEER;
 				INFOPLIST_KEY_CFBundleName = SEER;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "SEER uses the microphone to let you dictate messages by voice.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "SEER uses speech recognition to turn your dictation into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -880,6 +883,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.colecantcode.ollamacloud;
+				PRODUCT_NAME = SEER;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
