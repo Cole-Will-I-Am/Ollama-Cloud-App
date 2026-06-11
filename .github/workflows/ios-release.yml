@@ -21,15 +21,49 @@ on:
         description: "Upload to TestFlight after building"
         type: boolean
         default: true
+      skip_tests:
+        description: "Skip the unit-test job (escape hatch)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ios-release
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    if: ${{ !inputs.skip_tests }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Run unit tests (iOS Simulator)
+        run: |
+          set -euo pipefail
+          # Pick the first available iPhone simulator so a renamed device
+          # lineup doesn't break the job.
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -n1 | xargs)
+          if [ -z "$DEVICE" ]; then echo "::error::No iPhone simulator available"; exit 1; fi
+          echo "Using simulator: $DEVICE"
+          xcodebuild test \
+            -project OllamaCloud.xcodeproj \
+            -scheme OllamaCloud \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            CODE_SIGNING_ALLOWED=NO
+
   build-ios:
     runs-on: macos-15
     timeout-minutes: 60
+    needs: test
+    # Run when tests pass, or when they were skipped via skip_tests.
+    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -40,7 +74,7 @@ jobs:
       EXPORT_PATH: ${{ github.workspace }}/build/export
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -118,7 +152,7 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
 
       - name: Upload .ipa as build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: OllamaCloud-ipa
           path: ${{ env.EXPORT_PATH }}/*.ipa

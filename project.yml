@@ -11,7 +11,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     GENERATE_INFOPLIST_FILE: true
-    MARKETING_VERSION: "1.2.1"
+    MARKETING_VERSION: "1.5.0"
     CURRENT_PROJECT_VERSION: 1
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: B3DB33R8JN
@@ -49,6 +49,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRODUCT_NAME: SEER
+        # Modern identity name; without this XcodeGen emits the legacy
+        # "iPhone Developer" default.
+        CODE_SIGN_IDENTITY: "Apple Development"
     scheme:
       testTargets:
         - OllamaCloudTests
@@ -64,6 +67,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.colecantcode.ollamacloud.tests
         GENERATE_INFOPLIST_FILE: true
+        # The app target's PRODUCT_NAME is SEER; XcodeGen derives TEST_HOST
+        # from the target name, which points at a nonexistent OllamaCloud.app.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/SEER.app/SEER"
 
   OllamaCloudMac:
     type: application
