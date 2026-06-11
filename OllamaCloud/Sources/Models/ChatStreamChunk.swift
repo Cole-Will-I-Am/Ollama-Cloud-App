@@ -5,6 +5,7 @@ struct ChatStreamChunk: Decodable {
     let message: ChunkMessage?
     let eval_count: Int?
     let done: Bool
+    let done_reason: String?
 
     struct ChunkMessage: Decodable {
         let role: String

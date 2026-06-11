@@ -34,7 +34,10 @@ enum OllamaAPIError: LocalizedError {
         case .unauthorized: return "Invalid API key. Remove it in Settings and re-enter."
         case .modelUnavailable: return "Selected model is no longer available. Choose another model."
         case .rateLimited: return "Rate limited. Wait a moment and retry."
-        case .serverError: return "Server error. Try again shortly."
+        case .serverError(let msg):
+            let trimmed = msg.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return "Server error. Try again shortly." }
+            return trimmed.count > 200 ? String(trimmed.prefix(200)) + "…" : trimmed
         case .invalidResponse: return "Unexpected response from server."
         case .networkError: return "Network error. Check your connection."
         }
@@ -381,8 +384,26 @@ actor OllamaAPIClient {
             throw OllamaAPIError.invalidResponse
         }
 
-        if http.statusCode == 400 || http.statusCode == 404 {
+        if http.statusCode == 404 {
             throw OllamaAPIError.modelUnavailable
+        }
+
+        if http.statusCode == 400 {
+            // A 400 is only "model unavailable" when the body says so —
+            // oversized context, malformed options, etc. land here too, and
+            // telling the user to pick another model for those is wrong.
+            var errorBody = ""
+            for try await line in bytes.lines {
+                errorBody += line
+                break
+            }
+            let message = Self.serverErrorMessage(fromBody: errorBody)
+            let lowered = message.lowercased()
+            if lowered.contains("model") &&
+                (lowered.contains("not found") || lowered.contains("does not exist") || lowered.contains("unavailable")) {
+                throw OllamaAPIError.modelUnavailable
+            }
+            throw OllamaAPIError.serverError(message.isEmpty ? "Request failed (400)." : message)
         }
 
         if let error = classifyHTTPResponse(http) {
@@ -394,12 +415,24 @@ actor OllamaAPIClient {
                     break
                 }
                 if !errorBody.isEmpty {
-                    throw OllamaAPIError.serverError("Chat failed (\(http.statusCode)): \(errorBody)")
+                    throw OllamaAPIError.serverError("Chat failed (\(http.statusCode)): \(Self.serverErrorMessage(fromBody: errorBody))")
                 }
             }
             throw error
         }
 
         return (bytes, response)
+    }
+
+    /// Extracts the "error" field from a JSON error body, falling back to the
+    /// raw text.
+    static func serverErrorMessage(fromBody body: String) -> String {
+        struct ErrorBody: Decodable { let error: String? }
+        if let data = body.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode(ErrorBody.self, from: data),
+           let message = decoded.error, !message.isEmpty {
+            return message
+        }
+        return body.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

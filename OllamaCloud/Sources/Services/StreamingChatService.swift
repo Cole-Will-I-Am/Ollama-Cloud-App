@@ -61,6 +61,37 @@ class StreamingChatService: ObservableObject {
         let sawTokens: Bool
         let metrics: StreamMetricsSnapshot
         let toolCalls: [ChunkToolCall]
+        let doneReason: String?
+    }
+
+    /// Shape of an Ollama/OpenAI mid-stream error line, e.g. {"error": "..."}.
+    private struct StreamErrorPayload: Decodable {
+        struct Detail: Decodable {
+            let message: String?
+        }
+
+        let error: ErrorValue?
+
+        enum ErrorValue: Decodable {
+            case text(String)
+            case detail(Detail)
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                if let text = try? container.decode(String.self) {
+                    self = .text(text)
+                } else {
+                    self = .detail(try container.decode(Detail.self))
+                }
+            }
+
+            var message: String? {
+                switch self {
+                case .text(let text): return text.isEmpty ? nil : text
+                case .detail(let detail): return detail.message?.isEmpty == false ? detail.message : nil
+                }
+            }
+        }
     }
 
     private struct StreamRunFailure: Error {
@@ -146,13 +177,21 @@ class StreamingChatService: ObservableObject {
             }
         }
 
-        if shouldPersistUserMessage(
+        let persistDecision = shouldPersistUserMessage(
             requested: persistUserMessage,
             conversation: conversation,
             resolvedRequestContent: resolvedRequestContent,
             imageBase64s: imageBase64s,
             parentMessageID: currentLeafID
-        ) {
+        )
+        if let existingUser = persistDecision.existingSiblingUser, !persistDecision.persist {
+            // Retrying an already-persisted user message: anchor the request
+            // (and the upcoming assistant reply) to it, not to its parent —
+            // otherwise the request omits the user's message and the reply
+            // becomes its sibling, dropping it from the active branch.
+            currentLeafID = existingUser.id
+        }
+        if persistDecision.persist {
             let imageJSON: String? = {
                 guard !imageBase64s.isEmpty,
                       let data = try? JSONEncoder().encode(imageBase64s),
@@ -191,9 +230,13 @@ class StreamingChatService: ObservableObject {
         }
 
         // Build messages array for API
+        // Scaffolds only apply to the Ollama provider; still resolve for other
+        // providers so dangling references get cleaned, but don't mark the
+        // scaffold as used when its prompt is dropped.
         let scaffoldResolution = prepareScaffoldSystemPrompt(
             conversation: conversation,
-            modelContext: modelContext
+            modelContext: modelContext,
+            markUsed: provider == .ollama
         )
         if scaffoldResolution.stateChanged {
             do {
@@ -444,7 +487,9 @@ class StreamingChatService: ObservableObject {
                                 baseSystemPrompt: conversation.systemPrompt,
                                 selectedModelName: conversation.modelName
                             ),
-                            scaffoldSystemPrompt: nil
+                            // Keep the scaffold across tool rounds so the
+                            // model's role/tone doesn't shift mid-answer.
+                            scaffoldSystemPrompt: provider == .ollama ? scaffoldResolution.systemPrompt : nil
                         )
 
                         // Reset streaming state for next round
@@ -486,6 +531,9 @@ class StreamingChatService: ObservableObject {
                 tokenCount = streamResult.tokenCount
                 tokensPerSecond = streamResult.tokensPerSecond
                 receivedAnyTokens = streamResult.sawTokens
+                if streamResult.doneReason == "length", !streamResult.content.isEmpty {
+                    notice = "The response hit the output token limit and may be cut off. Raise Max Tokens in parameters for longer answers."
+                }
             }
             if let streamFailure {
                 receivedAnyTokens = streamFailure.sawTokens
@@ -557,8 +605,8 @@ class StreamingChatService: ObservableObject {
         resolvedRequestContent: String,
         imageBase64s: [String],
         parentMessageID: UUID?
-    ) -> Bool {
-        guard !requested else { return true }
+    ) -> (persist: Bool, existingSiblingUser: Message?) {
+        guard !requested else { return (true, nil) }
 
         let matchingSiblingUser = conversation.messages
             .filter { $0.role == "user" && $0.parentID == parentMessageID }
@@ -574,7 +622,7 @@ class StreamingChatService: ObservableObject {
             }()
             let siblingImages = Self.decodedImages(for: matchingSiblingUser) ?? []
             if siblingOutbound == resolvedRequestContent && siblingImages == imageBase64s {
-                return false
+                return (false, matchingSiblingUser)
             }
         }
 
@@ -586,7 +634,7 @@ class StreamingChatService: ObservableObject {
             .last(where: { $0.role == "user" })
 
         guard let latestUser = comparisonUser else {
-            return true
+            return (true, nil)
         }
 
         let latestOutbound: String = {
@@ -598,7 +646,7 @@ class StreamingChatService: ObservableObject {
         }()
 
         let latestImages = Self.decodedImages(for: latestUser) ?? []
-        return latestOutbound != resolvedRequestContent || latestImages != imageBase64s
+        return (latestOutbound != resolvedRequestContent || latestImages != imageBase64s, nil)
     }
 
     private func nearestAncestorUserMessage(in conversation: Conversation, from messageID: UUID?) -> Message? {
@@ -672,7 +720,8 @@ class StreamingChatService: ObservableObject {
 
     func prepareScaffoldSystemPrompt(
         conversation: Conversation,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        markUsed: Bool = true
     ) -> ScaffoldResolution {
         guard AppConfig.reasoningScaffoldsEnabled else {
             return ScaffoldResolution(systemPrompt: nil, stateChanged: false)
@@ -730,9 +779,11 @@ class StreamingChatService: ObservableObject {
             stateChanged = true
         }
 
-        scaffold.lastUsedAt = Date()
-        stateChanged = true
-        AppTelemetry.track("scaffold_used_on_send", metadata: ["id": scaffold.id.uuidString])
+        if markUsed {
+            scaffold.lastUsedAt = Date()
+            stateChanged = true
+            AppTelemetry.track("scaffold_used_on_send", metadata: ["id": scaffold.id.uuidString])
+        }
         return ScaffoldResolution(systemPrompt: compiled, stateChanged: stateChanged)
     }
 
@@ -840,6 +891,7 @@ class StreamingChatService: ObservableObject {
         var finalEvalCount: Int?
         var thinkingActive = false
         var accumulatedToolCalls: [ChunkToolCall] = []
+        var doneReason: String?
 
         var lastFlushTime: Date?
         var flushCount = 0
@@ -888,8 +940,14 @@ class StreamingChatService: ObservableObject {
                 guard !Task.isCancelled else { break }
                 guard !line.isEmpty else { continue }
 
-                guard let data = line.data(using: .utf8),
-                      let chunk = try? JSONDecoder().decode(ChatStreamChunk.self, from: data) else {
+                guard let data = line.data(using: .utf8) else { continue }
+                // The server reports mid-stream failures as {"error": "..."} —
+                // surface them instead of stalling until the idle timeout.
+                if let errorPayload = try? JSONDecoder().decode(StreamErrorPayload.self, from: data),
+                   let message = errorPayload.error?.message {
+                    throw OllamaAPIError.serverError(message)
+                }
+                guard let chunk = try? JSONDecoder().decode(ChatStreamChunk.self, from: data) else {
                     continue
                 }
 
@@ -929,6 +987,7 @@ class StreamingChatService: ObservableObject {
                 }
 
                 if chunk.done {
+                    doneReason = chunk.done_reason
                     break
                 }
             }
@@ -940,7 +999,8 @@ class StreamingChatService: ObservableObject {
                 finalEvalCount: finalEvalCount, sawTokens: sawTokens,
                 streamStartedAt: streamStartedAt, firstTokenMs: firstTokenMs,
                 flushCount: flushCount, flushIntervalTotalMs: flushIntervalTotalMs,
-                toolCalls: accumulatedToolCalls
+                toolCalls: accumulatedToolCalls,
+                doneReason: doneReason
             )
         } catch {
             await flushPending(force: true)
@@ -986,6 +1046,7 @@ class StreamingChatService: ObservableObject {
         var firstTokenMs: Int?
         var sawTokens = false
         var finalEvalCount: Int?
+        var doneReason: String?
 
         // Accumulate tool call deltas by index
         var toolCallAccumulators: [Int: (id: String, name: String, arguments: String)] = [:]
@@ -1041,8 +1102,15 @@ class StreamingChatService: ObservableObject {
 
                 if payload == "[DONE]" { break }
 
-                guard let data = payload.data(using: .utf8),
-                      let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data) else {
+                guard let data = payload.data(using: .utf8) else { continue }
+                // Error events ({"error": {...}}) would decode as an empty
+                // chunk (all fields optional) and be silently skipped — check
+                // for them explicitly and surface the message.
+                if let errorPayload = try? JSONDecoder().decode(StreamErrorPayload.self, from: data),
+                   let message = errorPayload.error?.message {
+                    throw OllamaAPIError.serverError(message)
+                }
+                guard let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data) else {
                     continue
                 }
 
@@ -1086,7 +1154,8 @@ class StreamingChatService: ObservableObject {
                     await flushPending()
                 }
 
-                if choice.finish_reason != nil {
+                if let finishReason = choice.finish_reason {
+                    doneReason = finishReason
                     break
                 }
             }
@@ -1117,7 +1186,8 @@ class StreamingChatService: ObservableObject {
                 finalEvalCount: finalEvalCount, sawTokens: sawTokens,
                 streamStartedAt: streamStartedAt, firstTokenMs: firstTokenMs,
                 flushCount: flushCount, flushIntervalTotalMs: flushIntervalTotalMs,
-                toolCalls: accumulatedToolCalls
+                toolCalls: accumulatedToolCalls,
+                doneReason: doneReason
             )
         } catch {
             await flushPending(force: true)
@@ -1136,7 +1206,8 @@ class StreamingChatService: ObservableObject {
         finalEvalCount: Int?, sawTokens: Bool,
         streamStartedAt: Date, firstTokenMs: Int?,
         flushCount: Int, flushIntervalTotalMs: Double,
-        toolCalls: [ChunkToolCall]
+        toolCalls: [ChunkToolCall],
+        doneReason: String? = nil
     ) -> StreamRunResult {
         let completionMs = Int(Date().timeIntervalSince(streamStartedAt) * 1000)
         let averageFlushMs: Double? = flushCount > 1
@@ -1149,7 +1220,8 @@ class StreamingChatService: ObservableObject {
             content: fullContent, thinking: fullThinking,
             tokenCount: tokenCount, tokensPerSecond: tokensPerSecond,
             finalEvalCount: finalEvalCount, sawTokens: sawTokens,
-            metrics: metrics, toolCalls: toolCalls
+            metrics: metrics, toolCalls: toolCalls,
+            doneReason: doneReason
         )
     }
 
