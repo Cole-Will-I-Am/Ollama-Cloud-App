@@ -159,22 +159,94 @@ async function findOrCreateAppStoreVersion(appId) {
     return existing;
   }
 
-  const created = await api("POST", "/appStoreVersions", {
-    data: {
-      type: "appStoreVersions",
-      attributes: {
-        platform: "IOS",
-        versionString
-      },
-      relationships: {
-        app: {
-          data: { type: "apps", id: appId }
+  const reusable = await findReusableAppStoreVersion(appId);
+  if (reusable) {
+    const currentVersion = reusable.attributes?.versionString;
+    if (currentVersion !== versionString) {
+      const updated = await api("PATCH", `/appStoreVersions/${reusable.id}`, {
+        data: {
+          type: "appStoreVersions",
+          id: reusable.id,
+          attributes: {
+            versionString
+          }
+        }
+      });
+      console.log(`Updated App Store version ${reusable.id} from ${currentVersion} to ${versionString}`);
+      return updated.data;
+    }
+    return reusable;
+  }
+
+  try {
+    const created = await api("POST", "/appStoreVersions", {
+      data: {
+        type: "appStoreVersions",
+        attributes: {
+          platform: "IOS",
+          versionString
+        },
+        relationships: {
+          app: {
+            data: { type: "apps", id: appId }
+          }
         }
       }
-    }
+    });
+    console.log(`Created App Store version: ${versionString} ${created.data.id}`);
+    return created.data;
+  } catch (error) {
+    await printKnownAppStoreVersions(appId);
+    throw error;
+  }
+}
+
+async function findReusableAppStoreVersion(appId) {
+  const versions = await listAppStoreVersions(appId);
+  const editableStates = new Set([
+    "PREPARE_FOR_SUBMISSION",
+    "DEVELOPER_REJECTED",
+    "REJECTED",
+    "METADATA_REJECTED"
+  ]);
+  const reusable = versions.filter((version) => editableStates.has(version.attributes?.appStoreState));
+  if (reusable.length === 1) {
+    const version = reusable[0];
+    console.log(
+      `Reusing editable App Store version ${version.id} `
+      + `version=${version.attributes?.versionString} state=${version.attributes?.appStoreState}`
+    );
+    return version;
+  }
+  if (reusable.length > 1) {
+    console.log("Multiple editable App Store versions exist; not choosing one automatically.");
+  }
+  return undefined;
+}
+
+async function listAppStoreVersions(appId) {
+  const params = query({
+    "filter[platform]": "IOS",
+    sort: "-createdDate",
+    limit: "20"
   });
-  console.log(`Created App Store version: ${versionString} ${created.data.id}`);
-  return created.data;
+  const response = await api("GET", `/apps/${appId}/appStoreVersions?${params}`);
+  return response.data || [];
+}
+
+async function printKnownAppStoreVersions(appId) {
+  const versions = await listAppStoreVersions(appId);
+  if (!versions.length) {
+    console.log("No existing iOS App Store versions found.");
+    return;
+  }
+  console.log("Existing iOS App Store versions:");
+  for (const version of versions) {
+    console.log(
+      `- ${version.id} version=${version.attributes?.versionString} `
+      + `state=${version.attributes?.appStoreState}`
+    );
+  }
 }
 
 async function attachBuild(appStoreVersionId, buildId) {
