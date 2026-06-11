@@ -227,7 +227,6 @@ async function findReusableAppStoreVersion(appId) {
 async function listAppStoreVersions(appId) {
   const params = query({
     "filter[platform]": "IOS",
-    sort: "-createdDate",
     limit: "20"
   });
   const response = await api("GET", `/apps/${appId}/appStoreVersions?${params}`);
