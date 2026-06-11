@@ -428,6 +428,7 @@ struct SettingsView: View {
         do {
             try modelContext.delete(model: Conversation.self)
             try modelContext.delete(model: Project.self)
+            try modelContext.delete(model: ReasoningScaffold.self)
             try modelContext.save()
             AppCommand.post(AppCommand.dataReset)
             Haptic.notification(.success)
@@ -451,9 +452,12 @@ struct SettingsView: View {
                 await MainActor.run {
                     isValidatingOpenAIKey = false
                     if valid {
-                        KeychainHelper.save(key: "openai_api_key", value: key)
-                        hasOpenAIKey = true
-                        openAIKeyInput = ""
+                        if KeychainHelper.save(key: "openai_api_key", value: key) {
+                            hasOpenAIKey = true
+                            openAIKeyInput = ""
+                        } else {
+                            openAIKeyError = "Couldn't save the key to the Keychain. Try again."
+                        }
                     } else {
                         openAIKeyError = "Invalid API key."
                     }

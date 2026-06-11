@@ -21,8 +21,8 @@ private enum AppModelContainer {
             // silently running in-memory (which loses every chat on relaunch),
             // reset the store once and recreate a PERSISTENT container so new
             // chats actually save going forward.
-            print("Persistent store failed to open (\(error)). Resetting store and retrying.")
-            destroyStoreFiles(at: configuration.url)
+            print("Persistent store failed to open (\(error)). Setting store aside and retrying.")
+            setAsideStoreFiles(at: configuration.url)
             do {
                 return try ModelContainer(for: schema, configurations: [configuration])
             } catch {
@@ -38,12 +38,22 @@ private enum AppModelContainer {
         }
     }()
 
-    /// Remove the SQLite store and its WAL/SHM sidecar files so a fresh
-    /// persistent store can be created in its place.
-    private static func destroyStoreFiles(at url: URL) {
+    /// Move the SQLite store and its WAL/SHM sidecar files aside so a fresh
+    /// persistent store can be created in its place. A failed open can be
+    /// transient (corrupt WAL, disk pressure) — keep the files recoverable
+    /// instead of deleting the user's entire history.
+    private static func setAsideStoreFiles(at url: URL) {
         let fileManager = FileManager.default
+        let stamp = Int(Date().timeIntervalSince1970)
         for path in [url.path, url.path + "-wal", url.path + "-shm"] {
-            try? fileManager.removeItem(atPath: path)
+            guard fileManager.fileExists(atPath: path) else { continue }
+            do {
+                try fileManager.moveItem(atPath: path, toPath: path + ".bak-\(stamp)")
+            } catch {
+                // If the file can't be moved the fresh store can't be created
+                // at this path — deleting is the only way forward.
+                try? fileManager.removeItem(atPath: path)
+            }
         }
     }
 }

@@ -232,10 +232,13 @@ struct APIKeyEntryView: View {
             do {
                 let valid = try await OllamaAPIClient.shared.validateKey(normalizedKey)
                 if valid {
-                    Haptic.notification(.success)
-                    KeychainHelper.save(key: "api_key", value: normalizedKey)
-                    apiKey = normalizedKey
-                    hasAPIKey = true
+                    if KeychainHelper.save(key: "api_key", value: normalizedKey) {
+                        Haptic.notification(.success)
+                        apiKey = normalizedKey
+                        hasAPIKey = true
+                    } else {
+                        errorMessage = "Couldn't save the key to the Keychain. Try again."
+                    }
                 } else {
                     errorMessage = "Invalid API key"
                 }

@@ -101,6 +101,7 @@ struct ProjectListView: View {
                     let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == convID })
                     if let conv = try? modelContext.fetch(descriptor).first {
                         conv.modelName = model.name
+                        conv.apiProvider = model.provider
                     }
                     do {
                         try modelContext.save()

@@ -306,12 +306,15 @@ struct ChatView: View {
                 Text(exportError ?? "Unable to export conversation.")
             }
             .alert("Vision Model Recommended", isPresented: $showVisionModelWarning) {
+                Button("Send Anyway") {
+                    send(bypassVisionCheck: true)
+                }
                 Button("Choose Model") {
                     showModelPicker = true
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The selected model may not support image input. Choose a vision-capable model or remove image attachments.")
+                Text("The selected model may not support image input. You can send anyway, choose a vision-capable model, or remove the image attachments.")
             }
     }
 
@@ -380,9 +383,25 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         if messages.isEmpty && !streaming.isStreaming {
-                            emptyState
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: scrollGeo.size.height - 1)
+                            VStack(spacing: 16) {
+                                emptyState
+                                    .frame(maxWidth: .infinity)
+                                // A send can fail before anything is persisted
+                                // (e.g. the model-availability preflight) —
+                                // surface it here too, or the typed prompt
+                                // silently vanishes on a fresh chat.
+                                if let error = streaming.error {
+                                    errorBubble(error)
+                                        .padding(.horizontal, 16)
+                                        .padding(.bottom, 24)
+                                }
+                                if let notice = streaming.notice, !notice.isEmpty {
+                                    noticeBubble(notice)
+                                        .padding(.horizontal, 16)
+                                        .padding(.bottom, 24)
+                                }
+                            }
+                            .frame(minHeight: scrollGeo.size.height - 1)
                         } else {
                             LazyVStack(spacing: 16) {
                                 ForEach(messages) { message in
@@ -1167,6 +1186,9 @@ struct ChatView: View {
         let requestContent = sourceUserMessage.attachmentRequestContent ?? sourceUserMessage.content
         let images = decodeImages(from: sourceUserMessage)
 
+        // Abandon any in-progress prompt edit — a later send must not fork at
+        // the stale edit point.
+        forkParentID = nil
         input = ""
         pendingImageAttachments.removeAll()
         pendingFileAttachments.removeAll()
@@ -1229,9 +1251,14 @@ struct ChatView: View {
     }
 
     private func switchBranch(to target: Message) {
+        forkParentID = nil
         let leafID = conversation.findLeaf(from: target.id)
         conversation.activeLeafID = leafID
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            streaming.notice = "Branch state could not be fully persisted."
+        }
     }
 
     private func nearestAncestorUserMessage(from messageID: UUID?) -> Message? {
@@ -1321,7 +1348,7 @@ struct ChatView: View {
         }
     }
 
-    private func send() {
+    private func send(bypassVisionCheck: Bool = false) {
         #if os(iOS)
         dictation.stop()
         #endif
@@ -1339,7 +1366,9 @@ struct ChatView: View {
             return
         }
 
-        if !pendingImageAttachments.isEmpty && !isLikelyVisionModel(conversation.modelName) {
+        if !bypassVisionCheck,
+           !pendingImageAttachments.isEmpty,
+           !isLikelyVisionModel(conversation.modelName) {
             showVisionModelWarning = true
             return
         }
@@ -1728,6 +1757,7 @@ struct ChatView: View {
                 .map(String.init)
         )
         if tokens.contains("vision")
+            || tokens.contains("vl")
             || tokens.contains("llava")
             || tokens.contains("moondream")
             || tokens.contains("multimodal") {
@@ -1740,6 +1770,10 @@ struct ChatView: View {
             || lower.contains("internvl")
             || lower.contains("minicpm-v")
             || lower.contains("minicpmv")
+            || lower.contains("gemma3")
+            || lower.contains("mistral-small3")
+            || lower.contains("llama4")
+            || lower.contains("pixtral")
     }
 
     private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
@@ -1752,9 +1786,20 @@ struct ChatView: View {
             return
         }
 
+        if items.count > availableSlots {
+            await MainActor.run {
+                attachmentError = "You can attach up to 5 images per message. Only the first \(availableSlots) selected image\(availableSlots == 1 ? "" : "s") will be attached."
+            }
+        }
+
         for item in items.prefix(availableSlots) {
             do {
-                guard let originalData = try await item.loadTransferable(type: Data.self) else { continue }
+                guard let originalData = try await item.loadTransferable(type: Data.self) else {
+                    await MainActor.run {
+                        attachmentError = "One or more images couldn't be loaded."
+                    }
+                    continue
+                }
                 let preparedData = normalizedImageData(from: originalData)
                 let base64 = preparedData.base64EncodedString()
 

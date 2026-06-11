@@ -71,15 +71,20 @@ struct CodeWorkspaceView: View {
                     #endif
 
                     #if os(iOS)
-                    Button { showFileTreeSheet = true } label: {
-                        Image(systemName: "folder")
-                            .font(.system(size: 15, weight: .light))
-                            .foregroundStyle(Color.textSecondary)
-                    }
-                    Button { showChatSheet = true } label: {
-                        Image(systemName: "bubble.left")
-                            .font(.system(size: 15, weight: .light))
-                            .foregroundStyle(Color.textSecondary)
+                    // Compact layout only: in regular width (iPad) the file
+                    // tree and chat panel are already embedded — these sheets
+                    // would duplicate them (with a second streaming service).
+                    if isCompact {
+                        Button { showFileTreeSheet = true } label: {
+                            Image(systemName: "folder")
+                                .font(.system(size: 15, weight: .light))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        Button { showChatSheet = true } label: {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 15, weight: .light))
+                                .foregroundStyle(Color.textSecondary)
+                        }
                     }
                     #endif
                     Button { exportProject() } label: {
@@ -102,6 +107,7 @@ struct CodeWorkspaceView: View {
             ModelPickerView(onSelect: { model in
                 if let conv = projectConversation {
                     conv.modelName = model.name
+                    conv.apiProvider = model.provider
                     try? modelContext.save()
                 }
                 showModelPicker = false
