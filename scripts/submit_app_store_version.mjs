@@ -84,11 +84,25 @@ function summarizeError(error) {
       item.title,
       item.detail
     ].filter(Boolean);
-    const associated = item.meta?.associatedErrors
-      ?.map((nested) => `  - ${nested.title || nested.code || "Associated error"}: ${nested.detail || ""}`)
+    const associatedErrors = normalizeAssociatedErrors(item.meta?.associatedErrors);
+    const associated = associatedErrors
+      .map((nested) => `  - ${nested.title || nested.code || "Associated error"}: ${nested.detail || JSON.stringify(nested)}`)
       .join("\n");
     return associated ? `${pieces.join(" | ")}\n${associated}` : pieces.join(" | ");
   }).join("\n");
+}
+
+function normalizeAssociatedErrors(value) {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "object") {
+    return Object.values(value).flatMap((item) => Array.isArray(item) ? item : [item]);
+  }
+  return [{ detail: String(value) }];
 }
 
 async function findApp() {
@@ -260,22 +274,9 @@ async function attachBuild(appStoreVersionId, buildId) {
 }
 
 async function submit(appId, appStoreVersionId) {
-  const reviewSubmission = await api("POST", "/reviewSubmissions", {
-    data: {
-      type: "reviewSubmissions",
-      attributes: {
-        platform: "IOS"
-      },
-      relationships: {
-        app: {
-          data: { type: "apps", id: appId }
-        }
-      }
-    }
-  });
-
-  const reviewSubmissionId = reviewSubmission.data.id;
-  console.log(`Review submission: ${reviewSubmissionId}`);
+  const reviewSubmission = await findOrCreateReviewSubmission(appId);
+  const reviewSubmissionId = reviewSubmission.id;
+  console.log(`Review submission: ${reviewSubmissionId} state=${reviewSubmission.attributes?.state}`);
 
   await api("POST", "/reviewSubmissionItems", {
     data: {
@@ -302,6 +303,44 @@ async function submit(appId, appStoreVersionId) {
     }
   });
   console.log(`Submitted for review: ${submitted.data.id} state=${submitted.data.attributes?.state}`);
+}
+
+async function findOrCreateReviewSubmission(appId) {
+  const existing = await listReviewSubmissions(appId);
+  const reusableStates = new Set([
+    "READY_FOR_REVIEW",
+    "INCOMPLETE"
+  ]);
+  const reusable = existing.find((submission) => reusableStates.has(submission.attributes?.state));
+  if (reusable) {
+    console.log(`Reusing review submission ${reusable.id} state=${reusable.attributes?.state}`);
+    return reusable;
+  }
+
+  const created = await api("POST", "/reviewSubmissions", {
+    data: {
+      type: "reviewSubmissions",
+      attributes: {
+        platform: "IOS"
+      },
+      relationships: {
+        app: {
+          data: { type: "apps", id: appId }
+        }
+      }
+    }
+  });
+  return created.data;
+}
+
+async function listReviewSubmissions(appId) {
+  const params = query({
+    "filter[app]": appId,
+    "filter[platform]": "IOS",
+    limit: "10"
+  });
+  const response = await api("GET", `/reviewSubmissions?${params}`);
+  return response.data || [];
 }
 
 try {
