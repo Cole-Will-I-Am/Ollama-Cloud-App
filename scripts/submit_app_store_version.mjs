@@ -361,18 +361,28 @@ async function cancelActiveReviewSubmissions(appId) {
   const submissions = await listReviewSubmissions(appId);
   const activeStates = new Set(["WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES", "READY_FOR_REVIEW"]);
   for (const submission of submissions) {
+    console.log(`Review submission ${submission.id} state=${submission.attributes?.state}`);
+  }
+  for (const submission of submissions) {
     const state = submission.attributes?.state;
     if (!activeStates.has(state)) {
       continue;
     }
-    await api("PATCH", `/reviewSubmissions/${submission.id}`, {
-      data: {
-        type: "reviewSubmissions",
-        id: submission.id,
-        attributes: { canceled: true }
-      }
-    });
-    console.log(`Canceled review submission ${submission.id} (was ${state})`);
+    try {
+      await api("PATCH", `/reviewSubmissions/${submission.id}`, {
+        data: {
+          type: "reviewSubmissions",
+          id: submission.id,
+          attributes: { canceled: true }
+        }
+      });
+      console.log(`Canceled review submission ${submission.id} (was ${state})`);
+    } catch (error) {
+      // Not every listed state is actually cancellable (and states can move
+      // between list and PATCH) — log and keep going; if something truly
+      // blocking survives, the create/submit below fails with a clear error.
+      console.log(`Could not cancel ${submission.id} (state ${state}): ${summarizeError(error)}`);
+    }
   }
 }
 
