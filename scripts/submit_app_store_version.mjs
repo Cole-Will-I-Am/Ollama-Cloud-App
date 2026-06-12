@@ -397,14 +397,22 @@ async function setWhatsNew(appStoreVersionId) {
     return;
   }
   for (const localization of localizations) {
-    await api("PATCH", `/appStoreVersionLocalizations/${localization.id}`, {
-      data: {
-        type: "appStoreVersionLocalizations",
-        id: localization.id,
-        attributes: { whatsNew }
-      }
-    });
-    console.log(`Set What's New for locale ${localization.attributes?.locale}`);
+    try {
+      await api("PATCH", `/appStoreVersionLocalizations/${localization.id}`, {
+        data: {
+          type: "appStoreVersionLocalizations",
+          id: localization.id,
+          attributes: { whatsNew }
+        }
+      });
+      console.log(`Set What's New for locale ${localization.attributes?.locale}`);
+    } catch (error) {
+      // The first-ever App Store version has no What's New field — Apple
+      // rejects edits to it. Not worth failing the submission over.
+      console.log(
+        `Could not set What's New for locale ${localization.attributes?.locale}: ${summarizeError(error)}`
+      );
+    }
   }
 }
 
