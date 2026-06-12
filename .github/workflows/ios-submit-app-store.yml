@@ -19,6 +19,14 @@ on:
         description: "Existing review submission ID to submit, if App Store Connect already created one"
         required: false
         default: ""
+      cancel_active:
+        description: "Cancel any active review submission first (replace what's in the queue)"
+        type: boolean
+        default: false
+      whats_new_file:
+        description: "Repo path to a plain-text What's New file to set on the version"
+        required: false
+        default: ""
 
 jobs:
   submit:
@@ -32,12 +40,19 @@ jobs:
       BUILD_NUMBER: ${{ inputs.build }}
       SUBMIT_FOR_REVIEW: ${{ inputs.submit }}
       REVIEW_SUBMISSION_ID: ${{ inputs.review_submission_id }}
+      CANCEL_ACTIVE_SUBMISSION: ${{ inputs.cancel_active }}
+      WHATS_NEW_FILE: ${{ inputs.whats_new_file }}
       BUNDLE_ID: com.colecantcode.ollamacloud
       MAX_WAIT_MINUTES: "30"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - name: Attach build and submit for review
-        run: node scripts/submit_app_store_version.mjs
+        run: |
+          if [ -n "$WHATS_NEW_FILE" ]; then
+            WHATS_NEW=$(cat "$WHATS_NEW_FILE")
+            export WHATS_NEW
+          fi
+          node scripts/submit_app_store_version.mjs

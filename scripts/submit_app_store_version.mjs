@@ -8,6 +8,8 @@ const buildNumber = requireEnv("BUILD_NUMBER");
 const submitForReview = parseBool(process.env.SUBMIT_FOR_REVIEW || "false");
 const maxWaitMinutes = Number(process.env.MAX_WAIT_MINUTES || "30");
 const reviewSubmissionOverrideId = process.env.REVIEW_SUBMISSION_ID?.trim();
+const cancelActiveSubmission = parseBool(process.env.CANCEL_ACTIVE_SUBMISSION || "false");
+const whatsNew = process.env.WHATS_NEW?.trim();
 
 const token = makeToken();
 
@@ -355,6 +357,47 @@ async function findOrCreateReviewSubmission(appId, appStoreVersionId) {
   return { reviewSubmission: created.data, hasItem: false };
 }
 
+async function cancelActiveReviewSubmissions(appId) {
+  const submissions = await listReviewSubmissions(appId);
+  const activeStates = new Set(["WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES", "READY_FOR_REVIEW"]);
+  for (const submission of submissions) {
+    const state = submission.attributes?.state;
+    if (!activeStates.has(state)) {
+      continue;
+    }
+    await api("PATCH", `/reviewSubmissions/${submission.id}`, {
+      data: {
+        type: "reviewSubmissions",
+        id: submission.id,
+        attributes: { canceled: true }
+      }
+    });
+    console.log(`Canceled review submission ${submission.id} (was ${state})`);
+  }
+}
+
+async function setWhatsNew(appStoreVersionId) {
+  const response = await api(
+    "GET",
+    `/appStoreVersions/${appStoreVersionId}/appStoreVersionLocalizations?limit=50`
+  );
+  const localizations = response.data || [];
+  if (!localizations.length) {
+    console.log("No App Store version localizations found; cannot set What's New.");
+    return;
+  }
+  for (const localization of localizations) {
+    await api("PATCH", `/appStoreVersionLocalizations/${localization.id}`, {
+      data: {
+        type: "appStoreVersionLocalizations",
+        id: localization.id,
+        attributes: { whatsNew }
+      }
+    });
+    console.log(`Set What's New for locale ${localization.attributes?.locale}`);
+  }
+}
+
 async function listReviewSubmissions(appId) {
   const params = query({
     "filter[app]": appId,
@@ -378,8 +421,14 @@ async function reviewSubmissionContainsAppStoreVersion(reviewSubmissionId, appSt
 
 try {
   const app = await findApp();
+  if (cancelActiveSubmission) {
+    await cancelActiveReviewSubmissions(app.id);
+  }
   const build = await findBuild(app.id);
   const appStoreVersion = await findOrCreateAppStoreVersion(app.id);
+  if (whatsNew) {
+    await setWhatsNew(appStoreVersion.id);
+  }
   await attachBuild(appStoreVersion.id, build.id);
 
   if (submitForReview) {
