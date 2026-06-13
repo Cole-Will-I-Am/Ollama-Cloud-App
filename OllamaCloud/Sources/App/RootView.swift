@@ -45,7 +45,10 @@ struct MainAppView: View {
             filter: #Predicate<Conversation> { conversation in
                 (conversation.accountScopeKey == accountScopeKey
                  || conversation.accountScopeKey == "")
-                && conversation.isProjectChat != true
+                // isProjectChat is nil for normal chats; SwiftData's SQLite
+                // translation of `!= true` drops NULL rows, so match nil/false
+                // explicitly (otherwise normal chats vanish from the list).
+                && (conversation.isProjectChat == nil || conversation.isProjectChat == false)
             },
             sort: \Conversation.updatedAt,
             order: .reverse

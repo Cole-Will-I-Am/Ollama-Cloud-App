@@ -22,7 +22,11 @@ struct ConversationListView: View {
             filter: #Predicate<Conversation> { conversation in
                 (conversation.accountScopeKey == accountScopeKey
                  || conversation.accountScopeKey == "")
-                && conversation.isProjectChat != true
+                // Include normal chats explicitly: isProjectChat is an optional
+                // Bool that is nil for normal chats, and SwiftData's SQLite
+                // translation of `!= true` excludes NULL rows — which silently
+                // hid every normal conversation from the list.
+                && (conversation.isProjectChat == nil || conversation.isProjectChat == false)
             },
             sort: \Conversation.updatedAt,
             order: .reverse
