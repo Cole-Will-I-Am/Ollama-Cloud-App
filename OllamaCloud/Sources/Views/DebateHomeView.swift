@@ -148,7 +148,7 @@ struct DebateHomeView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(rec.topic).font(.app(14)).foregroundStyle(Color.textPrimary).lineLimit(1)
                             Text("\(rec.modelA) vs \(rec.modelB) · \(rec.mode.title)")
-                                .font(.appLabel(9)).luxuryTracking().foregroundStyle(Color.textTertiary).lineLimit(1)
+                                .font(.app(11)).foregroundStyle(Color.textTertiary).lineLimit(1)
                         }
                         Spacer()
                         Button {

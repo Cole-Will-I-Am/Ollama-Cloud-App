@@ -62,7 +62,7 @@ struct DebateRunView: View {
                 .foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("\(runner.modelA)  vs  \(runner.modelB)  ·  \(runner.mode.title)")
-                .font(.appLabel(9)).luxuryTracking()
+                .font(.app(11))
                 .foregroundStyle(Color.textTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -85,7 +85,7 @@ private struct DebateTurnView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("\(turn.label) · \(turn.model)")
-                .font(.appLabel(10)).luxuryTracking()
+                .font(.app(11, weight: .medium))
                 .foregroundStyle(accent)
             Text(turn.text.isEmpty ? "…" : turn.text)
                 .font(.app(15))
