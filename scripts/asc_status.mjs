@@ -64,6 +64,15 @@ async function main() {
   for (const s of subs.data || []) {
     const a = s.attributes || {};
     console.log(`  ${s.id}  state=${a.state}  platform=${a.platform}  submitted=${a.submittedDate || "-"}`);
+    if (a.state !== "COMPLETE") {
+      try {
+        const items = await api("GET", `/reviewSubmissions/${s.id}/items?${q({ limit: "20" })}`);
+        for (const it of items.data || []) {
+          const ia = it.attributes || {};
+          console.log(`      item ${it.id} state=${ia.state} removed=${ia.removed}`);
+        }
+      } catch (e) { console.log(`      (items: ${e.message})`); }
+    }
   }
 
   console.log("\n=== Recent Builds (TestFlight) ===");
