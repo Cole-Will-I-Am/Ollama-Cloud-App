@@ -19,6 +19,7 @@ struct ChatView: View {
     var project: Project?
     @StateObject private var streaming = StreamingChatService()
     @AppStorage("visualizations_enabled") private var visualizationsEnabled = true
+    @AppStorage("web_access_enabled") private var webAccessEnabled = false
     @State private var input = ""
     @State private var showModelPicker = false
     @State private var showParameters = false
@@ -1204,6 +1205,7 @@ struct ChatView: View {
 
         Task {
             var tools: [ChatTool] = visualizationsEnabled ? VisualsToolkit.tools : []
+            tools.append(contentsOf: AssistantToolkit.tools(webAccessEnabled: webAccessEnabled))
             if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
@@ -1395,6 +1397,7 @@ struct ChatView: View {
         Haptic.impact()
         Task {
             var tools: [ChatTool] = visualizationsEnabled ? VisualsToolkit.tools : []
+            tools.append(contentsOf: AssistantToolkit.tools(webAccessEnabled: webAccessEnabled))
             if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)
@@ -1424,6 +1427,7 @@ struct ChatView: View {
         Haptic.impact()
         Task {
             var tools: [ChatTool] = visualizationsEnabled ? VisualsToolkit.tools : []
+            tools.append(contentsOf: AssistantToolkit.tools(webAccessEnabled: webAccessEnabled))
             if project != nil { tools.append(contentsOf: CodeToolkit.tools) }
             var manager: AnyObject? = nil
             #if os(macOS)

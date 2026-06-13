@@ -381,6 +381,7 @@ class StreamingChatService: ObservableObject {
             if let result = streamResult, !result.toolCalls.isEmpty {
                 let hasBuiltinHandler = result.toolCalls.contains {
                     VisualsToolkit.handles($0.function.name)
+                    || AssistantToolkit.handles($0.function.name)
                     || CodeToolkit.handles($0.function.name)
                 }
                 #if os(macOS)
@@ -432,6 +433,12 @@ class StreamingChatService: ObservableObject {
                                 (resultText, isError) = VisualsToolkit.execute(
                                     toolName: toolName,
                                     arguments: call.function.arguments
+                                )
+                            } else if AssistantToolkit.handles(toolName) {
+                                (resultText, isError) = await AssistantToolkit.execute(
+                                    toolName: toolName,
+                                    arguments: call.function.arguments,
+                                    webAccessEnabled: UserDefaults.standard.bool(forKey: "web_access_enabled")
                                 )
                             } else if CodeToolkit.handles(toolName), let project {
                                 (resultText, isError) = CodeToolkit.execute(

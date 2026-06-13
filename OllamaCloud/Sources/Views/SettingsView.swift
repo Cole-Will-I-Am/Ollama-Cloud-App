@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("hasAPIKey") private var hasAPIKey = false
     @AppStorage("hasOpenAIKey") private var hasOpenAIKey = false
     @AppStorage("visualizations_enabled") private var visualizationsEnabled = true
+    @AppStorage("web_access_enabled") private var webAccessEnabled = false
     @State private var showRemoveConfirmation = false
     @State private var showRemoveOpenAIConfirmation = false
     @State private var openAIKeyInput = ""
@@ -308,6 +309,33 @@ struct SettingsView: View {
                                 }
                                 Spacer()
                                 Toggle("", isOn: $visualizationsEnabled)
+                                    .labelsHidden()
+                                    .toggleStyle(.switch)
+                            }
+                            .padding(16)
+
+                            Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
+
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.accent.opacity(0.12))
+                                        .frame(width: 38, height: 38)
+                                    Image(systemName: "globe")
+                                        .font(.system(size: 14, weight: .ultraLight))
+                                        .foregroundStyle(Color.accent)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Web access")
+                                        .font(.app(15, weight: .medium))
+                                        .foregroundStyle(Color.textPrimary)
+                                    Text("Let the model fetch and read public web pages. Off by default — sends the page address you ask about to that website.")
+                                        .font(.app(12))
+                                        .foregroundStyle(Color.textTertiary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer()
+                                Toggle("", isOn: $webAccessEnabled)
                                     .labelsHidden()
                                     .toggleStyle(.switch)
                             }

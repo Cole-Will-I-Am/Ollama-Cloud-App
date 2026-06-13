@@ -38,6 +38,7 @@
 		2DF30065D2348476828DBC20 /* CodeBlockOutputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CE8F731D1F6DBDB562BA7A /* CodeBlockOutputView.swift */; };
 		30811FB8814D0D16F3129420 /* ReasoningScaffoldReferenceCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94D3D42331480472129E965 /* ReasoningScaffoldReferenceCleaner.swift */; };
 		3097865DCA25FBE522DD0657 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FA60E4BE05E8EF53FAC0744 /* RootView.swift */; };
+		31031D8425D68F03383F13E5 /* AssistantToolkit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871F11AEBF85832F65E259FF /* AssistantToolkit.swift */; };
 		318358B48937689C2E19618F /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F29E4CBA2141576997723C8 /* NetworkMonitor.swift */; };
 		31A2DA83A46C2D44CAB7825D /* OllamaCloudApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55F07419C0F62152C4FC517 /* OllamaCloudApp.swift */; };
 		3325FC6BB19EBD07E2F6AC2A /* SheetSizing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE4775A9CE24BEBA665C77D /* SheetSizing.swift */; };
@@ -83,6 +84,7 @@
 		8A9E7861F7012AAB4106BE7C /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05357BC204895B4479C2DFD /* AppCommands.swift */; };
 		8B4D7E399760EE1C9AB73342 /* AccountScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E34DF9227087EE09DCD44B /* AccountScope.swift */; };
 		8B4EE9FC988E12C714C0DA82 /* ScaffoldLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 596882AA0109D2F1B2B45F87 /* ScaffoldLibraryView.swift */; };
+		8C2B8EF809B2F46E4ECF0FEA /* AssistantToolkit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871F11AEBF85832F65E259FF /* AssistantToolkit.swift */; };
 		8ECED5ACA77E3C827219DA5E /* MCPServerStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6BD5F6BDD83FDEC7CA71BB1 /* MCPServerStatusView.swift */; };
 		8F8D3E1C2068FFD2B1B6AA04 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC9CFAD7F5434EBB1D702C1 /* ChatView.swift */; };
 		9000A00E5909343383FEC6E3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE3697A1AA7CBBBF5D89721 /* SettingsView.swift */; };
@@ -207,6 +209,7 @@
 		6CED96AE3F69EC65C8BF0151 /* MessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRow.swift; sourceTree = "<group>"; };
 		6D5B1F832DDEF5E8EB54FCFE /* APIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIProvider.swift; sourceTree = "<group>"; };
 		86CE8F731D1F6DBDB562BA7A /* CodeBlockOutputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockOutputView.swift; sourceTree = "<group>"; };
+		871F11AEBF85832F65E259FF /* AssistantToolkit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantToolkit.swift; sourceTree = "<group>"; };
 		87E34DF9227087EE09DCD44B /* AccountScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountScope.swift; sourceTree = "<group>"; };
 		8C97627BF6B107443383CC1E /* SeerCodeBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeerCodeBlock.swift; sourceTree = "<group>"; };
 		93F1D838B20FE252FA2BAB4A /* ChatRequestEncodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequestEncodingTests.swift; sourceTree = "<group>"; };
@@ -408,6 +411,7 @@
 		E842F0DF16D70C65FB1B37B4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				871F11AEBF85832F65E259FF /* AssistantToolkit.swift */,
 				36C42AA0F8E983B9F158CD6D /* CodeExecutionService.swift */,
 				04D2462AD0F1DC81717C1687 /* CodeToolkit.swift */,
 				A71375991AF532A31FE86311 /* GitHubAPIClient.swift */,
@@ -590,6 +594,7 @@
 				E11DD258B4F0E33BFE7E2758 /* AppCommands.swift in Sources */,
 				4DD2618DE3706B223FCBA022 /* AppConfig.swift in Sources */,
 				05DCBDB37408D3354E6A7C28 /* AppTelemetry.swift in Sources */,
+				31031D8425D68F03383F13E5 /* AssistantToolkit.swift in Sources */,
 				AF93E009596757C0A702A003 /* ChatRequest.swift in Sources */,
 				1FFD3F4E592889AE9A78E023 /* ChatStreamChunk.swift in Sources */,
 				24ACFF3CF54EE6EC3CA755E6 /* ChatView.swift in Sources */,
@@ -689,6 +694,7 @@
 				8A9E7861F7012AAB4106BE7C /* AppCommands.swift in Sources */,
 				0666D68A183564399CD520E3 /* AppConfig.swift in Sources */,
 				E28A102AB46E8768027BD3E7 /* AppTelemetry.swift in Sources */,
+				8C2B8EF809B2F46E4ECF0FEA /* AssistantToolkit.swift in Sources */,
 				44972F3775477E0C2A7DEEDA /* ChatRequest.swift in Sources */,
 				F5EAC353EA2DFC1DC02804A2 /* ChatStreamChunk.swift in Sources */,
 				8F8D3E1C2068FFD2B1B6AA04 /* ChatView.swift in Sources */,
