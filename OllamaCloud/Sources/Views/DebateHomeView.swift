@@ -14,6 +14,7 @@ struct DebateHomeView: View {
     @State private var synthesis = true
     @State private var modelError: String?
     @State private var showRun = false
+    @FocusState private var topicFocused: Bool
 
     private var canStart: Bool {
         !topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !modelA.isEmpty && !modelB.isEmpty
@@ -33,10 +34,17 @@ struct DebateHomeView: View {
                 }
                 .padding(20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color.bgPrimary.ignoresSafeArea())
             .navigationTitle("Debate")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { topicFocused = false }
+                }
+            }
             #endif
             .navigationDestination(isPresented: $showRun) {
                 DebateRunView(runner: runner, store: store)
@@ -62,6 +70,7 @@ struct DebateHomeView: View {
             label("TOPIC")
             TextField("e.g. Should cities ban cars from downtown cores?", text: $topic, axis: .vertical)
                 .lineLimit(2...4)
+                .focused($topicFocused)
                 .font(.app(15))
                 .foregroundStyle(Color.textPrimary)
                 .padding(12)
@@ -121,6 +130,7 @@ struct DebateHomeView: View {
     private var startButton: some View {
         Button {
             Haptic.impact()
+            topicFocused = false
             runner.start(topic: topic.trimmingCharacters(in: .whitespacesAndNewlines),
                          modelA: modelA, modelB: modelB, mode: mode, rounds: rounds, synthesis: synthesis)
             showRun = true
