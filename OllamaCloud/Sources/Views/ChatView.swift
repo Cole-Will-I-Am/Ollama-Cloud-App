@@ -102,6 +102,14 @@ struct ChatView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        // Stop streaming when this chat is torn down (e.g. the conversation is
+        // deleted in the macOS sidebar while a response is in flight) so the
+        // background task stops mutating a model that may be deleted.
+        .onDisappear {
+            if streaming.isStreaming {
+                streaming.cancel(conversation: conversation, modelContext: modelContext)
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 toolbarPrincipal

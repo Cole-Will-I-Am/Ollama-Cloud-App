@@ -1,0 +1,11 @@
+SEER 1.5.1 is a stability update.
+
+FIXED
+• Deleting a conversation while it was still responding could crash the app or corrupt saved chats
+• Running code with an infinite loop on iPhone/iPad left the Run button spinning forever — it now stops after a timeout
+• Moving a folder onto an existing one could silently lose files; this is now blocked with a clear message
+• Replies that only tried to call an unavailable tool no longer show a blank "No response received"
+• Reconnecting after a dropped response no longer duplicates the model's thinking
+• Creating a file beneath an existing file no longer hides it from the file tree
+
+Your chats stay on your device. Manage data sharing anytime in Settings.

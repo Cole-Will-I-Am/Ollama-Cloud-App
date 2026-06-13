@@ -333,6 +333,28 @@ enum CodeExecutionService {
     #if canImport(JavaScriptCore)
     private static func executeJavaScriptCore(code: String, stdin: String) async -> CodeExecutionResult {
         return await withCheckedContinuation { continuation in
+            // JSCore can't be pre-empted, but we can stop waiting on a runaway
+            // script (e.g. `while(true){}`) so the Run spinner doesn't hang
+            // forever. The orphaned evaluation finishes on its own thread.
+            let resumeLock = NSLock()
+            var resumed = false
+            func finish(_ result: CodeExecutionResult) {
+                resumeLock.lock()
+                defer { resumeLock.unlock() }
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: result)
+            }
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10) {
+                finish(CodeExecutionResult(
+                    stdout: "",
+                    stderr: "Execution timed out after 10s (possible infinite loop).",
+                    exitCode: -1,
+                    timedOut: true
+                ))
+            }
+
             DispatchQueue.global(qos: .userInitiated).async {
                 let ctx = JSContext()!
                 var consoleOutput: [String] = []
@@ -396,7 +418,7 @@ enum CodeExecutionService {
                 let stdout = truncateInlineOutput(consoleOutput.joined(separator: "\n"))
                 let stderr = truncateInlineOutput(errorOutput)
 
-                continuation.resume(returning: CodeExecutionResult(
+                finish(CodeExecutionResult(
                     stdout: stdout,
                     stderr: stderr,
                     exitCode: stderr.isEmpty ? 0 : 1,

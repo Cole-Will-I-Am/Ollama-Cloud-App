@@ -147,7 +147,11 @@ enum CodeToolkit {
         for component in components {
             if !accumulated.isEmpty { accumulated += "/" }
             accumulated += String(component)
-            if findFile(path: accumulated, in: project) == nil {
+            if let existing = findFile(path: accumulated, in: project) {
+                // A regular file already occupies a parent slot; don't bury a
+                // child under it (the child would be hidden/orphaned in the tree).
+                if !existing.isDirectory { return }
+            } else {
                 let dir = ProjectFile(path: accumulated, content: "", isDirectory: true, project: project)
                 modelContext.insert(dir)
             }
@@ -347,6 +351,26 @@ enum CodeToolkit {
 
         if file.isDirectory {
             let prefix = oldPath + "/"
+
+            // Refuse to move a directory into its own subtree (would orphan it).
+            if newPath == oldPath || (newPath + "/").hasPrefix(prefix) {
+                return ("Cannot move a directory into itself: \(oldPath) → \(newPath)", true)
+            }
+
+            // Refuse if any rewritten child path would collide with an existing
+            // file outside the moved subtree — otherwise two ProjectFiles share a
+            // path and one becomes unreachable (silent data loss).
+            let newPrefix = newPath + "/"
+            for child in project.files where child.path.hasPrefix(prefix) {
+                let candidate = newPrefix + child.path.dropFirst(prefix.count)
+                let collides = project.files.contains {
+                    $0.id != child.id && !$0.path.hasPrefix(prefix) && $0.path == candidate
+                }
+                if collides {
+                    return ("Cannot move: destination already contains \(candidate)", true)
+                }
+            }
+
             for child in project.files where child.path.hasPrefix(prefix) {
                 child.path = newPath + "/" + child.path.dropFirst(prefix.count)
                 child.updatedAt = Date()

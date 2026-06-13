@@ -359,6 +359,10 @@ class StreamingChatService: ObservableObject {
                 if !failure.sawTokens, apiError?.isTransient == true, !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     if !Task.isCancelled {
+                        // Reset buffers so a partial (e.g. thinking-only) first
+                        // attempt isn't appended to by the retry's stream flush.
+                        streamingContent = ""
+                        streamingThinking = ""
                         switch await executeStreamAttempt(messages: currentMessages, currentTools: currentTools) {
                         case .success(let result):
                             streamResult = result
@@ -390,7 +394,7 @@ class StreamingChatService: ObservableObject {
                     let maxRounds = 10
                     var latestResult = result
 
-                    toolRoundLoop: while !latestResult.toolCalls.isEmpty && rounds < maxRounds && !Task.isCancelled {
+                    toolRoundLoop: while !latestResult.toolCalls.isEmpty && rounds < maxRounds && !Task.isCancelled && conversation.modelContext != nil {
                         rounds += 1
 
                         // Persist tool_call message
@@ -535,6 +539,16 @@ class StreamingChatService: ObservableObject {
                     notice = "The response hit the output token limit and may be cut off. Raise Max Tokens in parameters for longer answers."
                 }
             }
+
+            // A model may return only tool calls we can't execute here (e.g. an
+            // MCP/unknown tool on iOS, where no handler runs). Surface a readable
+            // message instead of persisting nothing and showing "No response".
+            if let streamResult, !streamResult.toolCalls.isEmpty,
+               streamingContent.isEmpty, streamingThinking.isEmpty, streamFailure == nil {
+                let names = streamResult.toolCalls.map(\.function.name).joined(separator: ", ")
+                streamingContent = "The model tried to use a tool that isn't available here (\(names)). Try rephrasing your request."
+            }
+
             if let streamFailure {
                 receivedAnyTokens = streamFailure.sawTokens
                 if !Task.isCancelled {
@@ -544,8 +558,13 @@ class StreamingChatService: ObservableObject {
 
             let wasCancelled = Task.isCancelled
 
-            // Persist the assistant message if we got content
-            if !streamingContent.isEmpty || !streamingThinking.isEmpty {
+            // Persist the assistant message if we got content — but never write
+            // into a conversation that was deleted mid-stream. A deleted+saved
+            // SwiftData model has a nil modelContext; resurrecting it corrupts
+            // the store / crashes.
+            if conversation.modelContext == nil {
+                // Conversation deleted while streaming; drop the partial response.
+            } else if !streamingContent.isEmpty || !streamingThinking.isEmpty {
                 let persistedTokenCount = finalEvalCount ?? (tokenCount > 0 ? tokenCount : nil)
                 let persistedContent: String
                 if wasCancelled {
