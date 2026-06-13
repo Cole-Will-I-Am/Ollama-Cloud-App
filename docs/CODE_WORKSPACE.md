@@ -1,8 +1,13 @@
 # Code Workspace — Technical Report
 
+> ⚠️ **Removed from the UI (2026-06-13).** The Projects / Code Workspace feature
+> was hidden from the app (the Chats/Projects toggle and entry points were
+> removed). The code and SwiftData models remain in the repo (dormant) so it can
+> be revived without a store migration; this doc describes that dormant feature.
+>
 > **Feature:** VS Code-like "Code" mode for SEER
 > **Date:** 2026-03-06
-> **Status:** Initial implementation complete, both platforms build clean
+> **Status:** Implemented; currently removed from the UI (dormant)
 > **Platforms:** iOS 17+ / macOS 14+
 
 ---

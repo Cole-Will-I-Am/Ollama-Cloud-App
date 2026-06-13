@@ -39,7 +39,9 @@ Most AI chat apps give you a text box and a send button. SEER gives you control 
 
 **For Everyone**
 - Stream responses from 100+ cloud models via Ollama
+- **AI Debate** — pose a question and watch two models take turns, with an optional impartial synthesis
 - Rich Markdown rendering with syntax-highlighted code blocks
+- Visualizations — charts, tables, and dashboards rendered from model output
 - Collapsible thinking/reasoning sections for supported models
 - Attach images, local files, and GitHub repository files as context
 - Pin, search, and organize conversations
@@ -52,6 +54,7 @@ Most AI chat apps give you a text box and a send button. SEER gives you control 
 
 **For Power Users**
 - Reasoning Scaffolds — reusable thinking frameworks
+- Built-in model tools — the model can auto-run a calculator & JavaScript on-device, plus optional web reading
 - Per-conversation parameter tuning (temperature, top-p, top-k, penalties, seeds, and more)
 - Inline code execution with input panel for stdin values
 - MCP tool integration with built-in and custom servers (macOS)
@@ -174,12 +177,31 @@ Server status, restart controls, and tool counts are visible in **Settings > MCP
 
 ---
 
+### AI Debate — watch two models reason it out
+
+Pose a question and pit two models against each other in their own **Debate** tab. Choose a **Debate** (one argues for, one against) or a **Discussion** (two perspectives), pick the two models and the number of rounds, and they take turns in a streaming, full-screen transcript. An optional impartial **synthesis** closes it out with the strongest points from each side and a balanced verdict. Save debates to revisit later.
+
+Available on both iOS and macOS; runs on your Ollama models.
+
+---
+
+### Built-in Model Tools — calculation, code, and the web
+
+Beyond MCP (macOS), every chat gets lightweight, cross-platform tools the model can call on its own:
+
+- **Calculator** and **run_javascript** — run on-device to get math, data, and logic right; nothing leaves your device.
+- **fetch_url** — read a public web page, gated behind an opt-in **Web access** toggle (Settings > Chat, off by default).
+
+The model uses these silently when they help — it won't recite or advertise them. A separate **Visualizations** toggle (Settings > Chat) lets the model render charts, tables, and dashboards.
+
+---
+
 ### SEER Assistant — your built-in guide
 
 Every installation ships with a **SEER** model profile pinned to your favorites. It's designed to help you get the most out of the app.
 
 - Always available in the model picker, even before your first API call
-- Backed by `qwen3.5:397b-cloud` — a fast, capable cloud model
+- Backed by `gpt-oss:120b` — a fast, capable cloud model
 - Tuned for concise, direct responses (temperature 0.15, capped at 512 tokens)
 - Knows every feature, every screen, every platform difference in the app
 - Thinking mode is disabled to keep answers fast and focused
@@ -197,6 +219,8 @@ SEER ships as two native apps from a [shared codebase](OllamaCloud/Sources). Pla
 |---|---|---|
 | **Min version** | macOS 14.0 (Sonoma) | iOS 17.0 |
 | **Streaming chat** | Yes | Yes |
+| **AI Debate** | Yes | Yes |
+| **Built-in model tools** (calculator, JS, web) | Yes | Yes |
 | **Reasoning scaffolds** | Yes | Yes |
 | **Model parameters** | Yes | Yes |
 | **Image attachments** | Yes | Yes |
@@ -327,6 +351,7 @@ Everything that runs on macOS — streaming, scaffolds, model parameters, thinki
 - **Keychain storage** — your API keys and optional GitHub token are stored in the system Keychain with device-locked accessibility, never in plain text or UserDefaults
 - **Account isolation** — conversations, scaffolds, and favorites are scoped by a SHA-256 fingerprint of your API key and host. Different accounts never see each other's data
 - **Ephemeral code execution** — code runs in a scoped temp workspace that's cleaned up after every execution. No persistent side effects
+- **Opt-in web access** — the model's `fetch_url` tool is off by default; enable **Web access** (Settings > Chat) to let it read public pages. Built-in calculator/JavaScript tools run entirely on-device
 - **Network monitoring** — real-time connectivity detection with offline banners and automatic retry logic
 - **MCP guardrails** — tool calls are individually time-limited (30s) and round-capped (10 per turn) to prevent runaway execution
 - **No telemetry to third parties** — SEER does not phone home. Your conversations stay on your device and go to the API endpoint you configure
@@ -436,7 +461,7 @@ These can be set in your Xcode scheme or as process environment variables:
 | `OLLAMA_BACKEND_BEARER_TOKEN` | — | Bearer token for authenticated backend relay |
 | `SEER_MODEL_ENABLED` | `true` | Enable or disable the built-in SEER model profile |
 | `OLLAMA_SEER_MODEL_NAME` | `SEER` | Display name for the SEER model in the picker |
-| `OLLAMA_SEER_BACKING_MODEL` | `qwen3.5:397b-cloud` | Cloud model that powers SEER responses |
+| `OLLAMA_SEER_BACKING_MODEL` | `gpt-oss:120b` | Cloud model that powers SEER responses |
 
 ### MCP Configuration (macOS)
 
