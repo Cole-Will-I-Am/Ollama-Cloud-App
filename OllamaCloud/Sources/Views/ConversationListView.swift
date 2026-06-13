@@ -198,47 +198,30 @@ struct ConversationListView: View {
     @ViewBuilder
     private func conversationRow(_ conversation: Conversation) -> some View {
         #if os(macOS)
-        let rowSpacing: CGFloat = 12
-        let avatarSize: CGFloat = 36
-        let avatarIconSize: CGFloat = 14
         let rowVerticalPadding: CGFloat = 7
         #else
-        let rowSpacing: CGFloat = 14
-        let avatarSize: CGFloat = 40
-        let avatarIconSize: CGFloat = 15
         let rowVerticalPadding: CGFloat = 6
         #endif
 
         let row = NavigationLink(value: conversation) {
-            HStack(spacing: rowSpacing) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.accentSoft)
-                        .frame(width: avatarSize, height: avatarSize)
-                    Image(systemName: "cpu")
-                        .font(.system(size: avatarIconSize, weight: .ultraLight))
-                        .foregroundStyle(Color.accent)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(conversation.title)
-                            .font(.app(15, weight: .regular))
-                            .foregroundStyle(Color.textPrimary)
-                            .lineLimit(1)
-                        if conversation.isPinned == true {
-                            Image(systemName: "pin.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.accent)
-                        }
-                    }
-
-                    if !conversation.modelName.isEmpty {
-                        Text(conversation.modelName.uppercased())
-                            .font(.appLabel(9))
-                            .luxuryTracking()
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(conversation.title)
+                        .font(.app(15, weight: .regular))
+                        .foregroundStyle(Color.textPrimary)
+                        .lineLimit(1)
+                    if conversation.isPinned == true {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 10))
                             .foregroundStyle(Color.accent)
                     }
+                }
+
+                if !conversation.modelName.isEmpty {
+                    Text(conversation.modelName.uppercased())
+                        .font(.appLabel(9))
+                        .luxuryTracking()
+                        .foregroundStyle(Color.accent)
                 }
             }
             .padding(.vertical, rowVerticalPadding)
