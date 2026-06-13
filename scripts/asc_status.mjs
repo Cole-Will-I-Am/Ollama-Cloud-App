@@ -116,7 +116,12 @@ async function main() {
     const infos = await api("GET", `/apps/${appId}/appInfos?${q({ include: "primaryCategory", limit: "5" })}`);
     for (const info of infos.data || []) {
       const a = info.attributes || {};
-      console.log(`  appInfo ${info.id} state=${a.appStoreState || a.state || "?"} ageBand=${a.kidsAgeBand || "-"} contentRights=${a.appStoreAgeRatingOverride || a.brazilAgeRating || "-"}`);
+      let ageRating = "MISSING";
+      try {
+        const ar = await api("GET", `/appInfos/${info.id}/ageRatingDeclaration`);
+        ageRating = ar.data ? "set" : "MISSING";
+      } catch (e) { ageRating = e.message.includes("404") ? "MISSING" : e.message; }
+      console.log(`  appInfo ${info.id} state=${a.appStoreState || a.state || "?"} ageRatingDeclaration=${ageRating}`);
     }
   } catch (e) { console.log(`  (appInfos: ${e.message})`); }
 
