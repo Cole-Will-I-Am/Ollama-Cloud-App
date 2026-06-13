@@ -1,0 +1,6 @@
+SEER 1.5.5 fixes a chat history bug.
+
+FIXED
+• Your conversations now show up reliably in the list again — earlier builds could hide saved chats so the app looked like it started fresh. Your existing chats reappear automatically.
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
