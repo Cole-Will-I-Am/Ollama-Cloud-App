@@ -1,0 +1,7 @@
+SEER 1.5.4 makes the assistant more capable.
+
+NEW
+• The model can now calculate and run JavaScript on-device to get math, data, and logic right — automatically, when it helps
+• Optional Web access (Settings → Chat): let the model fetch and read public web pages you ask about. Off by default
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
