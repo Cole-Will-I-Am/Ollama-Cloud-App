@@ -93,6 +93,33 @@ async function main() {
     } catch (e) { console.log(`  appStoreVersionSubmission: ${e.message}`); }
   }
 
+  console.log("\n=== Submission readiness (editable version) ===");
+  if (verId) {
+    try {
+      const locs = await api("GET", `/appStoreVersions/${verId}/appStoreVersionLocalizations?${q({ limit: "10" })}`);
+      for (const loc of locs.data || []) {
+        const a = loc.attributes || {};
+        let shots = 0;
+        try {
+          const sets = await api("GET", `/appStoreVersionLocalizations/${loc.id}/appScreenshotSets?${q({ include: "appScreenshots", limit: "50" })}`);
+          shots = (sets.included || []).filter((x) => x.type === "appScreenshots").length;
+        } catch (e) {}
+        console.log(`  [${a.locale}] description=${a.description ? "yes" : "MISSING"} keywords=${a.keywords ? "yes" : "MISSING"} supportUrl=${a.supportUrl ? "yes" : "MISSING"} promotionalText=${a.promotionalText ? "yes" : "-"} screenshots=${shots}`);
+      }
+    } catch (e) { console.log(`  (localizations: ${e.message})`); }
+    try {
+      const ar = await api("GET", `/appStoreVersions/${verId}/ageRatingDeclaration`);
+      console.log(`  ageRatingDeclaration: ${ar.data ? "set" : "MISSING"}`);
+    } catch (e) { console.log(`  ageRatingDeclaration: ${e.message.includes("404") ? "MISSING" : e.message}`); }
+  }
+  try {
+    const infos = await api("GET", `/apps/${appId}/appInfos?${q({ include: "primaryCategory", limit: "5" })}`);
+    for (const info of infos.data || []) {
+      const a = info.attributes || {};
+      console.log(`  appInfo ${info.id} state=${a.appStoreState || a.state || "?"} ageBand=${a.kidsAgeBand || "-"} contentRights=${a.appStoreAgeRatingOverride || a.brazilAgeRating || "-"}`);
+    }
+  } catch (e) { console.log(`  (appInfos: ${e.message})`); }
+
   console.log("\n=== Recent Builds (TestFlight) ===");
   const builds = await api("GET", `/builds?${q({ "filter[app]": appId, limit: "8", sort: "-uploadedDate" })}`);
   for (const b of builds.data || []) {
