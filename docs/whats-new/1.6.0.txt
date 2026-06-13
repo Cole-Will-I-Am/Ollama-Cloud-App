@@ -1,0 +1,6 @@
+SEER 1.6 adds AI Debate.
+
+NEW
+• AI Debate — a new tab: pose a question and watch two models take turns making the case (Debate or Discussion), with an optional impartial closing synthesis. Save debates to revisit later.
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
