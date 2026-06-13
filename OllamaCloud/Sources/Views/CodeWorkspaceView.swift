@@ -20,6 +20,7 @@ struct CodeWorkspaceView: View {
     @State private var showModelPicker = false
     @StateObject private var codeOutput = CodeBlockOutputState()
     @State private var saveBlock: ExtractedCodeBlock?
+    @State private var showFileImporter = false
 
     private var selectedFile: ProjectFile? {
         guard let path = selectedFilePath else { return nil }
@@ -139,6 +140,21 @@ struct CodeWorkspaceView: View {
             if let block = saveBlock {
                 let ext = CodeLanguage.extensionForLanguage(block.language)
                 Text("Save as \"untitled.\(ext)\"?")
+            }
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [
+                .plainText, .utf8PlainText, .text, .sourceCode,
+                .json, .xml, .commaSeparatedText
+            ],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                importFiles(urls)
+            case .failure(let error):
+                persistenceError = error.localizedDescription
             }
         }
         #if os(iOS)
@@ -267,6 +283,15 @@ struct CodeWorkspaceView: View {
                 Spacer()
                 Button { createNewFile(inDirectory: nil) } label: {
                     Image(systemName: "doc.badge.plus")
+                        .font(.system(size: 13, weight: .light))
+                        .foregroundStyle(Color.accent)
+                }
+                #if os(macOS)
+                .buttonStyle(.plain)
+                .macPointingCursor()
+                #endif
+                Button { showFileImporter = true } label: {
+                    Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 13, weight: .light))
                         .foregroundStyle(Color.accent)
                 }
@@ -451,6 +476,75 @@ struct CodeWorkspaceView: View {
         } catch {
             persistenceError = "Failed to create file."
         }
+    }
+
+    /// Import one or more text/code files picked from the device into the
+    /// project root, reading their contents into ProjectFiles.
+    private func importFiles(_ urls: [URL]) {
+        let maxCharacters = 100_000
+        var lastImportedPath: String?
+        var failures: [String] = []
+
+        for url in urls {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+
+            guard let data = try? Data(contentsOf: url),
+                  let decoded = decodeImportedText(data) else {
+                failures.append(url.lastPathComponent)
+                continue
+            }
+
+            let content = decoded.count > maxCharacters
+                ? String(decoded.prefix(maxCharacters)) + "\n\n[Truncated to \(maxCharacters) characters]"
+                : decoded
+
+            // Place at the project root with a unique, normalized name.
+            let baseName = sanitizedImportName(url.lastPathComponent)
+            var finalPath = baseName
+            var counter = 1
+            while project.files.contains(where: { $0.path == finalPath }) {
+                let ext = (baseName as NSString).pathExtension
+                let stem = (baseName as NSString).deletingPathExtension
+                finalPath = ext.isEmpty ? "\(stem)-\(counter)" : "\(stem)-\(counter).\(ext)"
+                counter += 1
+            }
+
+            let file = ProjectFile(path: finalPath, content: content, project: project)
+            modelContext.insert(file)
+            lastImportedPath = finalPath
+        }
+
+        project.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            persistenceError = "Failed to import files."
+            return
+        }
+
+        if let path = lastImportedPath {
+            if !openFilePaths.contains(path) { openFilePaths.append(path) }
+            selectedFilePath = path
+            #if os(iOS)
+            showFileTreeSheet = false
+            #endif
+        }
+        if !failures.isEmpty {
+            persistenceError = "Couldn't import (not readable text): \(failures.joined(separator: ", "))."
+        }
+    }
+
+    private func decodeImportedText(_ data: Data) -> String? {
+        if let s = String(data: data, encoding: .utf8) { return s }
+        if let s = String(data: data, encoding: .utf16) { return s }
+        if let s = String(data: data, encoding: .isoLatin1) { return s }
+        return nil
+    }
+
+    private func sanitizedImportName(_ name: String) -> String {
+        let last = name.split(separator: "/").last.map(String.init) ?? name
+        return last.isEmpty ? "imported.txt" : last
     }
 
     private func deleteFile(_ file: ProjectFile) {

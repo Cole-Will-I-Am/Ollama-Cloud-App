@@ -1,0 +1,9 @@
+SEER 1.5.2 improves Projects.
+
+NEW
+• Upload files into a project — import existing text and code files from your device straight into the file tree
+
+IMPROVED
+• Creating a project is clearer: the empty Projects screen now has a "New Project" button, and a new project is kept (and opened) even if you skip picking a model — you can choose one later in the workspace
+
+Your chats stay on your device. Manage data sharing anytime in Settings.

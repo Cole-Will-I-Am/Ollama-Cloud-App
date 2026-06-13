@@ -91,7 +91,6 @@ struct ProjectListView: View {
             }
         }
         .sheet(isPresented: $showModelPicker, onDismiss: {
-            deletePendingProjectIfEmpty()
             pendingProject = nil
         }) {
             ModelPickerView(onSelect: { model in
@@ -113,7 +112,9 @@ struct ProjectListView: View {
                 pendingProject = nil
                 showModelPicker = false
             }, onCancel: {
-                deletePendingProjectIfEmpty()
+                // Keep the project even without a model — open it so it doesn't
+                // silently vanish. A model can be chosen later in the workspace.
+                selection = pendingProject
                 pendingProject = nil
                 showModelPicker = false
             })
@@ -156,6 +157,22 @@ struct ProjectListView: View {
                     Text("No Projects")
                         .font(.app(15, weight: .light))
                         .foregroundStyle(Color.textTertiary)
+                    Button {
+                        newProject()
+                    } label: {
+                        Text("+ NEW PROJECT")
+                            .font(.appLabel(11))
+                            .luxuryTracking()
+                            .foregroundStyle(Color.accent)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.accentSoft, in: Capsule())
+                    }
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    .macPointingCursor()
+                    #endif
+                    .padding(.top, 4)
                 }
             }
         }
@@ -314,31 +331,6 @@ struct ProjectListView: View {
             try modelContext.save()
         } catch {
             persistenceError = "Failed to delete project."
-        }
-    }
-
-    private func deletePendingProjectIfEmpty() {
-        guard let pendingProject else { return }
-
-        // Check if model was selected by looking at the hidden conversation
-        let convID = pendingProject.conversationID
-        let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == convID })
-        let conv = try? modelContext.fetch(descriptor).first
-        let hasModel = conv.map { !$0.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
-
-        guard !hasModel else { return }
-
-        if selection?.id == pendingProject.id {
-            selection = nil
-        }
-        if let conv {
-            modelContext.delete(conv)
-        }
-        modelContext.delete(pendingProject)
-        do {
-            try modelContext.save()
-        } catch {
-            persistenceError = "Failed to remove empty project."
         }
     }
 }
