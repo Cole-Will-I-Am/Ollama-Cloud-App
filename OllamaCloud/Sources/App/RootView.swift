@@ -9,7 +9,7 @@ struct RootView: View {
         Group {
             if hasAPIKey, KeychainHelper.load(key: "api_key") != nil {
                 if ConsentStore.hasConsented(signature: consentSignature) {
-                    MainAppView()
+                    AppTabsView()
                 } else {
                     DataSharingConsentView()
                 }
@@ -22,6 +22,19 @@ struct RootView: View {
                 hasAPIKey = false
             }
         }
+    }
+}
+
+/// Top-level sections: Chats and the new Debate area, each its own tab.
+struct AppTabsView: View {
+    var body: some View {
+        TabView {
+            MainAppView()
+                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+            DebateHomeView()
+                .tabItem { Label("Debate", systemImage: "person.2") }
+        }
+        .tint(Color.accent)
     }
 }
 
