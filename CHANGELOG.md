@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-13 — releases 1.5.1 → 1.6.1
+
+### Added: AI Debate (1.6.0)
+- New **Debate** tab — the app is now a `TabView` (Chats | Debate) via `AppTabsView`.
+- `DebateRunner` streams two models taking turns on a topic — **Debate** (for vs against) or **Discussion** — via `OllamaAPIClient.streamChat`, with an optional impartial closing **synthesis**.
+- `DebateHomeView` (topic + two model pickers + format/rounds/synthesis + saved list) and `DebateRunView` (full-page streaming transcript, color-coded turns, Stop/Save).
+- Debates persist to a JSON file (`DebateStore`), deliberately **not** a SwiftData `@Model` — avoids a schema migration/store reset.
+
+### Added: Built-in model tools (1.5.4)
+- `AssistantToolkit`: `calculator` + `run_javascript` (on-device, always available) and `fetch_url` (opt-in via **Settings > Chat > Web access**, off by default; blocks loopback/private hosts).
+- Wired into `ChatView` tools + the `StreamingChatService` dispatch loop. Tuned the tools system-prompt guidance so models use them naturally without reciting them.
+
+### Changed
+- **SEER assistant (1.6.1):** backing model `qwen3.5:397b-cloud` → **`gpt-oss:120b`**; system prompt updated to cover the current feature set (Debate tab, model tools, Web access / Visualizations toggles).
+- **Removed Projects / Code Workspace from the UI (1.5.3):** hid the Chats/Projects toggle and all entry points. `Project`/`ProjectFile` stay in the SwiftData schema (dormant) so the feature can return without a store reset. (The 1.5.2 file-upload-into-projects work is therefore currently dormant.)
+
+### Fixed
+- **(1.5.5)** Saved conversations were hidden from the list — the `isProjectChat != true` query excluded NULL rows in SwiftData's SQLite store; now matches `nil`/`false` explicitly, so chat history shows again.
+- **(1.5.1)** Deleting a conversation mid-stream could crash / corrupt the store — cancel streaming on view teardown + guard persistence against a deleted conversation.
+- **(1.5.1)** iOS JavaScript execution had no timeout — added a 10s watchdog so an infinite loop no longer hangs the Run spinner.
+- **(1.5.1)** `move_file` could collide a directory's children → silent file loss; now rejected. Plus: tool-call-only replies no longer show a blank "No response", transient-retry no longer duplicates partial thinking, and `create_file` under an existing file no longer hides it.
+- **(1.6.1)** Debate labels were over-tracked ("P r o p o n e n t") and the Debate setup keyboard wouldn't dismiss — normal label spacing + Done/scroll-to-dismiss.
+- Consent gate: long tracked labels could run off-screen on narrow iPhones — scale-to-fit + padding.
+
 ## 2026-03-06
 
 ### Added: OpenAI API Provider Support
