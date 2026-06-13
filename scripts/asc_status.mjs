@@ -75,11 +75,29 @@ async function main() {
     }
   }
 
+  console.log("\n=== Version build + export compliance ===");
+  const verId = versions.data?.[0]?.id;
+  if (verId) {
+    const ver = await api("GET", `/appStoreVersions/${verId}?${q({ "include": "build", "fields[builds]": "version,processingState,usesNonExemptEncryption,uploadedDate" })}`);
+    const b = ver.included?.find((x) => x.type === "builds");
+    if (b) {
+      const a = b.attributes || {};
+      console.log(`  attached build ${a.version}  usesNonExemptEncryption=${a.usesNonExemptEncryption}  processing=${a.processingState}`);
+    } else {
+      console.log("  (no build attached to version)");
+    }
+    // appStoreVersionSubmission tells us if a submission object exists/was created
+    try {
+      const avs = await api("GET", `/appStoreVersions/${verId}/appStoreVersionSubmission`);
+      console.log(`  appStoreVersionSubmission: ${avs.data?.id || "none"}`);
+    } catch (e) { console.log(`  appStoreVersionSubmission: ${e.message}`); }
+  }
+
   console.log("\n=== Recent Builds (TestFlight) ===");
   const builds = await api("GET", `/builds?${q({ "filter[app]": appId, limit: "8", sort: "-uploadedDate" })}`);
   for (const b of builds.data || []) {
     const a = b.attributes || {};
-    console.log(`  build ${a.version}  processing=${a.processingState}  expired=${a.expired}  uploaded=${a.uploadedDate}`);
+    console.log(`  build ${a.version}  processing=${a.processingState}  encryption=${a.usesNonExemptEncryption}  expired=${a.expired}`);
   }
 }
 
