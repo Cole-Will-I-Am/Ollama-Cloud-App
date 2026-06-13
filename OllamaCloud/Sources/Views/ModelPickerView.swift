@@ -254,15 +254,6 @@ struct ModelPickerView: View {
                 onSelect(model)
             } label: {
                 HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.accentSoft)
-                            .frame(width: 38, height: 38)
-                        Image(systemName: "cube")
-                            .font(.system(size: 14, weight: .ultraLight))
-                            .foregroundStyle(Color.accent)
-                    }
-
                     VStack(alignment: .leading, spacing: 4) {
                         Text(model.displayName)
                             .font(.app(15, weight: .regular))
