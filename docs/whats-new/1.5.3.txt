@@ -1,0 +1,6 @@
+SEER 1.5.3 focuses on a clean, fast chat experience.
+
+• Streamlined the app around chats: conversation search, branching, voice dictation, visualizations, and export/share as Markdown
+• Stability and reliability improvements throughout
+
+Your chats stay on your device. Manage data sharing anytime in Settings.

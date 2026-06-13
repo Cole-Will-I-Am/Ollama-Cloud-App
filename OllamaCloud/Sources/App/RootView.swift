@@ -26,8 +26,6 @@ struct RootView: View {
 }
 
 struct MainAppView: View {
-    enum SidebarMode: String, CaseIterable { case chats, projects }
-
     @Environment(\.modelContext) private var modelContext
     #if os(macOS)
     @EnvironmentObject private var mcpManager: MCPClientManager
@@ -36,9 +34,6 @@ struct MainAppView: View {
     private let accountScopeKey: String
     @Query private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
-    @State private var selectedProject: Project?
-    @State private var sidebarMode: SidebarMode = .chats
-    @State private var projectCreateToken = 0
     @State private var showSettings = false
     @State private var persistenceError: String?
     @State private var showModelPicker = false
@@ -70,22 +65,7 @@ struct MainAppView: View {
 
     var body: some View {
         NavigationSplitView {
-            VStack(spacing: 0) {
-                Picker("", selection: $sidebarMode) {
-                    Text("Chats").tag(SidebarMode.chats)
-                    Text("Projects").tag(SidebarMode.projects)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-                if sidebarMode == .chats {
-                    ConversationListView(selection: $selectedConversation)
-                } else {
-                    ProjectListView(selection: $selectedProject, createToken: $projectCreateToken)
-                }
-            }
+            ConversationListView(selection: $selectedConversation)
             #if os(macOS)
             .navigationSplitViewColumnWidth(min: 270, ideal: 310, max: 360)
             #endif
@@ -104,45 +84,8 @@ struct MainAppView: View {
                     #endif
                 }
             }
-            .onChange(of: sidebarMode) {
-                if sidebarMode == .chats {
-                    selectedProject = nil
-                } else {
-                    selectedConversation = nil
-                }
-            }
         } detail: {
-            if sidebarMode == .projects, let project = selectedProject {
-                CodeWorkspaceView(project: project)
-                    .id(project.id)
-            } else if sidebarMode == .projects {
-                ZStack {
-                    Color.bgPrimary.ignoresSafeArea()
-                    VStack(spacing: 14) {
-                        Image(systemName: "folder")
-                            .font(.system(size: 36, weight: .ultraLight))
-                            .foregroundStyle(Color.textTertiary)
-                        Text("No Project Selected")
-                            .font(.app(14, weight: .light))
-                            .foregroundStyle(Color.textTertiary)
-                        Button {
-                            createProjectFromRoot()
-                        } label: {
-                            Text("+ NEW PROJECT")
-                                .font(.appLabel(11))
-                                .luxuryTracking()
-                                .foregroundStyle(Color.accent)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.accentSoft, in: Capsule())
-                        }
-                        #if os(macOS)
-                        .buttonStyle(.plain)
-                        .macPointingCursor()
-                        #endif
-                    }
-                }
-            } else if let conversation = selectedConversation {
+            if let conversation = selectedConversation {
                 ChatView(conversation: conversation)
             } else {
                 ZStack {
@@ -201,7 +144,6 @@ struct MainAppView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.dataReset)) { _ in
             selectedConversation = nil
-            selectedProject = nil
         }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
@@ -241,12 +183,8 @@ struct MainAppView: View {
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.newChat)) { _ in
             newConversationFromDetail()
         }
-        .onReceive(NotificationCenter.default.publisher(for: AppCommand.newProject)) { _ in
-            createProjectFromRoot()
-        }
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.closeChat)) { _ in
             selectedConversation = nil
-            selectedProject = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: AppCommand.selectConversationIndex)) { notification in
             guard let index = AppCommand.conversationIndex(from: notification) else { return }
@@ -294,9 +232,4 @@ struct MainAppView: View {
 
     #endif
 
-    private func createProjectFromRoot() {
-        sidebarMode = .projects
-        selectedConversation = nil
-        projectCreateToken += 1
-    }
 }

@@ -88,11 +88,6 @@ struct OllamaCloudApp: App {
                     AppCommand.post(AppCommand.newChat)
                 }
                 .keyboardShortcut("n", modifiers: .command)
-
-                Button("New Project") {
-                    AppCommand.post(AppCommand.newProject)
-                }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
 
             CommandGroup(after: .saveItem) {
