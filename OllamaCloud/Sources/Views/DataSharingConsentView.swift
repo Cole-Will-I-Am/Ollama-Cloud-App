@@ -42,13 +42,17 @@ struct DataSharingConsentView: View {
                     Text("DATA & PRIVACY")
                         .font(.appLabel(11))
                         .labelTracking()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(Color.textSecondary)
+                        .padding(.horizontal, 24)
                         .padding(.bottom, 8)
 
                     Text("Before you start chatting")
                         .font(.app(20, weight: .light))
                         .foregroundStyle(Color.textPrimary)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                         .padding(.bottom, 24)
 
                     DataSharingDisclosure()
@@ -93,6 +97,8 @@ struct DataSharingConsentView: View {
             Text("I AGREE & CONTINUE")
                 .font(.appLabel(14))
                 .labelTracking()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(Capsule().fill(LinearGradient.accentGradient))
@@ -151,6 +157,8 @@ struct DataSharingDisclosure: View {
                         Text("READ THE PRIVACY POLICY")
                             .font(.appLabel(11))
                             .tracking(2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     .foregroundStyle(Color.accent)
                 }
