@@ -1,0 +1,7 @@
+SEER 1.6.1 polishes AI Debate.
+
+FIXED
+• Debate labels (speaker names and the model matchup) are no longer over-spaced and read clearly
+• The keyboard on the Debate setup screen now dismisses — Done button, swipe-to-dismiss, and auto-dismiss when you start a debate
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
