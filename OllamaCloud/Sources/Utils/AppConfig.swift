@@ -7,7 +7,7 @@ enum AppConfig {
 
     private static let defaultAPIBaseURL = "https://ollama.com"
     private static let defaultSeerModelName = "SEER"
-    private static let defaultSeerBackingModelName = "qwen3.5:397b-cloud"
+    private static let defaultSeerBackingModelName = "gpt-oss:120b"
 
     /// Public privacy policy, surfaced in the data-sharing consent gate and Settings.
     /// Hosted on the website so the app and site share one canonical policy.
