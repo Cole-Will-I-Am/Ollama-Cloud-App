@@ -20,7 +20,7 @@ struct ProjectDetailView: View {
     init(project: ChatProject, accountScopeKey: String = AccountScope.currentKey()) {
         self.project = project
         self.accountScopeKey = accountScopeKey
-        let pid = project.id
+        let pid: UUID? = project.id
         _projectConversations = Query(
             filter: #Predicate<Conversation> { conversation in
                 conversation.projectID == pid

@@ -66,9 +66,6 @@ struct MainAppView: View {
                 // translation of `!= true` drops NULL rows, so match nil/false
                 // explicitly (otherwise normal chats vanish from the list).
                 && (conversation.isProjectChat == nil || conversation.isProjectChat == false)
-                // Lightweight-project chats live under their project (Projects tab),
-                // where their context is injected — keep them out of the global list.
-                && conversation.projectID == nil
             },
             sort: \Conversation.updatedAt,
             order: .reverse
@@ -76,14 +73,19 @@ struct MainAppView: View {
     }
 
     private var sortedConversations: [Conversation] {
-        conversations.sorted {
-            let lhsPinned = $0.isPinned == true
-            let rhsPinned = $1.isPinned == true
-            if lhsPinned != rhsPinned {
-                return lhsPinned && !rhsPinned
+        conversations
+            // Exclude lightweight-project chats from the global Chats list /
+            // keyboard nav (filtered here, not in the @Query predicate, which
+            // hit the type-checker's complexity limit).
+            .filter { $0.projectID == nil }
+            .sorted {
+                let lhsPinned = $0.isPinned == true
+                let rhsPinned = $1.isPinned == true
+                if lhsPinned != rhsPinned {
+                    return lhsPinned && !rhsPinned
+                }
+                return $0.updatedAt > $1.updatedAt
             }
-            return $0.updatedAt > $1.updatedAt
-        }
     }
 
     var body: some View {

@@ -26,7 +26,9 @@ struct ProjectsHomeView: View {
         _conversations = Query(
             filter: #Predicate<Conversation> { conversation in
                 conversation.accountScopeKey == accountScopeKey || conversation.accountScopeKey == ""
-            }
+            },
+            sort: \Conversation.updatedAt,
+            order: .reverse
         )
     }
 
