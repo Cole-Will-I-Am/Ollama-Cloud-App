@@ -110,6 +110,7 @@ class StreamingChatService: ObservableObject {
         tools: [ChatTool]? = nil,
         mcpManager: AnyObject? = nil,
         project: Project? = nil,
+        extraSystemPrompt: String? = nil,
         conversation: Conversation,
         modelContext: ModelContext
     ) async {
@@ -271,7 +272,8 @@ class StreamingChatService: ObservableObject {
         let requestMessages = Self.buildOutboundMessages(
             conversationMessages: branchMessages,
             systemPrompt: systemPrompt,
-            scaffoldSystemPrompt: provider == .ollama ? scaffoldResolution.systemPrompt : nil
+            scaffoldSystemPrompt: provider == .ollama ? scaffoldResolution.systemPrompt : nil,
+            extraSystemPrompt: extraSystemPrompt
         )
 
         let baseOptions = ChatOptions(
@@ -502,7 +504,9 @@ class StreamingChatService: ObservableObject {
                             ),
                             // Keep the scaffold across tool rounds so the
                             // model's role/tone doesn't shift mid-answer.
-                            scaffoldSystemPrompt: provider == .ollama ? scaffoldResolution.systemPrompt : nil
+                            scaffoldSystemPrompt: provider == .ollama ? scaffoldResolution.systemPrompt : nil,
+                            // Keep injected project/codebase context across rounds too.
+                            extraSystemPrompt: extraSystemPrompt
                         )
 
                         // Reset streaming state for next round
@@ -700,9 +704,17 @@ class StreamingChatService: ObservableObject {
     nonisolated static func buildOutboundMessages(
         conversationMessages: [Message],
         systemPrompt: String,
-        scaffoldSystemPrompt: String?
+        scaffoldSystemPrompt: String?,
+        extraSystemPrompt: String? = nil
     ) -> [ChatRequestMessage] {
         var requestMessages: [ChatRequestMessage] = []
+
+        // Caller-supplied context (e.g. a lightweight Project's compiled
+        // instructions + files) leads, so it frames everything that follows.
+        if let extraSystemPrompt,
+           !extraSystemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            requestMessages.append(ChatRequestMessage(role: "system", content: extraSystemPrompt))
+        }
 
         if let scaffoldSystemPrompt,
            !scaffoldSystemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1293,7 +1305,7 @@ class StreamingChatService: ObservableObject {
         lastSentRequestContent != nil
     }
 
-    func retryLast(tools: [ChatTool]? = nil, mcpManager: AnyObject? = nil, project: Project? = nil, conversation: Conversation, modelContext: ModelContext) async {
+    func retryLast(tools: [ChatTool]? = nil, mcpManager: AnyObject? = nil, project: Project? = nil, extraSystemPrompt: String? = nil, conversation: Conversation, modelContext: ModelContext) async {
         guard let lastSentRequestContent else { return }
 
         await sendMessage(
@@ -1306,6 +1318,7 @@ class StreamingChatService: ObservableObject {
             tools: tools,
             mcpManager: mcpManager,
             project: project,
+            extraSystemPrompt: extraSystemPrompt,
             conversation: conversation,
             modelContext: modelContext
         )

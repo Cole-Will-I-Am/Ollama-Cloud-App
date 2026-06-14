@@ -27,6 +27,8 @@ struct ConversationListView: View {
                 // translation of `!= true` excludes NULL rows — which silently
                 // hid every normal conversation from the list.
                 && (conversation.isProjectChat == nil || conversation.isProjectChat == false)
+                // Lightweight-project chats appear under their project, not here.
+                && conversation.projectID == nil
             },
             sort: \Conversation.updatedAt,
             order: .reverse

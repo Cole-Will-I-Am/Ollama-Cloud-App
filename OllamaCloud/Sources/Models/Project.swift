@@ -10,6 +10,13 @@ final class Project {
     var createdAt: Date
     var updatedAt: Date
 
+    // Codebases build config (Builder + Reviewer loop). All optional so this is an
+    // additive, lightweight SwiftData migration. nil reviewerEnabled/buildRounds use
+    // sensible defaults at run time.
+    var reviewerModelName: String?
+    var reviewerEnabled: Bool?
+    var buildRounds: Int?
+
     @Relationship(deleteRule: .cascade, inverse: \ProjectFile.project)
     var files: [ProjectFile]
 

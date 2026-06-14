@@ -56,6 +56,8 @@ final class Conversation {
 
     var isProjectChat: Bool?      // nil/false = normal chat, true = project chat panel
 
+    var projectID: UUID?          // nil = ungrouped chat, else the owning ChatProject.id (lightweight Projects)
+
     var activeLeafID: UUID?       // Tip of the currently viewed branch (nil = legacy linear fallback)
 
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
@@ -190,9 +192,11 @@ final class Conversation {
         numPredict: Int = 2048,
         seed: Int = 0,
         numBatch: Int = 512,
-        numThread: Int = 0
+        numThread: Int = 0,
+        projectID: UUID? = nil
     ) {
         self.id = UUID()
+        self.projectID = projectID
         self.title = title
         self.isPinned = isPinned
         self.accountScopeKey = accountScopeKey

@@ -15,9 +15,14 @@ struct ProjectChatPanel: View {
     @ObservedObject var codeOutput: CodeBlockOutputState
 
     @StateObject private var streaming = StreamingChatService()
+    @StateObject private var builder = CodebaseBuilder()
     @State private var input = ""
     @State private var lastFenceCount = 0
+    @State private var buildMode = false
+    @State private var showBuildConfig = false
     @FocusState private var isInputFocused: Bool
+
+    private var isBusy: Bool { streaming.isStreaming || builder.isRunning }
 
     private var sortedMessages: [Message] {
         conversation.activeBranchMessages
@@ -36,10 +41,90 @@ struct ProjectChatPanel: View {
                     errorBanner(error)
                 }
 
+                if builder.isRunning, !builder.reviewerText.isEmpty {
+                    reviewerBanner
+                }
+
+                buildControls
                 inputBar
             }
         }
         .background(Color.bgSecondary)
+        .sheet(isPresented: $showBuildConfig) {
+            CodebaseBuildConfigView(project: project)
+            #if os(macOS)
+            .presentationBackground(Color.bgPrimary)
+            #endif
+        }
+    }
+
+    private var buildControls: some View {
+        HStack(spacing: 10) {
+            Button {
+                buildMode.toggle()
+                Haptic.selection()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: buildMode ? "hammer.fill" : "hammer")
+                        .font(.system(size: 11))
+                    Text("BUILD")
+                        .font(.appLabel(9))
+                        .luxuryTracking()
+                }
+                .foregroundStyle(buildMode ? Color.accent : Color.textTertiary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(buildMode ? Color.accentSoft : Color.surface))
+                .overlay(Capsule().stroke(Color.border, lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            #if os(macOS)
+            .macPointingCursor()
+            #endif
+
+            if buildMode {
+                Button { showBuildConfig = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12, weight: .ultraLight))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .buttonStyle(.plain)
+                #if os(macOS)
+                .macPointingCursor()
+                #endif
+            }
+
+            Spacer()
+
+            if let status = builder.statusText {
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.small)
+                    Text(status)
+                        .font(.app(10))
+                        .foregroundStyle(Color.textTertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private var reviewerBanner: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("REVIEWER")
+                .font(.appLabel(9))
+                .luxuryTracking()
+                .foregroundStyle(Color.accent)
+            Text(builder.reviewerText)
+                .font(.app(12, weight: .light))
+                .foregroundStyle(Color.textSecondary)
+                .lineLimit(4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.accentSoft.opacity(0.4))
     }
 
     private var toggleBar: some View {
@@ -218,22 +303,23 @@ struct ProjectChatPanel: View {
                 .onSubmit { sendMessage() }
 
             Button {
-                if streaming.isStreaming {
+                if isBusy {
+                    builder.cancel()
                     streaming.cancel(conversation: conversation, modelContext: modelContext)
                 } else {
                     sendMessage()
                 }
             } label: {
-                Image(systemName: streaming.isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+                Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
                     .font(.system(size: 22))
                     .foregroundStyle(
-                        input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !streaming.isStreaming
+                        input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isBusy
                             ? Color.textTertiary
                             : Color.accent
                     )
             }
             .buttonStyle(.plain)
-            .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !streaming.isStreaming)
+            .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isBusy)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -308,15 +394,36 @@ struct ProjectChatPanel: View {
             try? modelContext.save()
         }
 
+        var manager: AnyObject? = nil
+        #if os(macOS)
+        manager = mcpManager
+        #endif
+
+        // Build mode: run the Builder + Reviewer loop instead of a single turn.
+        if buildMode {
+            Task {
+                await builder.run(
+                    userText: text,
+                    project: project,
+                    conversation: conversation,
+                    reviewerModel: project.reviewerModelName ?? "",
+                    reviewerEnabled: project.reviewerEnabled ?? true,
+                    rounds: project.buildRounds ?? 2,
+                    streaming: streaming,
+                    mcpManager: manager,
+                    modelContext: modelContext
+                )
+            }
+            return
+        }
+
         Task {
             var tools: [ChatTool] = VisualsToolkit.tools
             tools.append(contentsOf: CodeToolkit.tools)
-            var manager: AnyObject? = nil
             #if os(macOS)
             if let mcpTools = mcpManager.ollamaTools() {
                 tools.append(contentsOf: mcpTools)
             }
-            manager = mcpManager
             #endif
             await streaming.sendMessage(
                 content: text,

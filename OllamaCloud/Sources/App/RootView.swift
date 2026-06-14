@@ -25,12 +25,16 @@ struct RootView: View {
     }
 }
 
-/// Top-level sections: Chats and the new Debate area, each its own tab.
+/// Top-level sections: Chats, Projects, Codebases, and Debate — each its own tab.
 struct AppTabsView: View {
     var body: some View {
         TabView {
             MainAppView()
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+            ProjectsHomeView()
+                .tabItem { Label("Projects", systemImage: "folder") }
+            CodebaseHomeView()
+                .tabItem { Label("Codebases", systemImage: "chevron.left.forwardslash.chevron.right") }
             DebateHomeView()
                 .tabItem { Label("Debate", systemImage: "person.2") }
         }
@@ -62,6 +66,9 @@ struct MainAppView: View {
                 // translation of `!= true` drops NULL rows, so match nil/false
                 // explicitly (otherwise normal chats vanish from the list).
                 && (conversation.isProjectChat == nil || conversation.isProjectChat == false)
+                // Lightweight-project chats live under their project (Projects tab),
+                // where their context is injected — keep them out of the global list.
+                && conversation.projectID == nil
             },
             sort: \Conversation.updatedAt,
             order: .reverse

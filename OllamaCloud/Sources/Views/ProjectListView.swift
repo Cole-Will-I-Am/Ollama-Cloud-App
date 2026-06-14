@@ -7,6 +7,9 @@ struct ProjectListView: View {
     @Query private var projects: [Project]
     @Binding var selection: Project?
     @Binding var createToken: Int
+    private let title: String
+    private let newButtonTitle: String
+    private let emptyTitle: String
     @State private var showModelPicker = false
     @State private var pendingProject: Project?
     @State private var persistenceError: String?
@@ -20,11 +23,17 @@ struct ProjectListView: View {
     init(
         selection: Binding<Project?>,
         createToken: Binding<Int>,
-        accountScopeKey: String = AccountScope.currentKey()
+        accountScopeKey: String = AccountScope.currentKey(),
+        title: String = "Projects",
+        newButtonTitle: String = "+ NEW PROJECT",
+        emptyTitle: String = "No Projects"
     ) {
         self._selection = selection
         self._createToken = createToken
         self.accountScopeKey = accountScopeKey
+        self.title = title
+        self.newButtonTitle = newButtonTitle
+        self.emptyTitle = emptyTitle
         _projects = Query(
             filter: #Predicate<Project> { project in
                 project.accountScopeKey == accountScopeKey
@@ -51,7 +60,7 @@ struct ProjectListView: View {
             Button {
                 newProject()
             } label: {
-                Text("+ NEW PROJECT")
+                Text(newButtonTitle)
                     .font(.appLabel(11))
                     .luxuryTracking()
                     .foregroundStyle(Color.accent)
@@ -68,7 +77,7 @@ struct ProjectListView: View {
             .background(Color.bgPrimary)
         }
         #endif
-        .navigationTitle("Projects")
+        .navigationTitle(title)
         .task(id: createToken) {
             guard createToken > 0 else { return }
             newProject()
@@ -154,13 +163,13 @@ struct ProjectListView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 36, weight: .ultraLight))
                         .foregroundStyle(Color.textTertiary)
-                    Text("No Projects")
+                    Text(emptyTitle)
                         .font(.app(15, weight: .light))
                         .foregroundStyle(Color.textTertiary)
                     Button {
                         newProject()
                     } label: {
-                        Text("+ NEW PROJECT")
+                        Text(newButtonTitle)
                             .font(.appLabel(11))
                             .luxuryTracking()
                             .foregroundStyle(Color.accent)
@@ -194,7 +203,10 @@ struct ProjectListView: View {
 
         let fileCount = project.files.filter { !$0.isDirectory }.count
 
-        let row = NavigationLink(value: project) {
+        let row = Button {
+            Haptic.selection()
+            selection = project
+        } label: {
             HStack(spacing: rowSpacing) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -221,6 +233,7 @@ struct ProjectListView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .listRowSeparator(.hidden)
         .contextMenu {
             Button {

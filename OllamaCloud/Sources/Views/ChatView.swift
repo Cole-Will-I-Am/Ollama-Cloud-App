@@ -17,6 +17,9 @@ struct ChatView: View {
     #endif
     @Bindable var conversation: Conversation
     var project: Project?
+    /// Lightweight context project (Projects tab). When set, its compiled
+    /// instructions + context files are injected as a system message on every send.
+    var chatProject: ChatProject?
     @StateObject private var streaming = StreamingChatService()
     @AppStorage("visualizations_enabled") private var visualizationsEnabled = true
     @AppStorage("web_access_enabled") private var webAccessEnabled = false
@@ -70,6 +73,12 @@ struct ChatView: View {
 
     private var sortedMessages: [Message] {
         conversation.activeBranchMessages
+    }
+    /// Compiled lightweight-project context, recomputed on each send so edits to
+    /// the project's instructions/files apply immediately (matches the website).
+    private var projectContextPrompt: String? {
+        guard let chatProject else { return nil }
+        return ProjectContextCompiler.compile(chatProject)
     }
     private static let streamingAutoScrollThrottleInterval: TimeInterval = 0.1
 
@@ -1224,6 +1233,7 @@ struct ChatView: View {
                 tools: tools.isEmpty ? nil : tools,
                 mcpManager: manager,
                 project: project,
+                extraSystemPrompt: projectContextPrompt,
                 conversation: conversation,
                 modelContext: modelContext
             )
@@ -1415,6 +1425,7 @@ struct ChatView: View {
                 tools: tools.isEmpty ? nil : tools,
                 mcpManager: manager,
                 project: project,
+                extraSystemPrompt: projectContextPrompt,
                 conversation: conversation,
                 modelContext: modelContext
             )
@@ -1436,7 +1447,7 @@ struct ChatView: View {
             }
             manager = mcpManager
             #endif
-            await streaming.retryLast(tools: tools.isEmpty ? nil : tools, mcpManager: manager, project: project, conversation: conversation, modelContext: modelContext)
+            await streaming.retryLast(tools: tools.isEmpty ? nil : tools, mcpManager: manager, project: project, extraSystemPrompt: projectContextPrompt, conversation: conversation, modelContext: modelContext)
         }
     }
 
