@@ -27,6 +27,10 @@ on:
         description: "Repo path to a plain-text What's New file to set on the version"
         required: false
         default: ""
+      keywords:
+        description: "App Store keywords (comma-separated, <=100 chars) to set on the version"
+        required: false
+        default: ""
 
 jobs:
   submit:
@@ -42,6 +46,7 @@ jobs:
       REVIEW_SUBMISSION_ID: ${{ inputs.review_submission_id }}
       CANCEL_ACTIVE_SUBMISSION: ${{ inputs.cancel_active }}
       WHATS_NEW_FILE: ${{ inputs.whats_new_file }}
+      KEYWORDS: ${{ inputs.keywords }}
       BUNDLE_ID: com.colecantcode.ollamacloud
       MAX_WAIT_MINUTES: "30"
     steps:

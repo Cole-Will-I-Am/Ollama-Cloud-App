@@ -10,6 +10,7 @@ const maxWaitMinutes = Number(process.env.MAX_WAIT_MINUTES || "30");
 const reviewSubmissionOverrideId = process.env.REVIEW_SUBMISSION_ID?.trim();
 const cancelActiveSubmission = parseBool(process.env.CANCEL_ACTIVE_SUBMISSION || "false");
 const whatsNew = process.env.WHATS_NEW?.trim();
+const keywords = process.env.KEYWORDS?.trim();
 
 const token = makeToken();
 
@@ -386,6 +387,34 @@ async function cancelActiveReviewSubmissions(appId) {
   }
 }
 
+async function setKeywords(appStoreVersionId) {
+  const response = await api(
+    "GET",
+    `/appStoreVersions/${appStoreVersionId}/appStoreVersionLocalizations?limit=50`
+  );
+  const localizations = response.data || [];
+  if (!localizations.length) {
+    console.log("No App Store version localizations found; cannot set keywords.");
+    return;
+  }
+  for (const localization of localizations) {
+    try {
+      await api("PATCH", `/appStoreVersionLocalizations/${localization.id}`, {
+        data: {
+          type: "appStoreVersionLocalizations",
+          id: localization.id,
+          attributes: { keywords }
+        }
+      });
+      console.log(`Set keywords for locale ${localization.attributes?.locale}: ${keywords}`);
+    } catch (error) {
+      console.log(
+        `Could not set keywords for locale ${localization.attributes?.locale}: ${summarizeError(error)}`
+      );
+    }
+  }
+}
+
 async function setWhatsNew(appStoreVersionId) {
   const response = await api(
     "GET",
@@ -446,6 +475,9 @@ try {
   const appStoreVersion = await findOrCreateAppStoreVersion(app.id);
   if (whatsNew) {
     await setWhatsNew(appStoreVersion.id);
+  }
+  if (keywords) {
+    await setKeywords(appStoreVersion.id);
   }
   await attachBuild(appStoreVersion.id, build.id);
 
