@@ -12,22 +12,26 @@ struct APIKeyEntryView: View {
 
     var body: some View {
         ZStack {
+            // Ambient glow as a non-layout overlay — a fixed 500pt frame as a
+            // direct ZStack child widens the stack past the screen and clips
+            // content on the left.
             Color.bgPrimary.ignoresSafeArea()
-
-            // Ambient glow
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.accent.opacity(0.08), Color.clear],
-                        center: .center,
-                        startRadius: 40,
-                        endRadius: 260
-                    )
-                )
-                .frame(width: 500, height: 500)
-                .offset(y: -80)
-                .blur(radius: 40)
-                .allowsHitTesting(false)
+                .overlay(alignment: .top) {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Color.accent.opacity(0.08), Color.clear],
+                                center: .center,
+                                startRadius: 40,
+                                endRadius: 260
+                            )
+                        )
+                        .frame(width: 500, height: 500)
+                        .offset(y: -80)
+                        .blur(radius: 40)
+                        .allowsHitTesting(false)
+                }
+                .clipped()
 
             VStack(spacing: 0) {
                 Spacer()
