@@ -25,12 +25,16 @@ struct RootView: View {
     }
 }
 
-/// Top-level sections: Chats and the new Debate area, each its own tab.
+/// Top-level sections: Chats, Projects, Codebases, and Debate — each its own tab.
 struct AppTabsView: View {
     var body: some View {
         TabView {
             MainAppView()
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+            ProjectsHomeView()
+                .tabItem { Label("Projects", systemImage: "folder") }
+            CodebaseHomeView()
+                .tabItem { Label("Codebases", systemImage: "chevron.left.forwardslash.chevron.right") }
             DebateHomeView()
                 .tabItem { Label("Debate", systemImage: "person.2") }
         }
@@ -69,14 +73,19 @@ struct MainAppView: View {
     }
 
     private var sortedConversations: [Conversation] {
-        conversations.sorted {
-            let lhsPinned = $0.isPinned == true
-            let rhsPinned = $1.isPinned == true
-            if lhsPinned != rhsPinned {
-                return lhsPinned && !rhsPinned
+        conversations
+            // Exclude lightweight-project chats from the global Chats list /
+            // keyboard nav (filtered here, not in the @Query predicate, which
+            // hit the type-checker's complexity limit).
+            .filter { $0.projectID == nil }
+            .sorted {
+                let lhsPinned = $0.isPinned == true
+                let rhsPinned = $1.isPinned == true
+                if lhsPinned != rhsPinned {
+                    return lhsPinned && !rhsPinned
+                }
+                return $0.updatedAt > $1.updatedAt
             }
-            return $0.updatedAt > $1.updatedAt
-        }
     }
 
     var body: some View {

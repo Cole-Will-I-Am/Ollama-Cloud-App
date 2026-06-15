@@ -34,14 +34,19 @@ struct ConversationListView: View {
     }
 
     private var sortedConversations: [Conversation] {
-        conversations.sorted {
-            let lhsPinned = $0.isPinned == true
-            let rhsPinned = $1.isPinned == true
-            if lhsPinned != rhsPinned {
-                return lhsPinned && !rhsPinned
+        conversations
+            // Lightweight-project chats live under their project (Projects tab),
+            // not in the global Chats list. Filtered here rather than in the
+            // @Query predicate, which hit the type-checker's complexity limit.
+            .filter { $0.projectID == nil }
+            .sorted {
+                let lhsPinned = $0.isPinned == true
+                let rhsPinned = $1.isPinned == true
+                if lhsPinned != rhsPinned {
+                    return lhsPinned && !rhsPinned
+                }
+                return $0.updatedAt > $1.updatedAt
             }
-            return $0.updatedAt > $1.updatedAt
-        }
     }
 
     /// `sortedConversations` narrowed by the search field. Matches the chat
@@ -62,7 +67,7 @@ struct ConversationListView: View {
     var body: some View {
         List(selection: $selection) {
             #if os(macOS)
-            if !conversations.isEmpty {
+            if !sortedConversations.isEmpty {
                 Section {
                     EmptyView()
                 } header: {
@@ -167,7 +172,7 @@ struct ConversationListView: View {
             Text(persistenceError ?? "An unknown storage error occurred.")
         }
         .overlay {
-            if conversations.isEmpty {
+            if sortedConversations.isEmpty {
                 VStack(spacing: 14) {
                     Image("SeerEmblem")
                         .resizable()

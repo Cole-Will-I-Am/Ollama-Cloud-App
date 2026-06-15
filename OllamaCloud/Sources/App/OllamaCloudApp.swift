@@ -8,7 +8,9 @@ private enum AppModelContainer {
             Message.self,
             ReasoningScaffold.self,
             Project.self,
-            ProjectFile.self
+            ProjectFile.self,
+            ChatProject.self,
+            ProjectContextFile.self
         ])
 
         let configuration = ModelConfiguration("OllamaCloud", schema: schema)

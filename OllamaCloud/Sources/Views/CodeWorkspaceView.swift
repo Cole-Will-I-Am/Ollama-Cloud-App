@@ -421,6 +421,25 @@ struct CodeWorkspaceView: View {
                         .font(.app(12, weight: .light))
                         .foregroundStyle(Color.textTertiary)
                         .multilineTextAlignment(.center)
+
+                    #if os(iOS)
+                    Button {
+                        showChatSheet = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "hammer.fill")
+                                .font(.system(size: 11))
+                            Text("START BUILDING")
+                                .font(.appLabel(11))
+                                .luxuryTracking()
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 11)
+                        .background(Capsule().fill(LinearGradient.accentGradient))
+                    }
+                    .padding(.top, 6)
+                    #endif
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.bgPrimary)
