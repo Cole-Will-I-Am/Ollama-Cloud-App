@@ -13,8 +13,6 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/s%C7%9Der/id6760127815"><b>Download on the App Store (iPhone &amp; iPad)</b></a>
-  &nbsp;·&nbsp;
-  <a href="https://github.com/Cole-Will-I-Am/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg"><b>Download macOS (Direct)</b></a>
 </p>
 
 ---
@@ -391,17 +389,12 @@ See [`backend/README.md`](backend/README.md) for full production deployment conf
 
 ## Getting Started
 
-[Download macOS (Direct)](https://github.com/Cole-Will-I-Am/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg)
-
 ### Choose Your Path
 
 | Goal | Start Here |
 |---|---|
 | Install SEER on iPhone or iPad | [Download on the App Store](https://apps.apple.com/us/app/s%C7%9Der/id6760127815) |
-| Install SEER on macOS right now (no Xcode) | [Download latest macOS build](https://github.com/Cole-Will-I-Am/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg) |
 | Build, modify, or contribute to the app | [Build from Source](#build-from-source) |
-
-For direct macOS installs, Xcode is not required.
 
 ### Requirements
 
@@ -440,15 +433,11 @@ Or open `OllamaCloud.xcodeproj` in Xcode and select the `OllamaCloudMac` scheme.
 
 ### Direct macOS Distribution (Outside App Store)
 
-If you want to ship a direct-download Mac app (website/download link), use the signing + notarization pipeline documented here:
+A signing + notarization pipeline for shipping a direct-download Mac app is documented for when that path is revived:
 
 - [`docs/MACOS_DIRECT_DISTRIBUTION.md`](docs/MACOS_DIRECT_DISTRIBUTION.md)
 
 The included script handles build, Developer ID signing, Apple notarization, stapling, and packaging into `.zip`/`.dmg`.
-
-For one-click downloads, upload `SEER-macos.dmg` to each GitHub Release so this stable link always works:
-
-- [Download latest macOS build](https://github.com/Cole-Will-I-Am/Ollama-Cloud-App/releases/latest/download/SEER-macos.dmg)
 
 ---
 
