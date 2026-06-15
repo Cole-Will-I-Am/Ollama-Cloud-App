@@ -30,11 +30,13 @@ struct AppTabsView: View {
     var body: some View {
         TabView {
             MainAppView()
-                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+                // Cohesive filled trio: one bubble = Chats, two bubbles = Debate,
+                // stacked squares = Projects. Reads cleaner than the stock symbols.
+                .tabItem { Label("Chats", systemImage: "message.fill") }
             ProjectsHomeView()
-                .tabItem { Label("Projects", systemImage: "folder") }
+                .tabItem { Label("Projects", systemImage: "square.stack.fill") }
             DebateHomeView()
-                .tabItem { Label("Debate", systemImage: "person.2") }
+                .tabItem { Label("Debate", systemImage: "bubble.left.and.bubble.right.fill") }
         }
         .tint(Color.accent)
     }
