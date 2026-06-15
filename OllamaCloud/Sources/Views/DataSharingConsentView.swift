@@ -56,6 +56,7 @@ struct DataSharingConsentView: View {
                         .padding(.bottom, 24)
 
                     DataSharingDisclosure()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(20)
                         .chromeCard()
                         .padding(.horizontal, 24)
@@ -210,6 +211,7 @@ struct DataSharingDisclosureSheet: View {
         NavigationStack {
             ScrollView {
                 DataSharingDisclosure()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
             }
             .background(Color.bgPrimary)
