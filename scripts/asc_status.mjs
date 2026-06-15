@@ -104,7 +104,8 @@ async function main() {
           const sets = await api("GET", `/appStoreVersionLocalizations/${loc.id}/appScreenshotSets?${q({ include: "appScreenshots", limit: "50" })}`);
           shots = (sets.included || []).filter((x) => x.type === "appScreenshots").length;
         } catch (e) {}
-        console.log(`  [${a.locale}] description=${a.description ? "yes" : "MISSING"} keywords=${a.keywords ? "yes" : "MISSING"} supportUrl=${a.supportUrl ? "yes" : "MISSING"} promotionalText=${a.promotionalText ? "yes" : "-"} screenshots=${shots}`);
+        console.log(`  [${a.locale}] description=${a.description ? "yes" : "MISSING"} supportUrl=${a.supportUrl ? "yes" : "MISSING"} promotionalText=${a.promotionalText ? "yes" : "-"} screenshots=${shots}`);
+        console.log(`      keywords: ${JSON.stringify(a.keywords || "")}`);
       }
     } catch (e) { console.log(`  (localizations: ${e.message})`); }
     try {
@@ -122,6 +123,13 @@ async function main() {
         ageRating = ar.data ? "set" : "MISSING";
       } catch (e) { ageRating = e.message.includes("404") ? "MISSING" : e.message; }
       console.log(`  appInfo ${info.id} state=${a.appStoreState || a.state || "?"} ageRatingDeclaration=${ageRating}`);
+      try {
+        const ilocs = await api("GET", `/appInfos/${info.id}/appInfoLocalizations?${q({ limit: "10" })}`);
+        for (const il of ilocs.data || []) {
+          const ia = il.attributes || {};
+          console.log(`      [${ia.locale}] name=${JSON.stringify(ia.name || "")} subtitle=${JSON.stringify(ia.subtitle || "")}`);
+        }
+      } catch (e) { console.log(`      (appInfoLocalizations: ${e.message})`); }
     }
   } catch (e) { console.log(`  (appInfos: ${e.message})`); }
 
