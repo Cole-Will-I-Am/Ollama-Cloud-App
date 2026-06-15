@@ -48,7 +48,6 @@ final class ProjectsTests: XCTestCase {
         let context = try makeContainer().mainContext
         let project = ChatProject(name: "P", accountScopeKey: "s")
         context.insert(project)
-        let pid: UUID? = project.id
 
         let inProject = Conversation(accountScopeKey: "s", projectID: project.id)
         let normal = Conversation(accountScopeKey: "s")
@@ -56,16 +55,15 @@ final class ProjectsTests: XCTestCase {
         context.insert(normal)
         try context.save()
 
-        // ProjectDetailView's query: chats belonging to this project.
-        let grouped = try context.fetch(
-            FetchDescriptor<Conversation>(predicate: #Predicate { $0.projectID == pid })
-        )
+        // Grouping + global exclusion are done in Swift, NOT in a #Predicate:
+        // a SwiftData predicate comparing the optional `projectID` to a UUID
+        // crashes at evaluation time. Mirror the real (client-side) filtering.
+        let all = try context.fetch(FetchDescriptor<Conversation>())
+
+        let grouped = all.filter { $0.projectID == project.id }
         XCTAssertEqual(grouped.map(\.id), [inProject.id])
 
-        // Global Chats list excludes project chats (projectID == nil filter).
-        let global = try context.fetch(
-            FetchDescriptor<Conversation>(predicate: #Predicate { $0.projectID == nil })
-        )
+        let global = all.filter { $0.projectID == nil }
         XCTAssertTrue(global.contains { $0.id == normal.id })
         XCTAssertFalse(global.contains { $0.id == inProject.id })
     }

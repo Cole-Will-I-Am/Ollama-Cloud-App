@@ -9,25 +9,40 @@ struct ProjectDetailView: View {
     // the body still tracks edits made via the editor sheet.
     let project: ChatProject
     private let accountScopeKey: String
-    @Query private var projectConversations: [Conversation]
+    // Account-scoped only; projectID is filtered in Swift below. A SwiftData
+    // `#Predicate` comparing the optional `projectID` to a UUID crashes at
+    // evaluation time, so grouping is done client-side (same as the Chats list).
+    @Query private var accountConversations: [Conversation]
+
+    private enum ActiveSheet: Identifiable {
+        case editor
+        case modelPicker
+        var id: Int { self == .editor ? 0 : 1 }
+    }
 
     @State private var selectedChat: Conversation?
-    @State private var showEditor = false
-    @State private var showModelPicker = false
+    @State private var activeSheet: ActiveSheet?
     @State private var pendingConversation: Conversation?
+    // Chat to navigate to AFTER the model-picker sheet finishes dismissing —
+    // pushing a navigationDestination while a sheet is mid-dismiss crashes SwiftUI.
+    @State private var pendingNavChat: Conversation?
     @State private var persistenceError: String?
 
     init(project: ChatProject, accountScopeKey: String = AccountScope.currentKey()) {
         self.project = project
         self.accountScopeKey = accountScopeKey
-        let pid: UUID? = project.id
-        _projectConversations = Query(
+        _accountConversations = Query(
             filter: #Predicate<Conversation> { conversation in
-                conversation.projectID == pid
+                conversation.accountScopeKey == accountScopeKey || conversation.accountScopeKey == ""
             },
             sort: \Conversation.updatedAt,
             order: .reverse
         )
+    }
+
+    private var projectConversations: [Conversation] {
+        let pid = project.id
+        return accountConversations.filter { $0.projectID == pid }
     }
 
     var body: some View {
@@ -67,7 +82,7 @@ struct ProjectDetailView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: .seerTrailing) {
-                Button { showEditor = true } label: {
+                Button { activeSheet = .editor } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 15, weight: .ultraLight))
                         .foregroundStyle(Color.textSecondary)
@@ -81,30 +96,41 @@ struct ProjectDetailView: View {
         .navigationDestination(item: $selectedChat) { conversation in
             ChatView(conversation: conversation, chatProject: project)
         }
-        .sheet(isPresented: $showEditor) {
-            ProjectEditorView(project: project, accountScopeKey: accountScopeKey) { _ in }
-            #if os(macOS)
-            .presentationBackground(Color.bgPrimary)
-            #endif
-        }
-        .sheet(isPresented: $showModelPicker, onDismiss: { deletePendingIfEmpty() }) {
-            ModelPickerView(onSelect: { model in
-                if let conv = pendingConversation {
-                    conv.modelName = model.name
-                    conv.apiProvider = model.provider
-                    do {
-                        try modelContext.save()
-                        pendingConversation = nil
-                        showModelPicker = false
-                        selectedChat = conv
-                    } catch {
-                        persistenceError = "Failed to save model selection."
+        // A single sheet (multiple `.sheet` modifiers on one view is unreliable /
+        // can crash). Navigation to a freshly created chat is deferred to
+        // onDismiss so we never push while the sheet is still dismissing.
+        .sheet(item: $activeSheet, onDismiss: {
+            deletePendingIfEmpty()
+            if let target = pendingNavChat {
+                pendingNavChat = nil
+                selectedChat = target
+            }
+        }) { sheet in
+            switch sheet {
+            case .editor:
+                ProjectEditorView(project: project, accountScopeKey: accountScopeKey) { _ in }
+                    #if os(macOS)
+                    .presentationBackground(Color.bgPrimary)
+                    #endif
+            case .modelPicker:
+                ModelPickerView(onSelect: { model in
+                    if let conv = pendingConversation {
+                        conv.modelName = model.name
+                        conv.apiProvider = model.provider
+                        do {
+                            try modelContext.save()
+                            pendingConversation = nil
+                            pendingNavChat = conv
+                            activeSheet = nil
+                        } catch {
+                            persistenceError = "Failed to save model selection."
+                        }
                     }
-                }
-            }, onCancel: {
-                showModelPicker = false
-            })
-            .macSheetFixedSize(SeerSheetSize.modelPicker)
+                }, onCancel: {
+                    activeSheet = nil
+                })
+                .macSheetFixedSize(SeerSheetSize.modelPicker)
+            }
         }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
@@ -211,7 +237,7 @@ struct ProjectDetailView: View {
             return
         }
         pendingConversation = conversation
-        showModelPicker = true
+        activeSheet = .modelPicker
     }
 
     private func deletePendingIfEmpty() {

@@ -10,9 +10,16 @@ struct ProjectsHomeView: View {
     @Query private var projects: [ChatProject]
     @Query private var conversations: [Conversation]
 
+    private enum EditorTarget: Identifiable {
+        case new
+        case edit(ChatProject)
+        var id: String { if case .edit(let p) = self { return p.id.uuidString } else { return "new" } }
+    }
+
     @State private var selectedProject: ChatProject?
-    @State private var editingProject: ChatProject?
-    @State private var showNewEditor = false
+    @State private var editorTarget: EditorTarget?
+    // Navigate to a newly created project AFTER the editor sheet dismisses.
+    @State private var pendingNavProject: ChatProject?
 
     init(accountScopeKey: String = AccountScope.currentKey()) {
         self.accountScopeKey = accountScopeKey
@@ -55,7 +62,7 @@ struct ProjectsHomeView: View {
                                 Button(role: .destructive) { deleteProject(project) } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
-                                Button { editingProject = project } label: {
+                                Button { editorTarget = .edit(project) } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
                                 .tint(Color.accent)
@@ -73,7 +80,7 @@ struct ProjectsHomeView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .seerLeading) {
-                    Button { showNewEditor = true } label: {
+                    Button { editorTarget = .new } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .ultraLight))
                             .foregroundStyle(Color.accent)
@@ -88,19 +95,28 @@ struct ProjectsHomeView: View {
             .navigationDestination(item: $selectedProject) { project in
                 ProjectDetailView(project: project, accountScopeKey: accountScopeKey)
             }
-            .sheet(isPresented: $showNewEditor) {
-                ProjectEditorView(project: nil, accountScopeKey: accountScopeKey) { created in
-                    selectedProject = created
+            // One sheet for both new + edit; defer navigating into a new project
+            // until the sheet finishes dismissing (pushing during dismiss crashes).
+            .sheet(item: $editorTarget, onDismiss: {
+                if let p = pendingNavProject {
+                    pendingNavProject = nil
+                    selectedProject = p
                 }
-                #if os(macOS)
-                .presentationBackground(Color.bgPrimary)
-                #endif
-            }
-            .sheet(item: $editingProject) { project in
-                ProjectEditorView(project: project, accountScopeKey: accountScopeKey) { _ in }
-                #if os(macOS)
-                .presentationBackground(Color.bgPrimary)
-                #endif
+            }) { target in
+                switch target {
+                case .new:
+                    ProjectEditorView(project: nil, accountScopeKey: accountScopeKey) { created in
+                        pendingNavProject = created
+                    }
+                    #if os(macOS)
+                    .presentationBackground(Color.bgPrimary)
+                    #endif
+                case .edit(let project):
+                    ProjectEditorView(project: project, accountScopeKey: accountScopeKey) { _ in }
+                        #if os(macOS)
+                        .presentationBackground(Color.bgPrimary)
+                        #endif
+                }
             }
         }
     }
@@ -149,7 +165,7 @@ struct ProjectsHomeView: View {
                 .foregroundStyle(Color.textTertiary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
-            Button { showNewEditor = true } label: {
+            Button { editorTarget = .new } label: {
                 Text("+ NEW PROJECT")
                     .font(.appLabel(11))
                     .luxuryTracking()
