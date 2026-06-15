@@ -1,6 +1,19 @@
 import SwiftUI
 import SwiftData
 
+/// Navigation routes for the Projects tab. Deliberately value types keyed by
+/// STABLE UUIDs (ChatProject.id / Conversation.id, assigned at init) — NOT the
+/// @Model objects themselves. A freshly-inserted SwiftData object's identity
+/// changes when it's first saved (temporary → permanent persistent ID); putting
+/// such an object directly in a navigation path/`navigationDestination(item:)`
+/// makes SwiftUI re-invalidate the graph every render, which is what drove the
+/// Projects → pick-model flow into an infinite update loop (main-thread watchdog
+/// hang, 0x8BADF00D). UUID routes are stable, so the graph settles.
+enum ProjectRoute: Hashable {
+    case detail(UUID)   // ChatProject.id
+    case chat(UUID)     // Conversation.id
+}
+
 /// The Projects tab: lightweight context workspaces (name + instructions + context
 /// files) that group normal chats and inject their context on every send. Mirrors
 /// the manticthink website's Projects section.
@@ -16,10 +29,10 @@ struct ProjectsHomeView: View {
         var id: String { if case .edit(let p) = self { return p.id.uuidString } else { return "new" } }
     }
 
-    @State private var selectedProject: ChatProject?
+    // Single navigation stack for the whole tab. Detail and chat both push onto
+    // this one path (by UUID), resolved to models in `.navigationDestination`.
+    @State private var path: [ProjectRoute] = []
     @State private var editorTarget: EditorTarget?
-    // Navigate to a newly created project AFTER the editor sheet dismisses.
-    @State private var pendingNavProject: ChatProject?
 
     init(accountScopeKey: String = AccountScope.currentKey()) {
         self.accountScopeKey = accountScopeKey
@@ -44,7 +57,7 @@ struct ProjectsHomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 Color.bgPrimary.ignoresSafeArea()
                 if projects.isEmpty {
@@ -52,7 +65,7 @@ struct ProjectsHomeView: View {
                 } else {
                     List {
                         ForEach(projects) { project in
-                            Button { selectedProject = project } label: {
+                            Button { path.append(.detail(project.id)) } label: {
                                 projectRow(project)
                             }
                             .buttonStyle(.plain)
@@ -92,21 +105,32 @@ struct ProjectsHomeView: View {
                     #endif
                 }
             }
-            .navigationDestination(item: $selectedProject) { project in
-                ProjectDetailView(project: project, accountScopeKey: accountScopeKey)
-            }
-            // One sheet for both new + edit; defer navigating into a new project
-            // until the sheet finishes dismissing (pushing during dismiss crashes).
-            .sheet(item: $editorTarget, onDismiss: {
-                if let p = pendingNavProject {
-                    pendingNavProject = nil
-                    selectedProject = p
+            // Both destinations are registered ONCE, at the stack root, and keyed
+            // by UUID. Pushed views append routes to `path`; nothing ever holds a
+            // live @Model in the navigation state.
+            .navigationDestination(for: ProjectRoute.self) { route in
+                switch route {
+                case .detail(let projectID):
+                    if let project = projects.first(where: { $0.id == projectID }) {
+                        ProjectDetailView(project: project, accountScopeKey: accountScopeKey, path: $path)
+                    } else {
+                        missingDestination("This project is no longer available.")
+                    }
+                case .chat(let conversationID):
+                    if let conversation = conversations.first(where: { $0.id == conversationID }) {
+                        let owningProject = projects.first(where: { $0.id == conversation.projectID })
+                        ChatView(conversation: conversation, chatProject: owningProject)
+                    } else {
+                        missingDestination("This chat is no longer available.")
+                    }
                 }
-            }) { target in
+            }
+            .sheet(item: $editorTarget) { target in
                 switch target {
                 case .new:
                     ProjectEditorView(project: nil, accountScopeKey: accountScopeKey) { created in
-                        pendingNavProject = created
+                        // Stable id → safe to push immediately; no deferral needed.
+                        path.append(.detail(created.id))
                     }
                     #if os(macOS)
                     .presentationBackground(Color.bgPrimary)
@@ -118,6 +142,17 @@ struct ProjectsHomeView: View {
                         #endif
                 }
             }
+        }
+    }
+
+    private func missingDestination(_ message: String) -> some View {
+        ZStack {
+            Color.bgPrimary.ignoresSafeArea()
+            Text(message)
+                .font(.app(14, weight: .light))
+                .foregroundStyle(Color.textTertiary)
+                .multilineTextAlignment(.center)
+                .padding(40)
         }
     }
 

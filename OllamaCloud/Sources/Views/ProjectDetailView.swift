@@ -3,34 +3,34 @@ import SwiftData
 
 /// Inside a lightweight Project: its grouped chats, an Edit button for the
 /// project's instructions/context files, and a "new chat in this project" action.
+///
+/// Navigation is owned by `ProjectsHomeView`'s single `NavigationStack(path:)`.
+/// This view only APPENDS UUID routes to that shared `path` — it never declares
+/// its own `navigationDestination` and never holds a freshly-created @Model in
+/// navigation state (both were sources of the infinite-update-loop / watchdog
+/// hang that killed the app right after picking a model).
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
     // `let` (not @Bindable): @Model is @Observable, so reading its properties in
     // the body still tracks edits made via the editor sheet.
     let project: ChatProject
     private let accountScopeKey: String
+    @Binding var path: [ProjectRoute]
     // Account-scoped only; projectID is filtered in Swift below. A SwiftData
     // `#Predicate` comparing the optional `projectID` to a UUID crashes at
     // evaluation time, so grouping is done client-side (same as the Chats list).
     @Query private var accountConversations: [Conversation]
 
-    private enum ActiveSheet: Identifiable {
-        case editor
-        case modelPicker
-        var id: Int { self == .editor ? 0 : 1 }
-    }
-
-    @State private var selectedChat: Conversation?
-    @State private var activeSheet: ActiveSheet?
+    @State private var showEditor = false
+    @State private var showModelPicker = false
+    // The chat just created by "new chat in this project", awaiting a model pick.
     @State private var pendingConversation: Conversation?
-    // Chat to navigate to AFTER the model-picker sheet finishes dismissing —
-    // pushing a navigationDestination while a sheet is mid-dismiss crashes SwiftUI.
-    @State private var pendingNavChat: Conversation?
     @State private var persistenceError: String?
 
-    init(project: ChatProject, accountScopeKey: String = AccountScope.currentKey()) {
+    init(project: ChatProject, accountScopeKey: String = AccountScope.currentKey(), path: Binding<[ProjectRoute]>) {
         self.project = project
         self.accountScopeKey = accountScopeKey
+        self._path = path
         _accountConversations = Query(
             filter: #Predicate<Conversation> { conversation in
                 conversation.accountScopeKey == accountScopeKey || conversation.accountScopeKey == ""
@@ -56,7 +56,7 @@ struct ProjectDetailView: View {
                 } else {
                     List {
                         ForEach(projectConversations) { conversation in
-                            Button { selectedChat = conversation } label: {
+                            Button { path.append(.chat(conversation.id)) } label: {
                                 chatRow(conversation)
                             }
                             .buttonStyle(.plain)
@@ -82,7 +82,7 @@ struct ProjectDetailView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: .seerTrailing) {
-                Button { activeSheet = .editor } label: {
+                Button { showEditor = true } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 15, weight: .ultraLight))
                         .foregroundStyle(Color.textSecondary)
@@ -93,44 +93,34 @@ struct ProjectDetailView: View {
                 #endif
             }
         }
-        .navigationDestination(item: $selectedChat) { conversation in
-            ChatView(conversation: conversation, chatProject: project)
+        .sheet(isPresented: $showEditor) {
+            ProjectEditorView(project: project, accountScopeKey: accountScopeKey) { _ in }
+                #if os(macOS)
+                .presentationBackground(Color.bgPrimary)
+                #endif
         }
-        // A single sheet (multiple `.sheet` modifiers on one view is unreliable /
-        // can crash). Navigation to a freshly created chat is deferred to
-        // onDismiss so we never push while the sheet is still dismissing.
-        .sheet(item: $activeSheet, onDismiss: {
-            deletePendingIfEmpty()
-            if let target = pendingNavChat {
-                pendingNavChat = nil
-                selectedChat = target
-            }
-        }) { sheet in
-            switch sheet {
-            case .editor:
-                ProjectEditorView(project: project, accountScopeKey: accountScopeKey) { _ in }
-                    #if os(macOS)
-                    .presentationBackground(Color.bgPrimary)
-                    #endif
-            case .modelPicker:
-                ModelPickerView(onSelect: { model in
-                    if let conv = pendingConversation {
-                        conv.modelName = model.name
-                        conv.apiProvider = model.provider
-                        do {
-                            try modelContext.save()
-                            pendingConversation = nil
-                            pendingNavChat = conv
-                            activeSheet = nil
-                        } catch {
-                            persistenceError = "Failed to save model selection."
-                        }
-                    }
-                }, onCancel: {
-                    activeSheet = nil
-                })
-                .macSheetFixedSize(SeerSheetSize.modelPicker)
-            }
+        // Model picker mirrors the (loop-free) Chats-tab pattern: pick → set the
+        // model → push the chat by its stable id → dismiss. No onDismiss→push
+        // deferral, no @Model in the nav path.
+        .sheet(isPresented: $showModelPicker, onDismiss: deletePendingIfEmpty) {
+            ModelPickerView(onSelect: { model in
+                guard let conv = pendingConversation else { showModelPicker = false; return }
+                conv.modelName = model.name
+                conv.apiProvider = model.provider
+                do {
+                    try modelContext.save()
+                } catch {
+                    persistenceError = "Failed to save model selection."
+                    return
+                }
+                let chatID = conv.id
+                pendingConversation = nil
+                path.append(.chat(chatID))
+                showModelPicker = false
+            }, onCancel: {
+                showModelPicker = false
+            })
+            .macSheetFixedSize(SeerSheetSize.modelPicker)
         }
         .alert("Storage Error", isPresented: Binding(
             get: { persistenceError != nil },
@@ -237,7 +227,7 @@ struct ProjectDetailView: View {
             return
         }
         pendingConversation = conversation
-        activeSheet = .modelPicker
+        showModelPicker = true
     }
 
     private func deletePendingIfEmpty() {
@@ -251,7 +241,6 @@ struct ProjectDetailView: View {
     }
 
     private func deleteChat(_ conversation: Conversation) {
-        if selectedChat?.id == conversation.id { selectedChat = nil }
         modelContext.delete(conversation)
         do {
             try modelContext.save()
