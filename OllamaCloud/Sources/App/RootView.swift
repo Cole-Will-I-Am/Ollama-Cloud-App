@@ -114,17 +114,11 @@ struct MainAppView: View {
                 ZStack {
                     Color.bgPrimary.ignoresSafeArea()
                     VStack(spacing: 14) {
-                        #if os(macOS)
                         Image("SeerEmblem")
                             .resizable()
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .frame(height: 48)
-                        #else
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 36, weight: .ultraLight))
-                            .foregroundStyle(Color.textTertiary)
-                        #endif
                         Text("Let's Party.")
                             .font(.app(14, weight: .light))
                             .foregroundStyle(Color.textTertiary)

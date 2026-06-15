@@ -10,22 +10,26 @@ struct DataSharingConsentView: View {
 
     var body: some View {
         ZStack {
+            // Ambient glow as a non-layout overlay on the background. As a
+            // direct ZStack child its fixed 500pt frame widened the whole stack
+            // past the screen, pushing the disclosure text off the left edge.
             Color.bgPrimary.ignoresSafeArea()
-
-            // Ambient glow, matching the API-key screen.
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.accent.opacity(0.08), Color.clear],
-                        center: .center,
-                        startRadius: 40,
-                        endRadius: 260
-                    )
-                )
-                .frame(width: 500, height: 500)
-                .offset(y: -120)
-                .blur(radius: 40)
-                .allowsHitTesting(false)
+                .overlay(alignment: .top) {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Color.accent.opacity(0.08), Color.clear],
+                                center: .center,
+                                startRadius: 40,
+                                endRadius: 260
+                            )
+                        )
+                        .frame(width: 500, height: 500)
+                        .offset(y: -120)
+                        .blur(radius: 40)
+                        .allowsHitTesting(false)
+                }
+                .clipped()
 
             ScrollView {
                 VStack(spacing: 0) {
@@ -56,6 +60,7 @@ struct DataSharingConsentView: View {
                         .padding(.bottom, 24)
 
                     DataSharingDisclosure()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(20)
                         .chromeCard()
                         .padding(.horizontal, 24)
@@ -210,6 +215,7 @@ struct DataSharingDisclosureSheet: View {
         NavigationStack {
             ScrollView {
                 DataSharingDisclosure()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
             }
             .background(Color.bgPrimary)

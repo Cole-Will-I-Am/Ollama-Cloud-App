@@ -620,9 +620,12 @@ struct ChatView: View {
                 }
                 .padding(.top, 4)
             } else {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 36, weight: .ultraLight))
-                    .foregroundStyle(Color.accent.opacity(0.4))
+                Image("SeerEmblem")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 60, height: 60)
+                    .opacity(0.9)
                 Text("Send a message to begin")
                     .font(.app(15, weight: .light))
                     .foregroundStyle(Color.textSecondary)

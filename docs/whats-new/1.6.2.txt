@@ -1,0 +1,5 @@
+Projects: organize your chats into projects with shared instructions and context files, so the model has the right background on every message.
+
+A refreshed look — a new launch screen and cleaner, on-brand empty states throughout the app.
+
+Stability and polish improvements.

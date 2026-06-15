@@ -188,6 +188,15 @@ jobs:
           set -euo pipefail
           IPA=$(ls "$EXPORT_PATH"/*.ipa | head -n1)
           echo "Uploading $IPA to App Store Connect…"
-          xcrun altool --upload-app -f "$IPA" -t ios \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          # altool can exit 0 even when delivery fails (e.g. a closed version
+          # train), so capture its output and fail explicitly on any error.
+          set +e
+          OUT=$(xcrun altool --upload-app -f "$IPA" -t ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1)
+          CODE=$?
+          echo "$OUT"
+          if [ "$CODE" -ne 0 ] || echo "$OUT" | grep -qiE 'UPLOAD FAILED|ERROR ITMS|Validation failed|VALIDATION_ERROR'; then
+            echo "::error::altool upload failed"
+            exit 1
+          fi
           echo "Upload submitted. The build will appear in TestFlight after Apple finishes processing."
