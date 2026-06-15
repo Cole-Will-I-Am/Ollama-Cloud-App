@@ -25,7 +25,7 @@ struct RootView: View {
     }
 }
 
-/// Top-level sections: Chats, Projects, Codebases, and Debate — each its own tab.
+/// Top-level sections: Chats, Projects, and Debate — each its own tab.
 struct AppTabsView: View {
     var body: some View {
         TabView {
@@ -33,8 +33,6 @@ struct AppTabsView: View {
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
             ProjectsHomeView()
                 .tabItem { Label("Projects", systemImage: "folder") }
-            CodebaseHomeView()
-                .tabItem { Label("Codebases", systemImage: "chevron.left.forwardslash.chevron.right") }
             DebateHomeView()
                 .tabItem { Label("Debate", systemImage: "person.2") }
         }

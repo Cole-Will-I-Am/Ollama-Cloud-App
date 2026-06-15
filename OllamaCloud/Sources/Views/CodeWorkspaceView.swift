@@ -9,7 +9,6 @@ struct CodeWorkspaceView: View {
     @State private var selectedFilePath: String?
     @State private var openFilePaths: [String] = []
     @State private var isChatPanelCollapsed = false
-    @State private var isFilesCollapsed = false
     @State private var sidebarWidth: CGFloat = 200
     @State private var chatPanelHeight: CGFloat = 250
     @State private var projectConversation: Conversation?
@@ -72,9 +71,23 @@ struct CodeWorkspaceView: View {
                     .macPointingCursor()
                     #endif
 
-                    // Compact (iPhone) now embeds Files + Code + Chat inline as a
-                    // three-pane stack, so the old folder/chat sheet buttons are
-                    // gone; regular width (iPad) already embeds them too.
+                    #if os(iOS)
+                    // Compact layout only: in regular width (iPad) the file
+                    // tree and chat panel are already embedded — these sheets
+                    // would duplicate them (with a second streaming service).
+                    if isCompact {
+                        Button { showFileTreeSheet = true } label: {
+                            Image(systemName: "folder")
+                                .font(.system(size: 15, weight: .light))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        Button { showChatSheet = true } label: {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 15, weight: .light))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                    }
+                    #endif
                     Button { exportProject() } label: {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 15, weight: .light))
@@ -250,102 +263,12 @@ struct CodeWorkspaceView: View {
 
     // MARK: - Compact Layout (iPhone)
 
-    // A single vertical column — Files (tree) on top, Code (editor) in the
-    // middle, Chat (Builder/Reviewer thread) pinned at the bottom — mirroring the
-    // manticthink website's mobile Codebases view. Files and Chat collapse so the
-    // editor can take the screen when needed.
     private var compactLayout: some View {
-        GeometryReader { geo in
-            compactStack(totalHeight: geo.size.height)
-        }
-    }
-
-    private func compactStack(totalHeight: CGFloat) -> some View {
-        let chatHeight = isChatPanelCollapsed ? 44 : max(240, totalHeight * 0.42)
-        return VStack(spacing: 0) {
-            compactFilesPane
-
+        VStack(spacing: 0) {
+            tabBar
             Divider().background(Color.surface)
-
-            VStack(spacing: 0) {
-                tabBar
-                Divider().background(Color.surface)
-                editorArea
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if let conversation = projectConversation {
-                Divider().background(Color.surface)
-                ProjectChatPanel(
-                    conversation: conversation,
-                    project: project,
-                    isCollapsed: $isChatPanelCollapsed,
-                    codeOutput: codeOutput
-                )
-                .frame(height: chatHeight)
-            }
+            editorArea
         }
-    }
-
-    /// Collapsible FILES section for the compact layout (header always visible).
-    private var compactFilesPane: some View {
-        let fileCount = project.files.filter { !$0.isDirectory }.count
-        return VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { isFilesCollapsed.toggle() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .rotationEffect(.degrees(isFilesCollapsed ? 0 : 90))
-                            .foregroundStyle(Color.textTertiary)
-                        Text("FILES")
-                            .font(.appLabel(10))
-                            .luxuryTracking()
-                            .foregroundStyle(Color.textTertiary)
-                        Text("\(fileCount)")
-                            .font(.appLabel(9))
-                            .foregroundStyle(Color.textTertiary.opacity(0.7))
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                Button { createNewFile(inDirectory: nil) } label: {
-                    Image(systemName: "doc.badge.plus")
-                        .font(.system(size: 14, weight: .light))
-                        .foregroundStyle(Color.accent)
-                }
-                Button { showFileImporter = true } label: {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.system(size: 14, weight: .light))
-                        .foregroundStyle(Color.accent)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-            if !isFilesCollapsed {
-                Divider().background(Color.surface)
-                FileTreeView(
-                    files: project.files,
-                    selectedPath: $selectedFilePath,
-                    onDelete: { file in deleteFile(file) },
-                    onRename: { file, newName in renameFile(file, to: newName) },
-                    onNewFile: { dir in createNewFile(inDirectory: dir) }
-                )
-                .frame(height: 132)
-                .onChange(of: selectedFilePath) { _, newPath in
-                    if let newPath, !openFilePaths.contains(newPath),
-                       project.files.contains(where: { $0.path == newPath && !$0.isDirectory }) {
-                        openFilePaths.append(newPath)
-                    }
-                }
-            }
-        }
-        .background(Color.bgSecondary)
     }
 
     // MARK: - File Tree Sidebar
@@ -498,25 +421,6 @@ struct CodeWorkspaceView: View {
                         .font(.app(12, weight: .light))
                         .foregroundStyle(Color.textTertiary)
                         .multilineTextAlignment(.center)
-
-                    #if os(iOS)
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { isChatPanelCollapsed = false }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "hammer.fill")
-                                .font(.system(size: 11))
-                            Text("START BUILDING")
-                                .font(.appLabel(11))
-                                .luxuryTracking()
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 11)
-                        .background(Capsule().fill(LinearGradient.accentGradient))
-                    }
-                    .padding(.top, 6)
-                    #endif
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.bgPrimary)
