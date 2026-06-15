@@ -353,7 +353,22 @@ struct SettingsView: View {
                     // About
                     section("ABOUT") {
                         VStack(spacing: 0) {
-                            row("Version", appVersionDisplay)
+                            VStack(spacing: 8) {
+                                Image("SeerEmblem")
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 46, height: 46)
+                                Text("SEER")
+                                    .font(.appLabel(13))
+                                    .luxuryTracking()
+                                    .foregroundStyle(Color.textPrimary)
+                                Text(appVersionDisplay)
+                                    .font(.app(12))
+                                    .foregroundStyle(Color.textTertiary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 22)
                             Rectangle().fill(Color.border).frame(height: 0.5).padding(.leading, 16)
                             row("API", AppConfig.apiHostDisplayName)
                         }
