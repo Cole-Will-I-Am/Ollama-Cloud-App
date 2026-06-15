@@ -10,6 +10,9 @@ struct ProjectListView: View {
     private let title: String
     private let newButtonTitle: String
     private let emptyTitle: String
+    /// When set, the create buttons defer to this instead of the built-in
+    /// pick-a-model flow (used by Codebases, which has its own creation sheet).
+    private let onCreate: (() -> Void)?
     @State private var showModelPicker = false
     @State private var pendingProject: Project?
     @State private var persistenceError: String?
@@ -26,7 +29,8 @@ struct ProjectListView: View {
         accountScopeKey: String = AccountScope.currentKey(),
         title: String = "Projects",
         newButtonTitle: String = "+ NEW PROJECT",
-        emptyTitle: String = "No Projects"
+        emptyTitle: String = "No Projects",
+        onCreate: (() -> Void)? = nil
     ) {
         self._selection = selection
         self._createToken = createToken
@@ -34,6 +38,7 @@ struct ProjectListView: View {
         self.title = title
         self.newButtonTitle = newButtonTitle
         self.emptyTitle = emptyTitle
+        self.onCreate = onCreate
         _projects = Query(
             filter: #Predicate<Project> { project in
                 project.accountScopeKey == accountScopeKey
@@ -58,7 +63,7 @@ struct ProjectListView: View {
         .animation(.easeOut(duration: 0.14), value: selection?.id)
         .safeAreaInset(edge: .bottom) {
             Button {
-                newProject()
+                createTapped()
             } label: {
                 Text(newButtonTitle)
                     .font(.appLabel(11))
@@ -86,7 +91,7 @@ struct ProjectListView: View {
         .toolbar {
             ToolbarItem(placement: .seerLeading) {
                 Button {
-                    newProject()
+                    createTapped()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .ultraLight))
@@ -167,7 +172,7 @@ struct ProjectListView: View {
                         .font(.app(15, weight: .light))
                         .foregroundStyle(Color.textTertiary)
                     Button {
-                        newProject()
+                        createTapped()
                     } label: {
                         Text(newButtonTitle)
                             .font(.appLabel(11))
@@ -283,6 +288,16 @@ struct ProjectListView: View {
         }
         #endif
         return Color.clear
+    }
+
+    /// Entry point for the create buttons: defer to an injected creation flow
+    /// (Codebases) when provided, otherwise use the built-in pick-a-model flow.
+    private func createTapped() {
+        if let onCreate {
+            onCreate()
+        } else {
+            newProject()
+        }
     }
 
     private func newProject() {
