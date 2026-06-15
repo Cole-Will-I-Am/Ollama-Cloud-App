@@ -8,10 +8,16 @@ import SwiftData
 /// Builder's next turn, for N rounds or until the Reviewer approves.
 @MainActor
 final class CodebaseBuilder: ObservableObject {
+    enum Phase: Equatable { case idle, building, reviewing }
+
     @Published var isRunning = false
+    @Published var phase: Phase = .idle
     @Published var statusText: String?
     /// Live-streamed reviewer critique for the current round (transient UI only).
     @Published var reviewerText: String = ""
+    /// Model names driving the current run, for labeling the chat thread.
+    @Published var builderModel: String = ""
+    @Published var reviewerModel: String = ""
     @Published var error: String?
 
     private var cancelled = false
@@ -20,6 +26,7 @@ final class CodebaseBuilder: ObservableObject {
         cancelled = true
         isRunning = false
         statusText = nil
+        phase = .idle
     }
 
     /// - Parameter streaming: the caller's chat service, reused so the Builder's
@@ -45,11 +52,14 @@ final class CodebaseBuilder: ObservableObject {
         let effectiveReviewer = reviewerModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? conversation.modelName
             : reviewerModel
+        builderModel = conversation.modelName
+        self.reviewerModel = effectiveReviewer
 
         var builderInput = userText
 
         for round in 0..<totalRounds {
             if cancelled { break }
+            phase = .building
             statusText = "Builder working… (round \(round + 1)/\(totalRounds))"
 
             // Refresh the Builder's system prompt with the current codebase context.
@@ -84,6 +94,7 @@ final class CodebaseBuilder: ObservableObject {
             let changed = changedPaths(before: before, project: project)
             let summary = lastAssistantContent(conversation)
 
+            phase = .reviewing
             statusText = "Reviewer reviewing… (round \(round + 1)/\(totalRounds))"
             reviewerText = ""
             let critique = await streamReview(
@@ -100,6 +111,7 @@ final class CodebaseBuilder: ObservableObject {
             builderInput = "Reviewer feedback on the previous changes:\n\(critique)"
         }
 
+        phase = .idle
         statusText = nil
         reviewerText = ""
         isRunning = false

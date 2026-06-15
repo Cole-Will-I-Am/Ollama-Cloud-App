@@ -18,7 +18,9 @@ struct ProjectChatPanel: View {
     @StateObject private var builder = CodebaseBuilder()
     @State private var input = ""
     @State private var lastFenceCount = 0
-    @State private var buildMode = false
+    // Codebases default to the Builder(+Reviewer) loop — that's the point of the
+    // workspace — so the chat shows the models building/reviewing by default.
+    @State private var buildMode = true
     @State private var showBuildConfig = false
     @FocusState private var isInputFocused: Bool
 
@@ -39,10 +41,6 @@ struct ProjectChatPanel: View {
 
                 if let error = streaming.error {
                     errorBanner(error)
-                }
-
-                if builder.isRunning, !builder.reviewerText.isEmpty {
-                    reviewerBanner
                 }
 
                 buildControls
@@ -110,21 +108,44 @@ struct ProjectChatPanel: View {
         .padding(.vertical, 6)
     }
 
-    private var reviewerBanner: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("REVIEWER")
+    /// A small "ROLE · model" label shown above a model's live output, so you can
+    /// see which model is acting (mirrors the website's "REVIEWER · KIMI-K2.6").
+    private func turnTag(_ role: String, _ model: String) -> some View {
+        HStack(spacing: 5) {
+            Text(role)
                 .font(.appLabel(9))
                 .luxuryTracking()
                 .foregroundStyle(Color.accent)
-            Text(builder.reviewerText)
-                .font(.app(12, weight: .light))
-                .foregroundStyle(Color.textSecondary)
-                .lineLimit(4)
+            if !model.isEmpty {
+                Text("· \(model)")
+                    .font(.appLabel(9))
+                    .foregroundStyle(Color.textTertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The Reviewer's live turn in the thread: its label + streaming critique, or
+    /// an animated typing indicator while it spins up.
+    private var reviewerLiveBubble: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            turnTag("REVIEWER", builder.reviewerModel)
+            if builder.reviewerText.isEmpty {
+                TypingIndicator()
+            } else {
+                Text(builder.reviewerText)
+                    .font(.app(13, weight: .light))
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.accentSoft.opacity(0.4))
+        .background(Color.accentSoft.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var toggleBar: some View {
@@ -170,12 +191,20 @@ struct ProjectChatPanel: View {
                         thinkingBubble
                     }
 
+                    if builder.phase == .building, streaming.isStreaming {
+                        turnTag("BUILDER", builder.builderModel)
+                    }
+
                     if streaming.isStreaming && !streaming.streamingContent.isEmpty {
                         streamingBubble
                     }
 
                     if streaming.isExecutingTool {
                         ToolExecutionIndicator(status: streaming.toolCallStatus)
+                    }
+
+                    if builder.phase == .reviewing {
+                        reviewerLiveBubble
                     }
 
                     Color.clear.frame(height: 1).id("chatBottom")
@@ -187,6 +216,12 @@ struct ProjectChatPanel: View {
                 withAnimation {
                     proxy.scrollTo("chatBottom", anchor: .bottom)
                 }
+            }
+            .onChange(of: builder.reviewerText) {
+                proxy.scrollTo("chatBottom", anchor: .bottom)
+            }
+            .onChange(of: builder.phase) {
+                proxy.scrollTo("chatBottom", anchor: .bottom)
             }
             .onChange(of: streaming.streamingContent) {
                 proxy.scrollTo("chatBottom", anchor: .bottom)
