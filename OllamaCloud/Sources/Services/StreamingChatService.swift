@@ -467,11 +467,18 @@ class StreamingChatService: ObservableObject {
                                 (resultText, isError) = ("Unknown tool: \(toolName)", true)
                                 #endif
                             }
-                            _ = isError // Error state is conveyed through the result text to the model
+                            // Surface tool failures to the UI (ToolResultBubble flags
+                            // errors by a leading marker) and keep them clear to the
+                            // model — prefix failures that don't already carry one.
+                            let storedText = (isError
+                                && !resultText.hasPrefix("Tool error:")
+                                && !resultText.hasPrefix("Unknown tool:"))
+                                ? "Tool error: " + resultText
+                                : resultText
 
                             let toolResultMessage = Message(
                                 role: "tool",
-                                content: resultText,
+                                content: storedText,
                                 toolName: toolName,
                                 toolCallID: call.id,
                                 parentID: currentLeafID,

@@ -138,6 +138,11 @@ struct SeerCodeBlock: View {
             if canExecute {
                 inputButton
                 runButton
+            } else if executableLanguage != nil {
+                // Runnable language, just not on this platform (e.g. Python/Shell on iOS).
+                Text("Runs on macOS")
+                    .font(.appLabel(9))
+                    .foregroundStyle(Color.textTertiary)
             }
 
             copyButton
@@ -356,10 +361,11 @@ struct SeerCodeBlock: View {
 
     private func outputPanel(_ result: CodeExecutionResult) -> some View {
         let status = statusPresentation(for: result)
+        let combined = [result.stdout, result.stderr].filter { !$0.isEmpty }.joined(separator: "\n")
         return VStack(alignment: .leading, spacing: 0) {
             Rectangle().fill(Color.border).frame(height: 0.5)
 
-            HStack {
+            HStack(spacing: 12) {
                 Label(
                     status.title,
                     systemImage: status.systemImage
@@ -368,6 +374,21 @@ struct SeerCodeBlock: View {
                 .foregroundStyle(status.color)
 
                 Spacer()
+
+                if !combined.isEmpty {
+                    Button {
+                        copyText(combined)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    #if os(macOS)
+                    .macPointingCursor()
+                    #endif
+                    .accessibilityLabel("Copy output")
+                }
 
                 Button {
                     withAnimation(.snappy(duration: 0.15)) { executionResult = nil }
@@ -385,37 +406,39 @@ struct SeerCodeBlock: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            if !result.stdout.isEmpty {
-                Text(result.stdout)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
-                    #if os(macOS)
-                    .font(.appMono(12))
-                    #endif
-                    .foregroundStyle(Color.textPrimary)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, result.stderr.isEmpty ? 10 : 4)
+            // Scroll long output instead of letting it grow the chat unbounded.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !result.stdout.isEmpty {
+                        Text(result.stdout)
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            #if os(macOS)
+                            .font(.appMono(12))
+                            #endif
+                            .foregroundStyle(Color.textPrimary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if !result.stderr.isEmpty {
+                        Text(result.stderr)
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            #if os(macOS)
+                            .font(.appMono(12))
+                            #endif
+                            .foregroundStyle(Color.danger)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if result.timedOut {
+                        Text("Execution timed out")
+                            .font(.app(11))
+                            .foregroundStyle(Color.danger.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
             }
-
-            if !result.stderr.isEmpty {
-                Text(result.stderr)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
-                    #if os(macOS)
-                    .font(.appMono(12))
-                    #endif
-                    .foregroundStyle(Color.danger)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-            }
-
-            if result.timedOut {
-                Text("Execution timed out after 10 seconds")
-                    .font(.app(11))
-                    .foregroundStyle(Color.danger.opacity(0.8))
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-            }
+            .frame(maxHeight: 240)
         }
         .background(Color.bgPrimary.opacity(0.6))
     }
@@ -484,12 +507,14 @@ struct SeerCodeBlock: View {
         }
     }
 
-    private func copyCode() {
+    private func copyCode() { copyText(normalizedContent) }
+
+    private func copyText(_ s: String) {
         #if os(iOS)
-        UIPasteboard.general.string = normalizedContent
+        UIPasteboard.general.string = s
         #elseif os(macOS)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(normalizedContent, forType: .string)
+        NSPasteboard.general.setString(s, forType: .string)
         #endif
         Haptic.notification(.success)
     }

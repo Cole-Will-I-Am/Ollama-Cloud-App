@@ -390,8 +390,9 @@ enum CodeExecutionService {
                   };
                   g.queueMicrotask = function (cb) { g.setTimeout(cb, 0); };
                   g.__seerDrainTimers = function () {
-                    var n = 0;
+                    var n = 0, t0 = Date.now(), BUDGET = 6000;   // stop well before the 10s watchdog
                     while (T.length) {
+                      if (Date.now() - t0 > BUDGET) { if (g.console) console.warn('[timers stopped after ' + BUDGET + 'ms of work — reduce ticks or per-tick work]'); break; }
                       var k = 0;
                       for (var i = 1; i < T.length; i++) if (T[i].t < T[k].t) k = i;
                       var x = T[k];
@@ -399,7 +400,7 @@ enum CodeExecutionService {
                       now = x.t;
                       if (x.iv != null) x.t = now + x.iv; else T.splice(k, 1);
                       try { x.cb.apply(g, x.a || []); } catch (e) { if (g.console) console.error(String(e)); }
-                      if (++n >= MAX_CB) break;
+                      if (++n >= MAX_CB) { if (g.console) console.warn('[timers stopped after ' + MAX_CB + ' callbacks]'); break; }
                     }
                   };
                 })(typeof globalThis !== "undefined" ? globalThis : this);

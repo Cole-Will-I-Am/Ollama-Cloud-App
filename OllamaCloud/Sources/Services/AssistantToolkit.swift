@@ -133,6 +133,11 @@ enum AssistantToolkit {
             let parts = h.split(separator: ".")
             if parts.count >= 2, let second = Int(parts[1]), (16...31).contains(second) { return true }
         }
+        // IPv6 private ranges: ULA (fc00::/7) and link-local (fe80::/10).
+        if h.contains(":") {
+            if h.hasPrefix("fc") || h.hasPrefix("fd") { return true }
+            if h.hasPrefix("fe8") || h.hasPrefix("fe9") || h.hasPrefix("fea") || h.hasPrefix("feb") { return true }
+        }
         return false
     }
 
@@ -141,8 +146,10 @@ enum AssistantToolkit {
     private static func strippedText(_ html: String) -> String {
         var s = html
         for tag in ["script", "style", "noscript", "svg"] {
+            // (?s) = dot matches newlines, so multi-line <script>/<style> blocks
+            // are fully removed (otherwise their raw JS/CSS leaks into the text).
             s = s.replacingOccurrences(
-                of: "<\(tag)[^>]*>.*?</\(tag)>",
+                of: "(?s)<\(tag)[^>]*>.*?</\(tag)>",
                 with: " ",
                 options: [.regularExpression, .caseInsensitive]
             )
@@ -171,7 +178,7 @@ enum AssistantToolkit {
 
     private static let runJavaScriptTool = ChatTool(function: ChatToolFunction(
         name: "run_javascript",
-        description: "Execute JavaScript in a secure on-device sandbox and return its console output. Use for calculations, data transforms, JSON/string work, and algorithms. Print results with console.log.",
+        description: "Execute JavaScript in a secure on-device sandbox and return its console output. Browser-style JS (no Node.js, require, or fs); setTimeout/setInterval are supported and run on a fast virtual clock. Use for calculations, data transforms, JSON/string work, algorithms, and short timed simulations. Print results with console.log.",
         parameters: ChatToolParameters(
             required: ["code"],
             properties: ["code": .init(type: "string", description: "JavaScript source to run.")]

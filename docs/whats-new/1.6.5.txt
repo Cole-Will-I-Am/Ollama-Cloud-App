@@ -1,0 +1,8 @@
+SEER 1.6.5 polishes the model's tools and code execution.
+
+IMPROVED
+• Long code output and tool results now scroll — no more cut-off or oversized blocks, with a quick Copy button
+• In-chat code runs more reliably — timed/animated scripts stop cleanly with a clear message instead of a confusing timeout
+• Reading web pages returns cleaner text, and tool errors are now clearly marked
+
+Your chats stay on your device. Manage data sharing anytime in Settings.

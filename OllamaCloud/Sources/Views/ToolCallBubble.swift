@@ -170,12 +170,16 @@ struct ToolResultBubble: View {
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .transition(.opacity)
                     } else {
-                        Text(content)
-                            .font(.appMono(10, weight: .regular))
-                            .foregroundStyle(Color.textSecondary)
-                            .lineLimit(20)
-                            .textSelection(.enabled)
-                            .transition(.opacity)
+                        // Scroll long tool output instead of hard-capping at 20 lines.
+                        ScrollView {
+                            Text(content)
+                                .font(.appMono(10, weight: .regular))
+                                .foregroundStyle(Color.textSecondary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 220)
+                        .transition(.opacity)
                     }
                 }
             }
