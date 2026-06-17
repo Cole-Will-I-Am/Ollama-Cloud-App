@@ -264,7 +264,7 @@ class StreamingChatService: ObservableObject {
             // (e.g. compute math/data instead of guessing), never recite or
             // advertise them, and don't introduce itself by its capabilities.
             guard let tools, !tools.isEmpty else { return base }
-            let guidance = "You have utility tools available (such as calculating, running code, rendering visuals, or reading a web page). Use them naturally and silently whenever they genuinely improve the answer — for example, compute non-trivial math or data with a tool rather than guessing, and render a visual only when the user actually wants one. Never list, describe, or advertise your tools, don't narrate that you're 'using a tool', and don't introduce yourself by your capabilities — just do it and answer the user directly. For a greeting, reply with one short, friendly sentence."
+            let guidance = "You have utility tools available (such as calculating, running code, rendering visuals, or reading a web page). Use them naturally and silently whenever they genuinely improve the answer — for example, compute non-trivial math or data with a tool rather than guessing, and render a visual only when the user actually wants one. To show a chart or table, call a render_* visual tool — running code only returns text output, so never try to draw a chart from code. Never list, describe, or advertise your tools, don't narrate that you're 'using a tool', and don't introduce yourself by your capabilities — just do it and answer the user directly. For a greeting, reply with one short, friendly sentence."
             return base.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? guidance
                 : "\(base)\n\n\(guidance)"

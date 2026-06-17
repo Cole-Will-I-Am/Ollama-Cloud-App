@@ -367,6 +367,43 @@ enum CodeExecutionService {
                 }
                 ctx.setObject(logFn, forKeyedSubscript: "$$log" as NSString)
                 ctx.evaluateScript("var console = { log: $$log, warn: $$log, error: $$log, info: $$log };")
+
+                // Timer shim: JavaScriptCore has no event loop, so setTimeout/
+                // setInterval don't exist — timer-based "stream over time / tick-
+                // by-tick" code would silently produce nothing. Back them with a
+                // virtual clock that we drain synchronously after the script runs,
+                // so such code actually executes and prints. Bounded by virtual
+                // time + callback count so a bare setInterval can't spin forever.
+                ctx.evaluateScript(#"""
+                (function (g) {
+                  var T = [], now = 0, seq = 1, MAX_CB = 5000, MAX_MS = 30000;
+                  g.setTimeout = function (cb, delay) {
+                    var a = Array.prototype.slice.call(arguments, 2);
+                    var id = seq++; T.push({ id: id, cb: cb, t: now + (delay | 0), iv: null, a: a }); return id;
+                  };
+                  g.setInterval = function (cb, delay) {
+                    var a = Array.prototype.slice.call(arguments, 2);
+                    var id = seq++, d = Math.max(1, delay | 0); T.push({ id: id, cb: cb, t: now + d, iv: d, a: a }); return id;
+                  };
+                  g.clearTimeout = g.clearInterval = function (id) {
+                    for (var i = 0; i < T.length; i++) if (T[i].id === id) { T.splice(i, 1); return; }
+                  };
+                  g.queueMicrotask = function (cb) { g.setTimeout(cb, 0); };
+                  g.__seerDrainTimers = function () {
+                    var n = 0;
+                    while (T.length) {
+                      var k = 0;
+                      for (var i = 1; i < T.length; i++) if (T[i].t < T[k].t) k = i;
+                      var x = T[k];
+                      if (x.t > MAX_MS) break;
+                      now = x.t;
+                      if (x.iv != null) x.t = now + x.iv; else T.splice(k, 1);
+                      try { x.cb.apply(g, x.a || []); } catch (e) { if (g.console) console.error(String(e)); }
+                      if (++n >= MAX_CB) break;
+                    }
+                  };
+                })(typeof globalThis !== "undefined" ? globalThis : this);
+                """#)
                 let inputPrelude = """
                 var __seerInputQueue = \(inputJSON);
                 var __seerGlobal = (typeof globalThis !== "undefined") ? globalThis : this;
@@ -406,6 +443,10 @@ enum CodeExecutionService {
                 }
 
                 let result = ctx.evaluateScript(code)
+
+                // Drain any pending setTimeout/setInterval callbacks (virtual clock)
+                // so timer-based code produces its output before we collect it.
+                _ = ctx.evaluateScript("typeof __seerDrainTimers === 'function' && __seerDrainTimers();")
 
                 // If the last expression produced a value, append it
                 if errorOutput.isEmpty, let val = result, !val.isUndefined, !val.isNull {

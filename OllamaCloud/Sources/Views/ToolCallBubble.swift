@@ -88,6 +88,10 @@ struct ToolResultBubble: View {
     let toolName: String?
     let content: String
     @State private var isExpanded: Bool
+    // Actual rendered height of the visual, reported by the web view. Caps the
+    // inline size; taller content scrolls within the box.
+    @State private var measuredHTMLHeight: CGFloat? = nil
+    private let htmlMaxHeight: CGFloat = 560
 
     init(toolName: String?, content: String) {
         self.toolName = toolName
@@ -157,8 +161,12 @@ struct ToolResultBubble: View {
 
                 if isExpanded {
                     if isTrustedVisualHTML {
-                        HTMLContentView(htmlContent: content)
-                            .frame(height: htmlHeight)
+                        HTMLContentView(htmlContent: content, onHeight: { h in
+                            // Grow to the content's real height, capped; beyond the
+                            // cap the visual scrolls inside its box.
+                            measuredHTMLHeight = min(max(h, 80), htmlMaxHeight)
+                        })
+                            .frame(height: min(measuredHTMLHeight ?? htmlHeight, htmlMaxHeight))
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .transition(.opacity)
                     } else {
