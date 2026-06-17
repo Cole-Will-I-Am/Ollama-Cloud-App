@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 
 /// The streaming (or saved) debate transcript.
 struct DebateRunView: View {
@@ -87,14 +88,22 @@ private struct DebateTurnView: View {
             Text("\(turn.label) · \(turn.model)")
                 .font(.app(11, weight: .medium))
                 .foregroundStyle(accent)
-            Text(turn.text.isEmpty ? "…" : turn.text)
-                .font(.app(15))
-                .foregroundStyle(Color.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
+            if turn.text.isEmpty {
+                Text("…")
+                    .font(.app(15))
+                    .foregroundStyle(Color.textSecondary)
+            } else {
+                // Render markdown (emphasis, lists, paragraphs) like the chat,
+                // so turns read as formatted text instead of one raw block.
+                Markdown(turn.text)
+                    .markdownTheme(.seerAssistant)
+                    .textSelection(.enabled)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, 12)
-        .padding(.vertical, turn.side == "S" ? 8 : 0)
+        .padding(.trailing, 4)
+        .padding(.vertical, turn.side == "S" ? 8 : 2)
         .background(alignment: .leading) {
             Rectangle().fill(accent).frame(width: 2)
         }

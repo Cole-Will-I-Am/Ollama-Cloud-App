@@ -151,10 +151,10 @@ enum DebatePrompts {
             let role = side == "A"
                 ? "the PROPONENT, arguing IN FAVOR of the proposition"
                 : "the OPPONENT, arguing AGAINST the proposition"
-            return "You are \(role) in a structured debate. Topic: \"\(topic)\". Make your strongest case, directly rebut the other side's most recent points, and stay strictly on topic. Be substantive but concise: under 150 words. Do not restate your role, narrate stage directions, or prefix your name — just give the argument in plain persuasive prose."
+            return "You are \(role) in a structured debate. Topic: \"\(topic)\". Make your strongest case, directly rebut the other side's most recent points, and stay strictly on topic. Be substantive but concise: under 150 words. Format for easy reading: 2–3 short paragraphs, lead with your strongest point, and use Markdown **bold** to highlight your single key claim. Do not restate your role, narrate stage directions, or prefix your name."
         }
         let who = side == "A" ? "Analyst A" : "Analyst B"
-        return "You are \(who), one of two thoughtful analysts discussing a question together. Topic: \"\(topic)\". Build on or respectfully challenge the other analyst's most recent points, add fresh angles, and avoid repeating what's already been said. Be concise: under 150 words. Do not prefix your name or narrate stage directions."
+        return "You are \(who), one of two thoughtful analysts discussing a question together. Topic: \"\(topic)\". Build on or respectfully challenge the other analyst's most recent points, add fresh angles, and avoid repeating what's already been said. Be concise: under 150 words, in 2–3 short paragraphs; you may use Markdown **bold** for a key point. Do not prefix your name or narrate stage directions."
     }
 
     static func turnPrompt(topic: String, transcript: [DebateTurn], label: String, mode: DebateMode) -> String {
@@ -169,9 +169,9 @@ enum DebatePrompts {
 
     static func synthesisPersona(mode: DebateMode, topic: String) -> String {
         if mode == .debate {
-            return "You are an impartial moderator closing a debate on: \"\(topic)\". Read the full transcript and write a brief, neutral synthesis: the single strongest point from each side, any genuine common ground, and a balanced judgment of which case was more persuasive and why. Be fair to both sides. Under 180 words. Do not prefix your name."
+            return "You are an impartial moderator closing a debate on: \"\(topic)\". Read the full transcript and write a brief, neutral synthesis. Be fair to both sides; under 180 words. Use short Markdown-bold labels so it's easy to scan, e.g. **Proponent's strongest point:** …, **Opponent's strongest point:** …, **Common ground:** …, **Verdict:** … (who was more persuasive and why). Do not prefix your name."
         }
-        return "You are synthesizing a discussion on: \"\(topic)\". Read the full transcript and summarize the key insights, where the analysts agreed and differed, and the most important takeaway. Neutral and concise — under 180 words. Do not prefix your name."
+        return "You are synthesizing a discussion on: \"\(topic)\". Read the full transcript and write a neutral, easy-to-scan summary under 180 words, using short Markdown-bold labels, e.g. **Key insights:** …, **Where they agreed:** …, **Where they differed:** …, **Takeaway:** … Do not prefix your name."
     }
 
     static func synthesisPrompt(topic: String, transcript: [DebateTurn], mode: DebateMode) -> String {
