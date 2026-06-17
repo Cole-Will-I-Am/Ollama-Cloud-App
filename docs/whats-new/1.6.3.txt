@@ -1,0 +1,7 @@
+SEER 1.6.3 makes the model's charts, tables, and code tools work better.
+
+FIXED
+• Charts and tables now scroll — wide or long ones no longer get cut off at the edge, so you can see every column and row
+• In-chat code is more capable — timed and step-by-step (streaming) scripts now run correctly, so live demos and simulations work
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
