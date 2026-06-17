@@ -381,7 +381,10 @@ enum VisualsToolkit {
             border: 1px solid rgba(255,255,255,0.06);
             border-radius: 12px;
             padding: 16px;
-            overflow: hidden;
+            /* Scroll a too-wide table horizontally instead of clipping its
+               columns (tables that fit still wrap normally — no forced scroll). */
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .plotly-chart { width: 100%; }
         table {
