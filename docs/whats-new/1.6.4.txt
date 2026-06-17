@@ -1,0 +1,8 @@
+SEER 1.6.4 improves the model's visuals, code tools, and AI Debate.
+
+NEW & IMPROVED
+• Charts and tables now scroll — wide or long ones no longer get cut off, so you can see every column and row
+• In-chat code is more capable — timed and step-by-step (streaming) scripts now run correctly, so live demos and simulations work
+• AI Debate is easier to read — formatted text instead of raw markdown, with shorter paragraphs and a clear, scannable closing summary
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
