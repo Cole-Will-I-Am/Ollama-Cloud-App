@@ -366,7 +366,124 @@ enum CodeExecutionService {
                     consoleOutput.append(args.joined(separator: " "))
                 }
                 ctx.setObject(logFn, forKeyedSubscript: "$$log" as NSString)
-                ctx.evaluateScript("var console = { log: $$log, warn: $$log, error: $$log, info: $$log };")
+
+                // Console (with object formatting + console.table), networking stubs,
+                // and the common web globals JavaScriptCore lacks. Without this,
+                // console.log(obj) printed "[object Object]", console.table threw, and
+                // fetch/btoa/crypto were "Can't find variable" errors.
+                ctx.evaluateScript(#"""
+                (function (g) {
+                  function __seerFmt(v, depth) {
+                    depth = depth || 0;
+                    if (v === null) return "null";
+                    var t = typeof v;
+                    if (t === "undefined") return "undefined";
+                    if (t === "string") return depth === 0 ? v : JSON.stringify(v);
+                    if (t === "number" || t === "boolean" || t === "bigint") return String(v);
+                    if (t === "symbol") return v.toString();
+                    if (t === "function") return "[Function" + (v.name ? ": " + v.name : "") + "]";
+                    if (v instanceof Error) return (v.stack ? String(v.stack) : (v.name + ": " + v.message));
+                    try {
+                      var out = JSON.stringify(v, function (k, val) {
+                        if (typeof val === "bigint") return String(val);
+                        if (typeof val === "function") return "[Function]";
+                        if (typeof val === "undefined") return "[undefined]";
+                        return val;
+                      }, 2);
+                      return out === undefined ? String(v) : out;
+                    } catch (e) { return String(v); }
+                  }
+                  g.__seerFmt = __seerFmt;
+                  function emit() {
+                    var parts = [];
+                    for (var i = 0; i < arguments.length; i++) parts.push(__seerFmt(arguments[i], 0));
+                    g.$$log(parts.join(" "));
+                  }
+                  function table(data) {
+                    try {
+                      if (!data || typeof data !== "object") { emit(data); return; }
+                      var isArr = Array.isArray(data);
+                      var indices = isArr ? data.map(function (_, i) { return String(i); }) : Object.keys(data);
+                      var rows = indices.map(function (k) { return data[k]; });
+                      var cols = [];
+                      rows.forEach(function (r) {
+                        if (r && typeof r === "object") Object.keys(r).forEach(function (k) { if (cols.indexOf(k) === -1) cols.push(k); });
+                      });
+                      if (cols.length === 0) { emit(data); return; }
+                      var header = ["(index)"].concat(cols);
+                      var lines = [header];
+                      rows.forEach(function (r, i) {
+                        var line = [indices[i]];
+                        cols.forEach(function (c) { line.push(r && typeof r === "object" && c in r ? String(r[c]) : ""); });
+                        lines.push(line);
+                      });
+                      var widths = header.map(function (_, c) {
+                        return Math.max.apply(null, lines.map(function (l) { return String(l[c]).length; }));
+                      });
+                      var sep = "+" + widths.map(function (w) { return "-".repeat(w + 2); }).join("+") + "+";
+                      var out = [sep];
+                      lines.forEach(function (l, li) {
+                        out.push("| " + l.map(function (cell, c) { var s = String(cell); return s + " ".repeat(widths[c] - s.length); }).join(" | ") + " |");
+                        if (li === 0) out.push(sep);
+                      });
+                      out.push(sep);
+                      g.$$log(out.join("\n"));
+                    } catch (e) { emit(data); }
+                  }
+                  g.console = {
+                    log: emit, info: emit, warn: emit, error: emit, debug: emit,
+                    trace: emit, dir: emit, group: emit, groupCollapsed: emit,
+                    groupEnd: function () {}, table: table,
+                    assert: function (cond) {
+                      if (!cond) {
+                        var rest = Array.prototype.slice.call(arguments, 1);
+                        g.$$log("Assertion failed" + (rest.length ? ": " + rest.map(function (x) { return __seerFmt(x, 0); }).join(" ") : ""));
+                      }
+                    },
+                    count: function () {}, time: function () {}, timeEnd: function () {}, clear: function () {}
+                  };
+                  var NET_MSG = "Network requests aren't available in SEER's offline code sandbox. Use inline data instead of fetch()/XMLHttpRequest.";
+                  if (!g.fetch) g.fetch = function () { return Promise.reject(new Error(NET_MSG)); };
+                  if (!g.XMLHttpRequest) g.XMLHttpRequest = function () {
+                    return { open: function () {}, setRequestHeader: function () {}, send: function () { throw new Error(NET_MSG); }, addEventListener: function () {} };
+                  };
+                  if (!g.btoa) g.btoa = function (input) {
+                    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                    var str = String(input), out = "";
+                    for (var i = 0; i < str.length;) {
+                      var c1 = str.charCodeAt(i++), c2 = str.charCodeAt(i++), c3 = str.charCodeAt(i++);
+                      var e1 = c1 >> 2, e2 = ((c1 & 3) << 4) | (c2 >> 4);
+                      var e3 = isNaN(c2) ? 64 : (((c2 & 15) << 2) | (c3 >> 6)), e4 = isNaN(c3) ? 64 : (c3 & 63);
+                      out += chars.charAt(e1) + chars.charAt(e2) + chars.charAt(e3) + chars.charAt(e4);
+                    }
+                    return out;
+                  };
+                  if (!g.atob) g.atob = function (input) {
+                    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                    var str = String(input).replace(/=+$/, ""), out = "";
+                    for (var bc = 0, bs = 0, buffer, i = 0; (buffer = str.charAt(i++));) {
+                      var idx = chars.indexOf(buffer);
+                      if (idx === -1) continue;
+                      bs = bc % 4 ? bs * 64 + idx : idx;
+                      if (bc++ % 4) out += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
+                    }
+                    return out;
+                  };
+                  if (!g.crypto) g.crypto = {};
+                  if (!g.crypto.randomUUID) g.crypto.randomUUID = function () {
+                    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+                      var r = Math.random() * 16 | 0, v = c === "x" ? r : (r & 0x3 | 0x8);
+                      return v.toString(16);
+                    });
+                  };
+                  if (!g.crypto.getRandomValues) g.crypto.getRandomValues = function (arr) {
+                    for (var i = 0; i < arr.length; i++) arr[i] = Math.floor(Math.random() * 256);
+                    return arr;
+                  };
+                  if (!g.structuredClone) g.structuredClone = function (v) { return JSON.parse(JSON.stringify(v)); };
+                  if (!g.performance) g.performance = { now: function () { return Date.now(); } };
+                })(typeof globalThis !== "undefined" ? globalThis : this);
+                """#)
 
                 // Timer shim: JavaScriptCore has no event loop, so setTimeout/
                 // setInterval don't exist — timer-based "stream over time / tick-
@@ -445,12 +562,32 @@ enum CodeExecutionService {
 
                 let result = ctx.evaluateScript(code)
 
-                // Drain any pending setTimeout/setInterval callbacks (virtual clock)
-                // so timer-based code produces its output before we collect it.
+                // A top-level `async` IIFE (or any expression) evaluates to a Promise.
+                // Don't print "[object Promise]"; instead settle it best-effort and log
+                // its resolution/rejection. JavaScriptCore drains promise microtasks at
+                // script boundaries, so by the next evaluateScript the handler has run.
+                var resultIsThenable = false
+                if let val = result, val.isObject,
+                   let thenFn = val.objectForKeyedSubscript("then"), thenFn.isObject {
+                    resultIsThenable = true
+                    ctx.setObject(val, forKeyedSubscript: "__seerResultPromise" as NSString)
+                    _ = ctx.evaluateScript(#"""
+                    (function () {
+                      var p = __seerResultPromise;
+                      if (p && typeof p.then === "function") {
+                        p.then(function (v) { if (v !== undefined && v !== null) console.log(v); },
+                               function (e) { console.error(e && e.stack ? String(e.stack) : String(e)); });
+                      }
+                    })();
+                    """#)
+                }
+
+                // Drain any pending setTimeout/setInterval callbacks (virtual clock) and
+                // give queued promise reactions a chance to run before we collect output.
                 _ = ctx.evaluateScript("typeof __seerDrainTimers === 'function' && __seerDrainTimers();")
 
-                // If the last expression produced a value, append it
-                if errorOutput.isEmpty, let val = result, !val.isUndefined, !val.isNull {
+                // If the last expression produced a (non-Promise) value, append it.
+                if errorOutput.isEmpty, !resultIsThenable, let val = result, !val.isUndefined, !val.isNull {
                     let str = val.toString() ?? ""
                     if !str.isEmpty && !consoleOutput.contains(str) {
                         consoleOutput.append(str)

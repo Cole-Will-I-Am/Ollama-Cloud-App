@@ -1,0 +1,8 @@
+SEER 1.7.0 makes the in-app code runner much smarter.
+
+• Running JavaScript that uses fetch now gives a clear "offline sandbox" message instead of a confusing error
+• Top-level async code shows its real result instead of "[object Promise]"
+• console.log now prints objects and arrays in full, and console.table renders a proper table
+• Added common helpers: btoa/atob, crypto.randomUUID, structuredClone, performance.now, and more console methods
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
