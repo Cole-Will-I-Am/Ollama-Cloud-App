@@ -181,6 +181,16 @@ struct ProjectDetailView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Spacer()
+            Image("SeerEmblem")
+                .resizable()
+                #if os(macOS)
+                .interpolation(.high)
+                #endif
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 30)
+                .opacity(0.85)
+                .accessibilityLabel("SEER")
+                .padding(.bottom, 2)
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 32, weight: .ultraLight))
                 .foregroundStyle(Color.textTertiary)

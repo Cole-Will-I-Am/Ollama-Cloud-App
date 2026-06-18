@@ -24,6 +24,18 @@ struct DebateHomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    // SEER wordmark — brand the Debate tab to match Chats & Projects.
+                    Image("SeerLogo")
+                        .resizable()
+                        #if os(macOS)
+                        .interpolation(.high)
+                        #endif
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 26)
+                        .opacity(0.9)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 4)
+                        .accessibilityLabel("SEER")
                     intro
                     topicField
                     matchup

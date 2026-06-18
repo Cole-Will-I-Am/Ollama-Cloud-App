@@ -1,0 +1,6 @@
+SEER 1.6.6 brings a more cohesive look.
+
+• The SEER mark now appears on the Projects and Debate tabs, matching the rest of the app
+• Small visual refinements
+
+Your chats stay on your device. Manage data sharing anytime in Settings.

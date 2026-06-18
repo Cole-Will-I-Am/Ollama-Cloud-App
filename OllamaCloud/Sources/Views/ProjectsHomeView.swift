@@ -188,33 +188,49 @@ struct ProjectsHomeView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "folder")
-                .font(.system(size: 36, weight: .ultraLight))
-                .foregroundStyle(Color.textTertiary)
-            Text("No Projects")
-                .font(.app(15, weight: .light))
-                .foregroundStyle(Color.textTertiary)
-            Text("Group chats with shared instructions and context files.")
-                .font(.app(12))
-                .foregroundStyle(Color.textTertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            Button { editorTarget = .new } label: {
-                Text("+ NEW PROJECT")
-                    .font(.appLabel(11))
-                    .luxuryTracking()
-                    .foregroundStyle(Color.accent)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.accentSoft, in: Capsule())
+        ZStack {
+            // SEER logo, dead-center of the Projects screen.
+            Image("SeerLogo")
+                .resizable()
+                #if os(macOS)
+                .interpolation(.high)
+                #endif
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 34)
+                .opacity(0.9)
+                .accessibilityLabel("SEER")
+
+            // Prompts/actions anchored toward the bottom so the logo stays centered.
+            VStack(spacing: 14) {
+                Image(systemName: "folder")
+                    .font(.system(size: 36, weight: .ultraLight))
+                    .foregroundStyle(Color.textTertiary)
+                Text("No Projects")
+                    .font(.app(15, weight: .light))
+                    .foregroundStyle(Color.textTertiary)
+                Text("Group chats with shared instructions and context files.")
+                    .font(.app(12))
+                    .foregroundStyle(Color.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                Button { editorTarget = .new } label: {
+                    Text("+ NEW PROJECT")
+                        .font(.appLabel(11))
+                        .luxuryTracking()
+                        .foregroundStyle(Color.accent)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.accentSoft, in: Capsule())
+                }
+                #if os(macOS)
+                .buttonStyle(.plain)
+                .macPointingCursor()
+                #endif
             }
-            #if os(macOS)
-            .buttonStyle(.plain)
-            .macPointingCursor()
-            #endif
-            .padding(.top, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, 64)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func deleteProject(_ project: ChatProject) {
