@@ -1,0 +1,6 @@
+SEER 1.6.7 polishes the Projects tab.
+
+• The SEER mark now stays visible at the top of Projects even when you have projects — not just on the empty screen
+• Small visual refinements
+
+Your chats stay on your device. Manage data sharing anytime in Settings.

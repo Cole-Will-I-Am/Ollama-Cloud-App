@@ -104,6 +104,19 @@ struct ProjectsHomeView: View {
                     .macPointingCursor()
                     #endif
                 }
+                // SEER wordmark, centered in the nav bar — brands the Projects tab in
+                // every state (the empty state keeps its own dead-center wordmark).
+                ToolbarItem(placement: .principal) {
+                    Image("SeerLogo")
+                        .resizable()
+                        #if os(macOS)
+                        .interpolation(.high)
+                        #endif
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 18)
+                        .opacity(0.9)
+                        .accessibilityLabel("SEER")
+                }
             }
             // Both destinations are registered ONCE, at the stack root, and keyed
             // by UUID. Pushed views append routes to `path`; nothing ever holds a
