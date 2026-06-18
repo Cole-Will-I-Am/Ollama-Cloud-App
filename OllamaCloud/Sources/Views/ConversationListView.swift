@@ -119,6 +119,9 @@ struct ConversationListView: View {
         }
         #endif
         .navigationTitle("Chats")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear {
             backfillLegacyConversationScopes()
             clearSelectionIfOutOfScope()
@@ -137,6 +140,18 @@ struct ConversationListView: View {
                 .buttonStyle(.plain)
                 .macPointingCursor()
                 #endif
+            }
+            // SEER wordmark in the nav bar, same size as the Projects & Debate tabs.
+            ToolbarItem(placement: .principal) {
+                Image("SeerLogo")
+                    .resizable()
+                    #if os(macOS)
+                    .interpolation(.high)
+                    #endif
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 18)
+                    .opacity(0.9)
+                    .accessibilityLabel("SEER")
             }
         }
         .sheet(isPresented: $showModelPicker, onDismiss: {

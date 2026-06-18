@@ -1,0 +1,6 @@
+SEER 1.6.9 makes the whole app feel of a piece.
+
+• The SEER mark now sits at the top of every tab — Chats, Projects, and Debate
+• Consistent title bars across the app for a cleaner, more uniform look
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
