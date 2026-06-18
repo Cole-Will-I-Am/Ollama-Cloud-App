@@ -1,0 +1,6 @@
+SEER 1.6.8 tidies up the Debate tab.
+
+• The Debate tab now shows the SEER mark in the title bar, matching the Projects tab
+• Removed the oversized logo above the form for a cleaner layout
+
+Your chats stay on your device. Manage data sharing anytime in Settings.
