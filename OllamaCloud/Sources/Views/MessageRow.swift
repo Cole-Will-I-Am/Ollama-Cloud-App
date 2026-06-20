@@ -16,6 +16,8 @@ struct MessageRow: View {
     let onEditPrompt: ((Message) -> Void)?
     let onRegenerate: ((Message) -> Void)?
     let onSwitchBranch: ((Message) -> Void)?
+    /// Export the given Markdown (with a title) as a PDF. Driven by ChatView.
+    var onExportPDF: ((String, String) -> Void)? = nil
     @State private var isThinkingExpanded = false
     @State private var showAssistantMarkdown = true
     @State private var assistantMarkdownDebounceTask: Task<Void, Never>?
@@ -117,8 +119,7 @@ struct MessageRow: View {
                     }
                     #endif
             } else {
-                Markdown(message.content)
-                    .markdownTheme(.seerAssistant)
+                AssistantMessageBody(content: message.content, onExportPDF: onExportPDF)
                     .textSelection(.enabled)
                     #if os(macOS)
                     .transaction { transaction in
@@ -140,6 +141,11 @@ struct MessageRow: View {
                     onRegenerate?(message)
                 } label: {
                     Label("Regenerate", systemImage: "arrow.clockwise")
+                }
+                Button {
+                    onExportPDF?(message.content, DocumentParser.title(for: message.content))
+                } label: {
+                    Label("Export PDF", systemImage: "arrow.down.doc")
                 }
             }
             .onAppear {

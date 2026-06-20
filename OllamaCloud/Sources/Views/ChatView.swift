@@ -140,21 +140,40 @@ struct ChatView: View {
             }
             #if os(macOS)
             ToolbarItem(placement: .seerTrailing) {
-                Button {
-                    exportConversationMarkdown()
+                Menu {
+                    Button {
+                        exportConversationMarkdown()
+                    } label: {
+                        Label("Export as Markdown", systemImage: "doc.plaintext")
+                    }
+                    Button {
+                        exportPDF(markdown: markdownExportContent, title: conversation.title)
+                    } label: {
+                        Label("Export as PDF", systemImage: "arrow.down.doc")
+                    }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 15, weight: .ultraLight))
                         .foregroundStyle(Color.textSecondary)
                         .frame(minWidth: 26, minHeight: 26)
                 }
-                .buttonStyle(.plain)
+                .menuStyle(.borderlessButton)
                 .macPointingCursor()
+                .disabled(conversation.messages.isEmpty)
             }
             #else
             ToolbarItem(placement: .seerTrailing) {
-                Button {
-                    shareConversation()
+                Menu {
+                    Button {
+                        shareConversation()
+                    } label: {
+                        Label("Share as Markdown", systemImage: "doc.plaintext")
+                    }
+                    Button {
+                        exportPDF(markdown: markdownExportContent, title: conversation.title)
+                    } label: {
+                        Label("Share as PDF", systemImage: "arrow.down.doc")
+                    }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 15, weight: .ultraLight))
@@ -439,6 +458,9 @@ struct ChatView: View {
                                         },
                                         onSwitchBranch: { target in
                                             switchBranch(to: target)
+                                        },
+                                        onExportPDF: { markdown, title in
+                                            exportPDF(markdown: markdown, title: title)
                                         }
                                     )
                                         .id(message.id)
@@ -1711,6 +1733,40 @@ struct ChatView: View {
         }
 
         return content
+    }
+
+    /// Render Markdown to a PDF and present it — iOS share sheet, macOS save panel.
+    /// Used by per-message export, the document card, and the conversation toolbar.
+    private func exportPDF(markdown: String, title: String) {
+        Task { @MainActor in
+            guard let url = await PDFExporter.shared.makePDF(markdown: markdown, title: title) else {
+                exportError = "Couldn't build the PDF."
+                Haptic.notification(.error)
+                return
+            }
+            #if os(iOS)
+            exportShareItem = ExportShareItem(url: url)
+            Haptic.impact()
+            #elseif os(macOS)
+            let panel = NSSavePanel()
+            panel.canCreateDirectories = true
+            panel.nameFieldStringValue = url.lastPathComponent
+            if let pdfType = UTType(filenameExtension: "pdf") {
+                panel.allowedContentTypes = [pdfType]
+            }
+            guard panel.runModal() == .OK, let dest = panel.url else { return }
+            do {
+                if FileManager.default.fileExists(atPath: dest.path) {
+                    try FileManager.default.removeItem(at: dest)
+                }
+                try FileManager.default.copyItem(at: url, to: dest)
+                Haptic.notification(.success)
+            } catch {
+                exportError = error.localizedDescription
+                Haptic.notification(.error)
+            }
+            #endif
+        }
     }
 
     #if os(iOS)

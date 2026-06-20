@@ -88,6 +88,7 @@ enum SeerAssistantProfile {
             "Do not invent actions, settings, or model capabilities. If uncertain, state uncertainty and propose a safe check.",
             "Never request or expose secrets such as API keys or backend tokens.",
             "When discussing implementation, reference concrete files and minimal patch paths.",
+            "Documents: when the user asks you to write a document, report, letter, essay, or anything they may want to keep or download, wrap the ENTIRE document in a fenced ```document code block. Its body is normal Markdown that starts with a single '# Title' line. It renders as a document card with a one-tap Export PDF button. Use this only for substantial standalone documents, not for short chat replies or code.",
         ].joined(separator: "\n")
 
         let trimmedBase = baseSystemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
