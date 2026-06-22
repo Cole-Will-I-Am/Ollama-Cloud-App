@@ -284,6 +284,11 @@ struct ChatView: View {
                 Button("GitHub Repository") {
                     showGitHubBrowser = true
                 }
+                if AppConfig.reasoningScaffoldsEnabled {
+                    Button(activeScaffoldDisplayName != nil ? "Change Reasoning Scaffold" : "Reasoning Scaffold") {
+                        showScaffoldLibrary = true
+                    }
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Attach images, local text files, or GitHub repository files as context for your next message.")
@@ -957,31 +962,8 @@ struct ChatView: View {
                     .macPointingCursor()
                     #endif
                     .disabled(streaming.isStreaming)
-                    .accessibilityLabel("Add attachment")
-                    .accessibilityHint("Attach photos, local files, or GitHub repository files to your next message")
-
-                    if AppConfig.reasoningScaffoldsEnabled {
-                        Button {
-                            showScaffoldLibrary = true
-                        } label: {
-                            Image(systemName: "brain")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(Color.accent)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .background(
-                                    Circle()
-                                        .fill(Color.accentSoft)
-                                        .overlay(Circle().stroke(Color.border, lineWidth: 0.5))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        #if os(macOS)
-                        .macPointingCursor()
-                        #endif
-                        .disabled(streaming.isStreaming)
-                        .accessibilityLabel("Reasoning scaffold")
-                        .accessibilityHint("Choose or change the reasoning scaffold for this chat")
-                    }
+                    .accessibilityLabel("Add")
+                    .accessibilityHint("Attach photos, files, or GitHub repository files, or choose a reasoning scaffold, for your next message")
 
                     TextField("", text: $input, prompt: Text(inputPlaceholder).foregroundStyle(Color.textTertiary), axis: .vertical)
                         .font(.app(15))
