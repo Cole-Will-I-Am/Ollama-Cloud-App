@@ -63,6 +63,48 @@ final class ModelBehaviorTests: XCTestCase {
         )
     }
 
+    // A reasoning model that emitted only thinking (empty content) on a clean finish should
+    // have that thinking promoted to the visible answer — otherwise the message renders with
+    // no answer bubble, only a collapsed THINKING panel ("I can't see your output").
+    func testEmptyContentWithThinkingPromotesThinkingToAnswer() {
+        let resolved = StreamingChatService.resolveStreamOutput(
+            content: "",
+            thinking: "Question 2: Is it a concrete noun?",
+            cancelled: false,
+            failed: false
+        )
+        XCTAssertEqual(resolved.content, "Question 2: Is it a concrete noun?")
+        XCTAssertEqual(resolved.thinking, "")
+    }
+
+    // Well-behaved responses (non-empty content) keep content and thinking separate.
+    func testNonEmptyContentLeavesThinkingInItsOwnChannel() {
+        let resolved = StreamingChatService.resolveStreamOutput(
+            content: "Question 2: Is it a concrete noun?",
+            thinking: "The user said yes, so it's a noun. Continue.",
+            cancelled: false,
+            failed: false
+        )
+        XCTAssertEqual(resolved.content, "Question 2: Is it a concrete noun?")
+        XCTAssertEqual(resolved.thinking, "The user said yes, so it's a noun. Continue.")
+    }
+
+    // Cancelled or failed streams are NOT promoted — the cancel path renders its own
+    // "[stopped during thinking]" placeholder, and a failure surfaces an error instead.
+    func testCancelledOrFailedEmptyContentIsNotPromoted() {
+        let cancelled = StreamingChatService.resolveStreamOutput(
+            content: "", thinking: "partial reasoning", cancelled: true, failed: false
+        )
+        XCTAssertEqual(cancelled.content, "")
+        XCTAssertEqual(cancelled.thinking, "partial reasoning")
+
+        let failed = StreamingChatService.resolveStreamOutput(
+            content: "", thinking: "partial reasoning", cancelled: false, failed: true
+        )
+        XCTAssertEqual(failed.content, "")
+        XCTAssertEqual(failed.thinking, "partial reasoning")
+    }
+
     func testSeerMergedPromptIncludesPlatformCapabilityGuidance() throws {
         try XCTSkipIf(!AppConfig.seerModelEnabled, "SEER profile disabled in this environment")
 

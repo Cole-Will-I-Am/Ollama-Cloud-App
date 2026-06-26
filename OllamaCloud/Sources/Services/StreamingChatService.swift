@@ -578,6 +578,20 @@ class StreamingChatService: ObservableObject {
 
             let wasCancelled = Task.isCancelled
 
+            // Recovery: some reasoning models (e.g. deepseek-v4-flash) intermittently emit
+            // their ENTIRE reply — including the final answer — in the `thinking` channel and
+            // leave `content` empty, which would persist as a message with no visible answer
+            // (only a collapsed THINKING panel — "I can't see your output"). Promote the
+            // thinking to be the answer when we finished cleanly with thinking but no content.
+            let resolvedOutput = StreamingChatService.resolveStreamOutput(
+                content: streamingContent,
+                thinking: streamingThinking,
+                cancelled: wasCancelled,
+                failed: streamFailure != nil
+            )
+            streamingContent = resolvedOutput.content
+            streamingThinking = resolvedOutput.thinking
+
             // Persist the assistant message if we got content — but never write
             // into a conversation that was deleted mid-stream. A deleted+saved
             // SwiftData model has a nil modelContext; resurrecting it corrupts
@@ -706,6 +720,26 @@ class StreamingChatService: ObservableObject {
             currentID = message.parentID
         }
         return nil
+    }
+
+    /// Resolves the final (content, thinking) pair to persist once a stream completes.
+    ///
+    /// Some reasoning models (e.g. deepseek-v4-flash) intermittently emit their entire
+    /// reply — including the final answer — in the `thinking` channel and leave `content`
+    /// empty. Persisting that verbatim yields a message with no visible answer, only a
+    /// collapsed THINKING panel. When a stream finished cleanly (not cancelled, no failure)
+    /// with thinking but no content, promote the thinking to be the answer so there is
+    /// always a visible response. Well-behaved responses (non-empty content) are unchanged.
+    nonisolated static func resolveStreamOutput(
+        content: String,
+        thinking: String,
+        cancelled: Bool,
+        failed: Bool
+    ) -> (content: String, thinking: String) {
+        if !cancelled, !failed, content.isEmpty, !thinking.isEmpty {
+            return (thinking, "")
+        }
+        return (content, thinking)
     }
 
     nonisolated static func buildOutboundMessages(

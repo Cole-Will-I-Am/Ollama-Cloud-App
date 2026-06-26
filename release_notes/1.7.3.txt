@@ -1,0 +1,1 @@
+Fixes a bug where some reasoning models could occasionally show their reply only inside the Thinking panel, leaving the message looking blank. The model's answer now always appears in the chat.
